@@ -1,6 +1,5 @@
 import { Resend } from 'resend';
 
-const resend = new Resend(process.env.RESEND_API_KEY ?? '');
 const FROM = process.env.EMAIL_FROM ?? 'Archangels Club <noreply@archangels.club>';
 const BASE_URL = process.env.CLIENT_URL ?? 'http://localhost:3000';
 
@@ -67,6 +66,7 @@ async function send(to: string, subject: string, html: string): Promise<boolean>
     console.log(`[email:dev] To: ${to} | Subject: ${subject}`);
     return true;
   }
+  const resend = new Resend(process.env.RESEND_API_KEY);
   try {
     await resend.emails.send({ from: FROM, to, subject, html });
     return true;
