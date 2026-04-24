@@ -22,7 +22,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [role, setRole] = useState<UserRole>('fan');
 
   // signup only
-  const [username, setUsername] = useState('');
+  const [name, setName] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [dateOfBirth, setDateOfBirth] = useState('');
@@ -52,8 +52,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   function validateSignup(): string[] {
     const errs: string[] = [];
     if (!email || !email.includes('@')) errs.push('A valid email address is required.');
-    if (!username || username.length < 3) errs.push('Username must be at least 3 characters.');
-    if (/\s/.test(username)) errs.push('Username cannot contain spaces.');
+    if (!name || name.trim().length < 2) errs.push('Name must be at least 2 characters.');
     if (!password || password.length < 8) errs.push('Password must be at least 8 characters.');
     if (password !== confirmPassword) errs.push('Passwords do not match.');
     if (!dateOfBirth) errs.push('Date of birth is required.');
@@ -83,14 +82,13 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     setErrors([]);
     setLoading(true);
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'https://archangels-club-production.up.railway.app';
-      console.log('Submitting access request to:', `${apiUrl}/api/access-request`);
-      const res = await fetch(`${apiUrl}/api/access-request`, {
+      console.log('sending request');
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/access-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name: username, reason }),
+        body: JSON.stringify({ email, name, reason }),
       });
-      console.log('Access request response:', res.status);
+      console.log('response received', res.status);
       const data = await res.json();
       if (!res.ok) {
         setErrors([data.error ?? 'Something went wrong. Please try again.']);
@@ -296,8 +294,8 @@ export default function AuthPage({ mode }: { mode: Mode }) {
             <form onSubmit={handleSignup} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs text-arc-secondary mb-1.5">Username *</label>
-                  <input type="text" value={username} onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s/g, ''))} placeholder="yourhandle" className="input-dark" required />
+                  <label className="block text-xs text-arc-secondary mb-1.5">Name *</label>
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} placeholder="Your name" className="input-dark" required />
                 </div>
                 <div>
                   <label className="block text-xs text-arc-secondary mb-1.5">Email Address *</label>
