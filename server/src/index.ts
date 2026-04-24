@@ -11,7 +11,7 @@ import videoRoutes from './routes/video.js';
 import notificationRoutes from './routes/notifications.js';
 
 const app = express();
-const PORT = process.env.PORT ?? 4000;
+const PORT = process.env.PORT || 8080;
 
 app.use(cors({
   origin: ['http://localhost:3000', process.env.CLIENT_URL ?? ''].filter(Boolean),
@@ -44,10 +44,8 @@ app.get('/api/health/db', async (_req, res) => {
 async function start() {
   try {
     await runMigrations();
-    app.listen(PORT, () => {
-      console.log(`\n  ✦ Archangels Club API running on http://localhost:${PORT}`);
-      console.log(`  ✦ Database: PostgreSQL (Neon)`);
-      console.log(`  ✦ Health: http://localhost:${PORT}/api/health/db\n`);
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on port ${PORT}`);
     });
   } catch (err) {
     console.error('Failed to start server:', err);
