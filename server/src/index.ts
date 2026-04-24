@@ -9,6 +9,7 @@ import adminRoutes from './routes/admin.js';
 import keyRoutes from './routes/keys.js';
 import videoRoutes from './routes/video.js';
 import notificationRoutes from './routes/notifications.js';
+import accessRequestRoutes from './routes/accessRequests.js';
 
 const app = express();
 const PORT = Number(process.env.PORT);
@@ -30,6 +31,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/keys', keyRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/access-request', accessRequestRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API' });

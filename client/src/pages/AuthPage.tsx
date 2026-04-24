@@ -76,17 +76,30 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     }, 900);
   }
 
-  function handleSignup(e: React.FormEvent) {
+  async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
     const errs = validateSignup();
     if (errs.length) { setErrors(errs); return; }
     setErrors([]);
     setLoading(true);
-    setTimeout(() => {
-      // Signup creates account with pending status — does NOT log user in
-      setLoading(false);
+    try {
+      const res = await fetch('/api/access-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, username, reason }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrors([data.error ?? 'Something went wrong. Please try again.']);
+        return;
+      }
+      // Only mark complete after the request is persisted
       setSignupComplete(true);
-    }, 1000);
+    } catch {
+      setErrors(['Unable to reach the server. Please check your connection and try again.']);
+    } finally {
+      setLoading(false);
+    }
   }
 
   // ─── Signup success / pending state ───────────────────────────────────────
