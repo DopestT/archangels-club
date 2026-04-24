@@ -1,4 +1,4 @@
-import { db } from '../db/schema.js';
+import { query, queryOne, execute } from '../db/schema.js';
 import { randomUUID } from 'crypto';
 
 export type NotificationType =
@@ -29,22 +29,35 @@ export interface Notification {
   created_at: string;
 }
 
+export interface NotificationPreferences {
+  user_id: string;
+  email_enabled: boolean;
+  sms_enabled: boolean;
+  in_app_enabled: boolean;
+  email_new_content: boolean;
+  email_drops: boolean;
+  email_purchases: boolean;
+  email_weekly_summary: boolean;
+  sms_drops: boolean;
+  sms_major_events: boolean;
+}
+
 // ─── Create ───────────────────────────────────────────────────────────────────
 
-export function createInAppNotification(opts: {
+export async function createInAppNotification(opts: {
   userId: string;
   type: NotificationType;
   title: string;
   message: string;
   actionLabel?: string;
   actionUrl?: string;
-}): Notification {
+}): Promise<Notification> {
   const id = randomUUID();
-  db.prepare(`
-    INSERT INTO notifications (id, user_id, type, channel, title, message, action_label, action_url, status)
-    VALUES (?, ?, ?, 'in_app', ?, ?, ?, ?, 'unread')
-  `).run(id, opts.userId, opts.type, opts.title, opts.message, opts.actionLabel ?? null, opts.actionUrl ?? null);
-
+  await execute(
+    `INSERT INTO notifications (id, user_id, type, channel, title, message, action_label, action_url, status)
+     VALUES ($1, $2, $3, 'in_app', $4, $5, $6, $7, 'unread')`,
+    [id, opts.userId, opts.type, opts.title, opts.message, opts.actionLabel ?? null, opts.actionUrl ?? null]
+  );
   return {
     id,
     user_id: opts.userId,
@@ -60,73 +73,79 @@ export function createInAppNotification(opts: {
 
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
-export function getUserNotifications(userId: string, limit = 50): Notification[] {
-  return db.prepare(`
-    SELECT id, user_id, type, title, message, action_label, action_url, status, created_at
-    FROM notifications
-    WHERE user_id = ? AND channel = 'in_app'
-    ORDER BY created_at DESC
-    LIMIT ?
-  `).all(userId, limit) as Notification[];
+export async function getUserNotifications(userId: string, limit = 50): Promise<Notification[]> {
+  return query<Notification>(
+    `SELECT id, user_id, type, title, message, action_label, action_url, status, created_at
+     FROM notifications
+     WHERE user_id = $1 AND channel = 'in_app'
+     ORDER BY created_at DESC
+     LIMIT $2`,
+    [userId, limit]
+  );
 }
 
-export function getUnreadCount(userId: string): number {
-  const row = db.prepare(`
-    SELECT COUNT(*) as n FROM notifications
-    WHERE user_id = ? AND channel = 'in_app' AND status = 'unread'
-  `).get(userId) as { n: number };
-  return row.n;
+export async function getUnreadCount(userId: string): Promise<number> {
+  const row = await queryOne<{ n: string }>(
+    `SELECT COUNT(*) AS n FROM notifications WHERE user_id = $1 AND channel = 'in_app' AND status = 'unread'`,
+    [userId]
+  );
+  return parseInt(row?.n ?? '0', 10);
 }
 
 // ─── Update ───────────────────────────────────────────────────────────────────
 
-export function markAsRead(notificationId: string, userId: string): boolean {
-  const result = db.prepare(`
-    UPDATE notifications SET status = 'read'
-    WHERE id = ? AND user_id = ? AND channel = 'in_app'
-  `).run(notificationId, userId);
-  return result.changes > 0;
+export async function markAsRead(notificationId: string, userId: string): Promise<boolean> {
+  const changed = await execute(
+    `UPDATE notifications SET status = 'read' WHERE id = $1 AND user_id = $2 AND channel = 'in_app'`,
+    [notificationId, userId]
+  );
+  return changed > 0;
 }
 
-export function markAllAsRead(userId: string): number {
-  const result = db.prepare(`
-    UPDATE notifications SET status = 'read'
-    WHERE user_id = ? AND channel = 'in_app' AND status = 'unread'
-  `).run(userId);
-  return result.changes;
+export async function markAllAsRead(userId: string): Promise<number> {
+  return execute(
+    `UPDATE notifications SET status = 'read' WHERE user_id = $1 AND channel = 'in_app' AND status = 'unread'`,
+    [userId]
+  );
 }
 
 // ─── Delete ───────────────────────────────────────────────────────────────────
 
-export function deleteNotification(notificationId: string, userId: string): boolean {
-  const result = db.prepare(`
-    DELETE FROM notifications WHERE id = ? AND user_id = ?
-  `).run(notificationId, userId);
-  return result.changes > 0;
+export async function deleteNotification(notificationId: string, userId: string): Promise<boolean> {
+  const changed = await execute(
+    'DELETE FROM notifications WHERE id = $1 AND user_id = $2',
+    [notificationId, userId]
+  );
+  return changed > 0;
 }
 
 // ─── Preferences ─────────────────────────────────────────────────────────────
 
-export interface NotificationPreferences {
-  user_id: string;
-  email_enabled: boolean;
-  sms_enabled: boolean;
-  in_app_enabled: boolean;
-  email_new_content: boolean;
-  email_drops: boolean;
-  email_purchases: boolean;
-  email_weekly_summary: boolean;
-  sms_drops: boolean;
-  sms_major_events: boolean;
+function toPrefs(row: any): NotificationPreferences {
+  return {
+    user_id: row.user_id,
+    email_enabled: !!row.email_enabled,
+    sms_enabled: !!row.sms_enabled,
+    in_app_enabled: !!row.in_app_enabled,
+    email_new_content: !!row.email_new_content,
+    email_drops: !!row.email_drops,
+    email_purchases: !!row.email_purchases,
+    email_weekly_summary: !!row.email_weekly_summary,
+    sms_drops: !!row.sms_drops,
+    sms_major_events: !!row.sms_major_events,
+  };
 }
 
-export function getPreferences(userId: string): NotificationPreferences {
-  const row = db.prepare('SELECT * FROM notification_preferences WHERE user_id = ?').get(userId) as any;
+export async function getPreferences(userId: string): Promise<NotificationPreferences> {
+  const row = await queryOne<any>(
+    'SELECT * FROM notification_preferences WHERE user_id = $1',
+    [userId]
+  );
   if (!row) {
-    // Insert defaults and return them
-    db.prepare(`
-      INSERT OR IGNORE INTO notification_preferences (user_id) VALUES (?)
-    `).run(userId);
+    await execute(
+      `INSERT INTO notification_preferences (user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+      [userId]
+    );
     return {
       user_id: userId,
       email_enabled: true, sms_enabled: false, in_app_enabled: true,
@@ -134,27 +153,29 @@ export function getPreferences(userId: string): NotificationPreferences {
       email_weekly_summary: true, sms_drops: true, sms_major_events: true,
     };
   }
-  return {
-    ...row,
-    email_enabled: !!row.email_enabled, sms_enabled: !!row.sms_enabled,
-    in_app_enabled: !!row.in_app_enabled, email_new_content: !!row.email_new_content,
-    email_drops: !!row.email_drops, email_purchases: !!row.email_purchases,
-    email_weekly_summary: !!row.email_weekly_summary, sms_drops: !!row.sms_drops,
-    sms_major_events: !!row.sms_major_events,
-  };
+  return toPrefs(row);
 }
 
-export function updatePreferences(userId: string, prefs: Partial<Omit<NotificationPreferences, 'user_id'>>): NotificationPreferences {
-  db.prepare(`INSERT OR IGNORE INTO notification_preferences (user_id) VALUES (?)`).run(userId);
+export async function updatePreferences(
+  userId: string,
+  prefs: Partial<Omit<NotificationPreferences, 'user_id'>>
+): Promise<NotificationPreferences> {
+  await execute(
+    `INSERT INTO notification_preferences (user_id) VALUES ($1) ON CONFLICT DO NOTHING`,
+    [userId]
+  );
 
-  const fields = Object.entries(prefs)
-    .map(([k]) => `${k} = ?`)
-    .join(', ');
-  const values = Object.values(prefs).map(v => (typeof v === 'boolean' ? (v ? 1 : 0) : v));
-
-  if (fields) {
-    db.prepare(`UPDATE notification_preferences SET ${fields}, updated_at = datetime('now') WHERE user_id = ?`)
-      .run(...values, userId);
+  if (Object.keys(prefs).length > 0) {
+    let i = 1;
+    const fields = Object.keys(prefs).map((k) => `${k} = $${i++}`).join(', ');
+    const values = [
+      ...Object.values(prefs).map((v) => (typeof v === 'boolean' ? (v ? 1 : 0) : v)),
+      userId,
+    ];
+    await execute(
+      `UPDATE notification_preferences SET ${fields}, updated_at = NOW() WHERE user_id = $${i}`,
+      values
+    );
   }
   return getPreferences(userId);
 }

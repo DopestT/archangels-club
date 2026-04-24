@@ -1,6 +1,6 @@
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
-import { db } from '../db/schema.js';
+import { queryOne } from '../db/schema.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'archangels_dev_secret_change_in_production';
 
@@ -53,12 +53,19 @@ export function requireCreator(req: Request, res: Response, next: NextFunction) 
   next();
 }
 
-export function requireApproved(req: Request, res: Response, next: NextFunction) {
+export async function requireApproved(req: Request, res: Response, next: NextFunction) {
   if (req.auth?.role === 'admin') { next(); return; }
-  const user = db.prepare('SELECT status FROM users WHERE id = ?').get(req.auth!.userId) as any;
-  if (!user || user.status !== 'approved') {
-    res.status(403).json({ error: 'Account not yet approved.', status: user?.status ?? 'unknown' });
-    return;
+  try {
+    const user = await queryOne<{ status: string }>(
+      'SELECT status FROM users WHERE id = $1',
+      [req.auth!.userId]
+    );
+    if (!user || user.status !== 'approved') {
+      res.status(403).json({ error: 'Account not yet approved.', status: user?.status ?? 'unknown' });
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 }

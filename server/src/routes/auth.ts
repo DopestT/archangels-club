@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
-import { db } from '../db/schema.js';
+import { query, queryOne, execute } from '../db/schema.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import crypto from 'crypto';
 
@@ -19,7 +19,10 @@ router.post('/register', async (req, res) => {
       return;
     }
 
-    const existing = db.prepare('SELECT id FROM users WHERE email = ? OR username = ?').get(email, username);
+    const existing = await queryOne(
+      'SELECT id FROM users WHERE email = $1 OR username = $2',
+      [email.toLowerCase(), username.toLowerCase()]
+    );
     if (existing) {
       res.status(409).json({ error: 'Email or username already taken.' });
       return;
@@ -28,10 +31,12 @@ router.post('/register', async (req, res) => {
     const password_hash = await bcrypt.hash(password, 12);
     const id = crypto.randomUUID();
 
-    db.prepare(`
-      INSERT INTO users (id, email, username, password_hash, display_name, role, status, date_of_birth, reason_for_joining)
-      VALUES (?, ?, ?, ?, ?, 'fan', 'pending', ?, ?)
-    `).run(id, email.toLowerCase(), username.toLowerCase(), password_hash, display_name, date_of_birth ?? null, reason_for_joining ?? null);
+    await execute(
+      `INSERT INTO users (id, email, username, password_hash, display_name, role, status, date_of_birth, reason_for_joining)
+       VALUES ($1, $2, $3, $4, $5, 'fan', 'pending', $6, $7)`,
+      [id, email.toLowerCase(), username.toLowerCase(), password_hash, display_name,
+       date_of_birth ?? null, reason_for_joining ?? null]
+    );
 
     res.status(201).json({ message: 'Application received. Your access request is under review.' });
   } catch (err) {
@@ -43,7 +48,10 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
-    const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email?.toLowerCase()) as any;
+    const user = await queryOne<any>(
+      'SELECT * FROM users WHERE email = $1',
+      [email?.toLowerCase()]
+    );
 
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
       res.status(401).json({ error: 'Invalid email or password.' });
@@ -63,14 +71,19 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get('/me', requireAuth, (req, res) => {
-  const user = db.prepare(`
-    SELECT id, email, username, display_name, avatar_url, role, status, is_verified_creator,
-           date_of_birth, reason_for_joining, created_at
-    FROM users WHERE id = ?
-  `).get(req.auth!.userId);
-  if (!user) { res.status(404).json({ error: 'User not found' }); return; }
-  res.json(user);
+router.get('/me', requireAuth, async (req, res) => {
+  try {
+    const user = await queryOne(
+      `SELECT id, email, username, display_name, avatar_url, role, status, is_verified_creator,
+              date_of_birth, reason_for_joining, created_at
+       FROM users WHERE id = $1`,
+      [req.auth!.userId]
+    );
+    if (!user) { res.status(404).json({ error: 'User not found' }); return; }
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch user.' });
+  }
 });
 
 export default router;

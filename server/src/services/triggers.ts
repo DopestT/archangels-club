@@ -4,7 +4,7 @@
  * Each trigger decides which channels fire based on user preferences + timing.
  */
 
-import { db } from '../db/schema.js';
+import { queryOne } from '../db/schema.js';
 import { createInAppNotification, getPreferences } from './notifications.js';
 import {
   sendCreatorWelcome, sendCreatorFirstPostReminder, sendCreatorFirstSale,
@@ -20,7 +20,7 @@ import {
 const BASE_URL = process.env.CLIENT_URL ?? 'http://localhost:3000';
 
 // ─── Time-of-day check ────────────────────────────────────────────────────────
-// Returns true if current time is in a send window (not quiet hours).
+
 function inSendWindow(windowType: 'morning' | 'afternoon' | 'evening'): boolean {
   const h = new Date().getHours();
   if (windowType === 'morning')   return h >= 9  && h < 11;
@@ -29,21 +29,24 @@ function inSendWindow(windowType: 'morning' | 'afternoon' | 'evening'): boolean 
   return true;
 }
 
-// ─── User lookup helpers ──────────────────────────────────────────────────────
+// ─── User lookup ──────────────────────────────────────────────────────────────
 
-function getUserById(userId: string): { email: string; display_name: string; phone?: string } | null {
-  return db.prepare('SELECT email, display_name, phone FROM users WHERE id = ?').get(userId) as any;
+async function getUserById(userId: string): Promise<{ email: string; display_name: string; phone?: string } | null> {
+  return queryOne<{ email: string; display_name: string; phone?: string }>(
+    'SELECT email, display_name, phone FROM users WHERE id = $1',
+    [userId]
+  );
 }
 
 // ─── Creator triggers ─────────────────────────────────────────────────────────
 
 export async function triggerAccountApproved(userId: string, role: 'fan' | 'creator') {
-  const user = getUserById(userId);
+  const user = await getUserById(userId);
   if (!user) return;
-  const prefs = getPreferences(userId);
+  const prefs = await getPreferences(userId);
 
   if (role === 'creator') {
-    createInAppNotification({
+    await createInAppNotification({
       userId,
       type: 'creator_welcome',
       title: "You've been selected",
@@ -53,7 +56,7 @@ export async function triggerAccountApproved(userId: string, role: 'fan' | 'crea
     });
     if (prefs.email_enabled) await sendCreatorWelcome(user.email, user.display_name);
   } else {
-    createInAppNotification({
+    await createInAppNotification({
       userId,
       type: 'user_welcome',
       title: "You're in",
@@ -66,10 +69,7 @@ export async function triggerAccountApproved(userId: string, role: 'fan' | 'crea
 }
 
 export async function triggerCreatorFirstPost(creatorId: string) {
-  const user = getUserById(creatorId);
-  if (!user) return;
-
-  createInAppNotification({
+  await createInAppNotification({
     userId: creatorId,
     type: 'creator_first_post',
     title: "First post submitted",
@@ -80,11 +80,11 @@ export async function triggerCreatorFirstPost(creatorId: string) {
 }
 
 export async function triggerCreatorFirstSale(creatorId: string, amount: number) {
-  const user = getUserById(creatorId);
+  const user = await getUserById(creatorId);
   if (!user) return;
-  const prefs = getPreferences(creatorId);
+  const prefs = await getPreferences(creatorId);
 
-  createInAppNotification({
+  await createInAppNotification({
     userId: creatorId,
     type: 'creator_first_sale',
     title: `First sale — $${amount.toFixed(2)} earned`,
@@ -94,17 +94,17 @@ export async function triggerCreatorFirstSale(creatorId: string, amount: number)
   });
 
   if (prefs.email_enabled) await sendCreatorFirstSale(user.email, user.display_name, amount);
-  if (prefs.sms_enabled && prefs.sms_major_events && (user as any).phone) {
-    await smsCreatorFirstSale((user as any).phone);
+  if (prefs.sms_enabled && prefs.sms_major_events && user.phone) {
+    await smsCreatorFirstSale(user.phone);
   }
 }
 
 export async function triggerCreatorFirstPostReminder(creatorId: string) {
-  const user = getUserById(creatorId);
+  const user = await getUserById(creatorId);
   if (!user) return;
-  const prefs = getPreferences(creatorId);
+  const prefs = await getPreferences(creatorId);
 
-  createInAppNotification({
+  await createInAppNotification({
     userId: creatorId,
     type: 'creator_first_post_reminder',
     title: "Post your first content",
@@ -117,11 +117,11 @@ export async function triggerCreatorFirstPostReminder(creatorId: string) {
 }
 
 export async function triggerCreatorInactivity(creatorId: string, daysSincePost: number) {
-  const user = getUserById(creatorId);
+  const user = await getUserById(creatorId);
   if (!user) return;
-  const prefs = getPreferences(creatorId);
+  const prefs = await getPreferences(creatorId);
 
-  createInAppNotification({
+  await createInAppNotification({
     userId: creatorId,
     type: 'creator_inactivity',
     title: `${daysSincePost} days without a post`,
@@ -136,11 +136,11 @@ export async function triggerCreatorInactivity(creatorId: string, daysSincePost:
 export async function triggerCreatorWeeklySummary(creatorId: string, stats: {
   earnings: number; unlocks: number; newSubscribers: number; topPost: string;
 }) {
-  const user = getUserById(creatorId);
+  const user = await getUserById(creatorId);
   if (!user) return;
-  const prefs = getPreferences(creatorId);
+  const prefs = await getPreferences(creatorId);
 
-  createInAppNotification({
+  await createInAppNotification({
     userId: creatorId,
     type: 'creator_weekly_summary',
     title: `Weekly summary — $${stats.earnings.toFixed(2)} earned`,
@@ -155,11 +155,11 @@ export async function triggerCreatorWeeklySummary(creatorId: string, stats: {
 }
 
 export async function triggerDropScheduled(creatorId: string, dropName: string, dropTime: string) {
-  const user = getUserById(creatorId);
+  const user = await getUserById(creatorId);
   if (!user) return;
-  const prefs = getPreferences(creatorId);
+  const prefs = await getPreferences(creatorId);
 
-  createInAppNotification({
+  await createInAppNotification({
     userId: creatorId,
     type: 'creator_drop_reminder',
     title: `Drop scheduled: ${dropName}`,
@@ -180,12 +180,11 @@ export async function triggerDropLive(opts: {
   followerIds: string[];
 }) {
   const { creatorId, dropName, contentId, followerIds } = opts;
-  const creator = getUserById(creatorId);
+  const creator = await getUserById(creatorId);
   if (!creator) return;
-  const creatorPrefs = getPreferences(creatorId);
+  const creatorPrefs = await getPreferences(creatorId);
 
-  // Notify creator
-  createInAppNotification({
+  await createInAppNotification({
     userId: creatorId,
     type: 'creator_drop_live',
     title: `Your drop is live: ${dropName}`,
@@ -196,18 +195,17 @@ export async function triggerDropLive(opts: {
   if (creatorPrefs.email_enabled && creatorPrefs.email_drops) {
     await sendCreatorDropLive(creator.email, creator.display_name, dropName);
   }
-  if (creatorPrefs.sms_enabled && creatorPrefs.sms_drops && (creator as any).phone) {
-    await smsCreatorDropLive((creator as any).phone, dropName);
+  if (creatorPrefs.sms_enabled && creatorPrefs.sms_drops && creator.phone) {
+    await smsCreatorDropLive(creator.phone, dropName);
   }
 
-  // Notify followers (evening window = highest conversion for drops)
   const shouldSendNow = inSendWindow('evening');
   for (const userId of followerIds) {
-    const user = getUserById(userId);
+    const user = await getUserById(userId);
     if (!user) continue;
-    const prefs = getPreferences(userId);
+    const prefs = await getPreferences(userId);
 
-    createInAppNotification({
+    await createInAppNotification({
       userId,
       type: 'user_drop_alert',
       title: `Drop live: ${dropName}`,
@@ -219,8 +217,8 @@ export async function triggerDropLive(opts: {
     if (shouldSendNow && prefs.email_enabled && prefs.email_drops) {
       await sendUserDropAlert(user.email, user.display_name, dropName, contentId);
     }
-    if (prefs.sms_enabled && prefs.sms_drops && (user as any).phone) {
-      await smsUserDropAlert((user as any).phone, dropName, contentId);
+    if (prefs.sms_enabled && prefs.sms_drops && user.phone) {
+      await smsUserDropAlert(user.phone, dropName, contentId);
     }
   }
 }
@@ -237,11 +235,11 @@ export async function triggerNewContent(opts: {
   const { creatorName, contentId, contentTitle, followerIds } = opts;
 
   for (const userId of followerIds) {
-    const user = getUserById(userId);
+    const user = await getUserById(userId);
     if (!user) continue;
-    const prefs = getPreferences(userId);
+    const prefs = await getPreferences(userId);
 
-    createInAppNotification({
+    await createInAppNotification({
       userId,
       type: 'user_new_content',
       title: `New from ${creatorName}`,
@@ -257,11 +255,11 @@ export async function triggerNewContent(opts: {
 }
 
 export async function triggerUserInactivity(userId: string) {
-  const user = getUserById(userId);
+  const user = await getUserById(userId);
   if (!user) return;
-  const prefs = getPreferences(userId);
+  const prefs = await getPreferences(userId);
 
-  createInAppNotification({
+  await createInAppNotification({
     userId,
     type: 'user_inactivity',
     title: "New content is waiting",
@@ -274,11 +272,11 @@ export async function triggerUserInactivity(userId: string) {
 }
 
 export async function triggerPurchaseConfirmation(userId: string, contentTitle: string, contentId: string) {
-  const user = getUserById(userId);
+  const user = await getUserById(userId);
   if (!user) return;
-  const prefs = getPreferences(userId);
+  const prefs = await getPreferences(userId);
 
-  createInAppNotification({
+  await createInAppNotification({
     userId,
     type: 'user_purchase',
     title: "Access unlocked",
@@ -301,11 +299,11 @@ export async function triggerScarcityAlert(opts: {
   const { contentTitle, contentId, remaining, interestedUserIds } = opts;
 
   for (const userId of interestedUserIds) {
-    const user = getUserById(userId);
+    const user = await getUserById(userId);
     if (!user) continue;
-    const prefs = getPreferences(userId);
+    const prefs = await getPreferences(userId);
 
-    createInAppNotification({
+    await createInAppNotification({
       userId,
       type: 'user_scarcity_alert',
       title: `Only ${remaining} unlocks left`,
@@ -314,8 +312,8 @@ export async function triggerScarcityAlert(opts: {
       actionUrl: `${BASE_URL}/content/${contentId}`,
     });
 
-    if (prefs.sms_enabled && prefs.sms_drops && (user as any).phone) {
-      await smsUserScarcityAlert((user as any).phone, remaining, contentId);
+    if (prefs.sms_enabled && prefs.sms_drops && user.phone) {
+      await smsUserScarcityAlert(user.phone, remaining, contentId);
     }
   }
 }

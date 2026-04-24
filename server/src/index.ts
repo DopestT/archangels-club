@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import { pool, runMigrations } from './db/schema.js';
 import authRoutes from './routes/auth.js';
 import creatorRoutes from './routes/creators.js';
 import contentRoutes from './routes/content.js';
@@ -13,7 +14,7 @@ const app = express();
 const PORT = process.env.PORT ?? 4000;
 
 app.use(cors({
-  origin: ['http://localhost:3000', process.env.CLIENT_URL ?? ''],
+  origin: ['http://localhost:3000', process.env.CLIENT_URL ?? ''].filter(Boolean),
   credentials: true,
 }));
 app.use(express.json());
@@ -31,8 +32,27 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n  ✦ Archangels Club API running on http://localhost:${PORT}`);
-  console.log(`  ✦ Platform fee: 20%`);
-  console.log(`  ✦ Health: http://localhost:${PORT}/api/health\n`);
+app.get('/api/health/db', async (_req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({ ok: true, database: 'connected' });
+  } catch (err) {
+    res.status(503).json({ ok: false, database: 'error', detail: String(err) });
+  }
 });
+
+async function start() {
+  try {
+    await runMigrations();
+    app.listen(PORT, () => {
+      console.log(`\n  ✦ Archangels Club API running on http://localhost:${PORT}`);
+      console.log(`  ✦ Database: PostgreSQL (Neon)`);
+      console.log(`  ✦ Health: http://localhost:${PORT}/api/health/db\n`);
+    });
+  } catch (err) {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  }
+}
+
+start();

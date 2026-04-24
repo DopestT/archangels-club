@@ -8,62 +8,85 @@ import {
 const router = Router();
 router.use(requireAuth);
 
-// GET /api/notifications — paginated list
-router.get('/', (req, res) => {
-  const userId = (req as any).userId as string;
-  const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
-  const items = getUserNotifications(userId, limit);
-  res.json({ notifications: items, unread: getUnreadCount(userId) });
+// GET /api/notifications
+router.get('/', async (req, res) => {
+  try {
+    const userId = req.auth!.userId;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const [items, unread] = await Promise.all([getUserNotifications(userId, limit), getUnreadCount(userId)]);
+    res.json({ notifications: items, unread });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch notifications.' });
+  }
 });
 
-// GET /api/notifications/unread-count — badge count only
-router.get('/unread-count', (req, res) => {
-  const userId = (req as any).userId as string;
-  res.json({ count: getUnreadCount(userId) });
+// GET /api/notifications/unread-count
+router.get('/unread-count', async (req, res) => {
+  try {
+    const count = await getUnreadCount(req.auth!.userId);
+    res.json({ count });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch unread count.' });
+  }
 });
 
 // PATCH /api/notifications/read-all
-router.patch('/read-all', (req, res) => {
-  const userId = (req as any).userId as string;
-  const changed = markAllAsRead(userId);
-  res.json({ changed });
+router.patch('/read-all', async (req, res) => {
+  try {
+    const changed = await markAllAsRead(req.auth!.userId);
+    res.json({ changed });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark all read.' });
+  }
 });
 
 // PATCH /api/notifications/:id/read
-router.patch('/:id/read', (req, res) => {
-  const userId = (req as any).userId as string;
-  const ok = markAsRead(req.params.id, userId);
-  if (!ok) return res.status(404).json({ error: 'Notification not found' });
-  res.json({ ok: true });
+router.patch('/:id/read', async (req, res) => {
+  try {
+    const ok = await markAsRead(req.params.id, req.auth!.userId);
+    if (!ok) { res.status(404).json({ error: 'Notification not found' }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to mark as read.' });
+  }
 });
 
 // DELETE /api/notifications/:id
-router.delete('/:id', (req, res) => {
-  const userId = (req as any).userId as string;
-  const ok = deleteNotification(req.params.id, userId);
-  if (!ok) return res.status(404).json({ error: 'Notification not found' });
-  res.json({ ok: true });
+router.delete('/:id', async (req, res) => {
+  try {
+    const ok = await deleteNotification(req.params.id, req.auth!.userId);
+    if (!ok) { res.status(404).json({ error: 'Notification not found' }); return; }
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete notification.' });
+  }
 });
 
 // GET /api/notifications/preferences
-router.get('/preferences', (req, res) => {
-  const userId = (req as any).userId as string;
-  res.json(getPreferences(userId));
+router.get('/preferences', async (req, res) => {
+  try {
+    res.json(await getPreferences(req.auth!.userId));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch preferences.' });
+  }
 });
 
 // PATCH /api/notifications/preferences
-router.patch('/preferences', (req, res) => {
-  const userId = (req as any).userId as string;
-  const allowed = [
-    'email_enabled', 'sms_enabled', 'in_app_enabled',
-    'email_new_content', 'email_drops', 'email_purchases', 'email_weekly_summary',
-    'sms_drops', 'sms_major_events',
-  ];
-  const update: Record<string, boolean> = {};
-  for (const key of allowed) {
-    if (key in req.body) update[key] = Boolean(req.body[key]);
+router.patch('/preferences', async (req, res) => {
+  try {
+    const allowed = [
+      'email_enabled', 'sms_enabled', 'in_app_enabled',
+      'email_new_content', 'email_drops', 'email_purchases', 'email_weekly_summary',
+      'sms_drops', 'sms_major_events',
+    ];
+    const update: Record<string, boolean> = {};
+    for (const key of allowed) {
+      if (key in req.body) update[key] = Boolean(req.body[key]);
+    }
+    res.json(await updatePreferences(req.auth!.userId, update));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update preferences.' });
   }
-  res.json(updatePreferences(userId, update));
 });
 
 export default router;
