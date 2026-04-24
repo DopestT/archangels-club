@@ -4,6 +4,11 @@ import { execute, queryOne } from '../db/schema.js';
 
 const router = Router();
 
+// GET /api/access-request — health check for this route
+router.get('/', (_req, res) => {
+  res.json({ ok: true, route: 'access-request' });
+});
+
 // POST /api/access-request
 router.post('/', async (req, res) => {
   const { email, name, reason } = req.body;
