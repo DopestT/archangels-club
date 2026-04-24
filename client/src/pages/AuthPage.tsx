@@ -83,17 +83,19 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     setErrors([]);
     setLoading(true);
     try {
-      const res = await fetch('/api/access-request', {
+      const apiUrl = import.meta.env.VITE_API_URL || 'https://archangels-club-production.up.railway.app';
+      console.log('Submitting access request to:', `${apiUrl}/api/access-request`);
+      const res = await fetch(`${apiUrl}/api/access-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, username, reason }),
+        body: JSON.stringify({ email, name: username, reason }),
       });
+      console.log('Access request response:', res.status);
       const data = await res.json();
       if (!res.ok) {
         setErrors([data.error ?? 'Something went wrong. Please try again.']);
         return;
       }
-      // Only mark complete after the request is persisted
       setSignupComplete(true);
     } catch {
       setErrors(['Unable to reach the server. Please check your connection and try again.']);
