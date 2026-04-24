@@ -219,6 +219,18 @@ const DDL = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
+  CREATE TABLE IF NOT EXISTS access_requests (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    username TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
+  CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
+
   CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
   CREATE INDEX IF NOT EXISTS idx_content_creator ON content(creator_id);
   CREATE INDEX IF NOT EXISTS idx_transactions_payer ON transactions(payer_id);
