@@ -11,7 +11,7 @@ import videoRoutes from './routes/video.js';
 import notificationRoutes from './routes/notifications.js';
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = parseInt(process.env.PORT || '8080', 10);
 
 app.use(cors({
   origin: ['http://localhost:3000', process.env.CLIENT_URL ?? ''].filter(Boolean),
