@@ -12,6 +12,9 @@ import notificationRoutes from './routes/notifications.js';
 
 const app = express();
 const PORT = Number(process.env.PORT);
+if (!PORT) {
+  throw new Error("PORT environment variable is required");
+}
 
 app.use(cors({
   origin: ['http://localhost:3000', process.env.CLIENT_URL ?? ''].filter(Boolean),
