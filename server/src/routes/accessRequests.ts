@@ -1,66 +1,49 @@
 import { Router } from 'express';
 import crypto from 'crypto';
-import { query, queryOne, execute } from '../db/schema.js';
+import { execute, queryOne } from '../db/schema.js';
 
 const router = Router();
 
+// POST /api/access-request
 router.post('/', async (req, res) => {
+  const { email, name, reason } = req.body;
+
+  if (!email || !name) {
+    res.status(400).json({ error: 'email and name are required.' });
+    return;
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    res.status(400).json({ error: 'Invalid email address.' });
+    return;
+  }
+
   try {
-    const { email, username, reason } = req.body as {
-      email?: string;
-      username?: string;
-      reason?: string;
-    };
-
-    // Basic field validation
-    if (!email || !email.includes('@')) {
-      res.status(400).json({ error: 'A valid email address is required.' });
-      return;
-    }
-    if (!username || username.trim().length < 3) {
-      res.status(400).json({ error: 'Username must be at least 3 characters.' });
-      return;
-    }
-    if (!reason || reason.trim().length < 20) {
-      res.status(400).json({ error: 'Please provide a reason for joining (min. 20 characters).' });
-      return;
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const normalizedUsername = username.toLowerCase().trim();
-
-    // Check for duplicate email in access_requests
-    const existingRequest = await queryOne<{ id: string }>(
-      'SELECT id FROM access_requests WHERE email = $1',
-      [normalizedEmail]
+    const existing = await queryOne(
+      `SELECT id FROM access_requests WHERE email = $1`,
+      [email.toLowerCase().trim()]
     );
-    if (existingRequest) {
-      res.status(400).json({ error: 'An access request with this email already exists.' });
-      return;
-    }
-
-    // Check for duplicate email or username in users
-    const existingUser = await queryOne<{ id: string }>(
-      'SELECT id FROM users WHERE email = $1 OR username = $2',
-      [normalizedEmail, normalizedUsername]
-    );
-    if (existingUser) {
-      res.status(400).json({ error: 'Email or username is already associated with an existing account.' });
+    if (existing) {
+      res.status(409).json({ error: 'An access request for this email already exists.' });
       return;
     }
 
     const id = crypto.randomUUID();
-
-    await execute(
-      `INSERT INTO access_requests (id, email, username, reason, status)
-       VALUES ($1, $2, $3, $4, 'pending')`,
-      [id, normalizedEmail, normalizedUsername, reason.trim()]
+    const changed = await execute(
+      `INSERT INTO access_requests (id, email, name, reason) VALUES ($1, $2, $3, $4)`,
+      [id, email.toLowerCase().trim(), name.trim(), reason?.trim() ?? '']
     );
+
+    if (changed === 0) {
+      res.status(500).json({ error: 'Failed to save access request.' });
+      return;
+    }
 
     res.status(201).json({ success: true, id });
   } catch (err) {
-    console.error('Access request error:', err);
-    res.status(500).json({ error: 'Failed to submit access request. Please try again.' });
+    console.error('access-request error:', err);
+    res.status(500).json({ error: 'Failed to submit access request.' });
   }
 });
 

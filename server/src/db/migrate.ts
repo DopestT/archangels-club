@@ -222,8 +222,8 @@ const DDL = `
   CREATE TABLE IF NOT EXISTS access_requests (
     id TEXT PRIMARY KEY,
     email TEXT NOT NULL,
-    username TEXT NOT NULL,
-    reason TEXT NOT NULL,
+    name TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
