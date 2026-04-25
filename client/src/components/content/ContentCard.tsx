@@ -23,7 +23,7 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
   const badgeType = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
 
   return (
-    <Link to={`/content/${content.id}`} className="group block">
+    <Link to={`/content/${content.id}`} className="group block" onClick={() => console.log('Clicked content:', content.id, content.title)}>
       <div className="card-surface overflow-hidden transition-all duration-300 group-hover:shadow-gold group-hover:-translate-y-0.5">
         {/* Preview image */}
         <div className="relative h-52 overflow-hidden bg-bg-hover">

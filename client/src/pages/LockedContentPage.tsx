@@ -34,6 +34,7 @@ interface Content {
 
 export default function LockedContentPage() {
   const { id } = useParams<{ id: string }>();
+  console.log('Content ID:', id);
   const [searchParams] = useSearchParams();
   const { isAuthenticated, token, isApproved, isAdmin } = useAuth();
 
@@ -48,14 +49,26 @@ export default function LockedContentPage() {
   const alreadyUnlocked = searchParams.get('unlocked') === 'true';
 
   useEffect(() => {
-    if (!id) return;
+    if (!id) {
+      setError('Invalid content ID');
+      setLoading(false);
+      return;
+    }
+    console.log('Fetching content from:', `${API_BASE}/api/content/${id}`);
     fetch(`${API_BASE}/api/content/${id}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.error) { setError(data.error); return; }
+        if (data.error) {
+          console.error('Missing content:', id, '— server said:', data.error);
+          setError(data.error);
+          return;
+        }
         setContent(data);
       })
-      .catch(() => setError('Failed to load content'))
+      .catch((err) => {
+        console.error('Fetch error for content', id, err);
+        setError('Failed to load content');
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -133,6 +146,7 @@ export default function LockedContentPage() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h2 className="font-serif text-2xl text-white mb-2">{error || 'Content Not Found'}</h2>
+          {id && <p className="text-xs text-arc-muted mb-4 font-mono">ID: {id}</p>}
           <Link to="/explore" className="btn-outline mt-4">Back to Explore</Link>
         </div>
       </div>
