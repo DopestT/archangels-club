@@ -1,4 +1,6 @@
 import { Router } from 'express';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { triggerAccountApproved } from '../services/triggers.js';
@@ -72,10 +74,36 @@ router.post('/users/:id/approve', async (req, res) => {
       [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Request not found.' }); return; }
+
+    const existing = await queryOne<{ id: string }>(
+      'SELECT id FROM users WHERE email = $1',
+      [row.email.toLowerCase()]
+    );
+
+    if (existing) {
+      await execute(
+        `UPDATE users SET status = 'approved' WHERE id = $1`,
+        [existing.id]
+      );
+      console.log(`[admin] Existing user approved: ${row.email}`);
+    } else {
+      const userId = crypto.randomUUID();
+      const username = row.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+      const displayName = row.name || username;
+      const tempHash = await bcrypt.hash('TempPass123!', 10);
+      await execute(
+        `INSERT INTO users (id, email, username, password_hash, display_name, role, status)
+         VALUES ($1, $2, $3, $4, $5, 'fan', 'approved')`,
+        [userId, row.email.toLowerCase(), username, tempHash, displayName]
+      );
+      console.log(`[admin] User created on approval: ${row.email} (id=${userId})`);
+    }
+
     await execute(`UPDATE access_requests SET status = 'approved' WHERE id = $1`, [req.params.id]);
     sendUserWelcome(row.email, row.name).catch(console.error);
     res.json({ success: true });
   } catch (err) {
+    console.error('[admin] approve error:', err);
     res.status(500).json({ error: 'Failed to approve request.' });
   }
 });
