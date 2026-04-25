@@ -90,7 +90,7 @@ export default function ExplorePage() {
       })
       .catch(() => {});
 
-    fetch(`${API_BASE}/api/content?sort=newest&limit=12`)
+    fetch(`${API_BASE}/api/content?sort=rising&limit=12`)
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setRisingContent(data); })
       .catch(() => {});

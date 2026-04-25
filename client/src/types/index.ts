@@ -59,6 +59,9 @@ export interface Content {
   creator_avatar?: string;
   unlock_count?: number;
   creator_subscription_price?: number;
+  score?: number;
+  recent_unlocks_24h?: number;
+  content_revenue?: number;
   // Scarcity & pricing
   max_unlocks?: number;
   current_unlocks?: number;

@@ -7,7 +7,7 @@ import { triggerCreatorFirstPost, triggerCreatorFirstSale, triggerPurchaseConfir
 const router = Router();
 
 // GET /api/content — browse approved content only
-// Query params: sort (trending|newest), limit (max 50), offset, creator_id, exclude_id
+// Query params: sort (trending|newest|rising), limit (max 50), offset, creator_id, exclude_id
 router.get('/', async (req, res) => {
   try {
     const { sort = 'newest', limit: rawLimit, offset: rawOffset, creator_id, exclude_id } = req.query;
@@ -29,23 +29,37 @@ router.get('/', async (req, res) => {
       params.push(exclude_id);
     }
 
+    // score = unlock_count*3 + tip_total*5 + recent_unlocks_24h*4 + (is_new_48h ? 10 : 0)
+    // rising = recent_unlocks_24h*10 + (is_new_7d ? 15 : 0) + unlock_count*2
     const orderBy = sort === 'trending'
-      ? 'unlock_count DESC, c.created_at DESC'
+      ? '(stats.unlock_count * 3 + stats.content_revenue * 5 + stats.recent_unlocks_24h * 4 + CASE WHEN c.created_at >= NOW() - INTERVAL \'48 hours\' THEN 10 ELSE 0 END) DESC, c.created_at DESC'
+      : sort === 'rising'
+      ? '(stats.recent_unlocks_24h * 10 + CASE WHEN c.created_at >= NOW() - INTERVAL \'7 days\' THEN 15 ELSE 0 END + stats.unlock_count * 2) DESC, c.created_at DESC'
       : 'c.created_at DESC';
 
     const rows = await query(`
       SELECT c.*, u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
         cp.subscription_price as creator_subscription_price,
-        (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id) as unlock_count
+        stats.unlock_count,
+        stats.recent_unlocks_24h,
+        stats.content_revenue,
+        (stats.unlock_count * 3 + stats.content_revenue * 5 + stats.recent_unlocks_24h * 4 + CASE WHEN c.created_at >= NOW() - INTERVAL '48 hours' THEN 10 ELSE 0 END) AS score
       FROM content c
       JOIN creator_profiles cp ON cp.id = c.creator_id
       JOIN users u ON u.id = cp.user_id
+      CROSS JOIN LATERAL (
+        SELECT
+          (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id)::int AS unlock_count,
+          (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id AND cu.created_at >= NOW() - INTERVAL '24 hours')::int AS recent_unlocks_24h,
+          (SELECT COALESCE(SUM(t.net_amount), 0) FROM transactions t WHERE t.ref_type = 'content' AND t.ref_id = c.id AND t.status = 'completed') AS content_revenue
+      ) stats
       WHERE c.status = 'approved' AND cp.is_approved = 1 AND cp.application_status = 'approved'${extraWhere}
       ORDER BY ${orderBy}
       LIMIT ${limit} OFFSET ${offsetNum}
     `, params);
     res.json(rows);
   } catch (err) {
+    console.error('[content] GET / error:', err);
     res.status(500).json({ error: 'Failed to fetch content.' });
   }
 });

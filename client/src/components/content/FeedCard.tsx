@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Zap, Image, Video, Music, FileText, Play } from 'lucide-react';
+import { Lock, Zap, Image, Video, Music, FileText, Play, Flame } from 'lucide-react';
 import type { Content } from '../../types';
 import Avatar from '../ui/Avatar';
 import { formatCurrency, formatCompactNumber } from '../../lib/utils';
@@ -15,6 +15,7 @@ export default function FeedCard({ content }: FeedCardProps) {
   const videoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isLocked = content.access_type !== 'free';
+  const isTrending = (content.score ?? 0) >= 20;
   const spotsLeft = content.max_unlocks != null
     ? content.max_unlocks - Number(content.unlock_count ?? 0)
     : null;
@@ -112,6 +113,11 @@ export default function FeedCard({ content }: FeedCardProps) {
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-arc-error text-white text-[10px] font-bold w-fit">
                 <Zap className="w-2.5 h-2.5" />
                 Only {spotsLeft} left
+              </span>
+            ) : isTrending ? (
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/90 text-white text-[10px] font-bold w-fit">
+                <Flame className="w-2.5 h-2.5" />
+                Trending
               </span>
             ) : isLocked ? (
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-gold text-[10px] border border-gold/30 w-fit">
