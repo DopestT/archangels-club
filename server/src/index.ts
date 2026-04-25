@@ -57,6 +57,22 @@ app.get('/api/health/db', async (_req, res) => {
   }
 });
 
+// TEMPORARY debug endpoint — remove before public launch
+app.get('/api/debug/creators', async (_req, res) => {
+  try {
+    const rows = await pool.query(`
+      SELECT u.id, u.username, u.display_name, u.email, u.role, u.status, u.is_verified_creator,
+             cp.application_status, cp.is_approved
+      FROM creator_profiles cp
+      JOIN users u ON u.id = cp.user_id
+      ORDER BY u.username
+    `);
+    res.json(rows.rows);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 async function start() {
   try {
     await runMigrations();
