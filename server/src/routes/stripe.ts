@@ -166,6 +166,8 @@ router.post('/checkout', requireAuth, async (req, res) => {
       amount?: number;
     };
 
+    console.log('[stripe/checkout] body:', { type, creatorId, amount });
+
     if (!type || !creatorId) {
       res.status(400).json({ error: 'type and creatorId are required.' });
       return;
@@ -184,7 +186,9 @@ router.post('/checkout', requireAuth, async (req, res) => {
       return;
     }
 
-    console.log('[stripe/checkout] type:', type, 'creator:', profile.username, 'amount:', amount);
+    console.log('[stripe/checkout] type:', type, 'creator:', profile.username, 'amount:', amount,
+      'has_connect:', !!profile.stripe_account_id && !!profile.stripe_onboarding_complete,
+      'subscription_price:', profile.subscription_price);
 
     const stripe = getStripe();
     const successUrl = `${CLIENT_URL}/creator/${profile.username}?payment=success&type=${type}`;
@@ -223,6 +227,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
         metadata: { type: 'tip', creatorId, userId: req.auth!.userId },
       });
 
+      console.log('[stripe/checkout] tip session created:', session.id, '→', session.url?.substring(0, 60));
       res.json({ url: session.url });
       return;
     }
@@ -247,6 +252,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
         metadata: { type: 'subscription', creatorId, userId: req.auth!.userId },
       });
 
+      console.log('[stripe/checkout] subscription session created:', session.id, '→', session.url?.substring(0, 60));
       res.json({ url: session.url });
       return;
     }

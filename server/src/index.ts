@@ -90,6 +90,18 @@ app.get('/api/debug/content', async (_req, res) => {
   }
 });
 
+app.get('/api/debug/users', async (_req, res) => {
+  try {
+    const rows = await pool.query(`
+      SELECT id, email, username, display_name, role, status, is_verified_creator, created_at
+      FROM users ORDER BY created_at DESC LIMIT 100
+    `);
+    res.json(rows.rows);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 app.get('/api/debug/env', (_req, res) => {
   res.json({
     node_env: process.env.NODE_ENV ?? 'not set',

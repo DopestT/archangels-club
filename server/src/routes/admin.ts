@@ -117,6 +117,55 @@ router.post('/users/:id/approve', async (req, res) => {
   }
 });
 
+// POST /api/admin/reprocess-approved — create/fix users for old approved access_requests
+router.post('/reprocess-approved', async (req, res) => {
+  try {
+    const approved = await query<{ id: string; email: string; name: string }>(
+      `SELECT id, email, name FROM access_requests WHERE status = 'approved'`
+    );
+
+    const results: Array<{ email: string; action: string }> = [];
+
+    for (const row of approved) {
+      const email = row.email.toLowerCase();
+      const displayName = row.name || email.split('@')[0];
+
+      const existing = await queryOne<{ id: string; status: string }>(
+        'SELECT id, status FROM users WHERE email = $1', [email]
+      );
+
+      if (!existing) {
+        const userId = crypto.randomUUID();
+        const username = email.split('@')[0].replace(/[^a-z0-9]/g, '');
+        await execute(
+          `INSERT INTO users (id, email, username, password_hash, display_name, role, status)
+           VALUES ($1, $2, $3, NULL, $4, 'fan', 'approved')`,
+          [userId, email, username, displayName]
+        );
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        await execute(
+          `INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)`,
+          [crypto.randomUUID(), email, resetToken, expiresAt]
+        );
+        sendSetPasswordEmail(email, displayName, resetToken).catch(console.error);
+        results.push({ email, action: 'user_created' });
+      } else if (existing.status !== 'approved') {
+        await execute(`UPDATE users SET status = 'approved' WHERE id = $1`, [existing.id]);
+        results.push({ email, action: 'status_updated' });
+      } else {
+        results.push({ email, action: 'already_exists' });
+      }
+    }
+
+    console.log(`[admin] reprocess-approved: ${results.length} records processed`);
+    res.json({ processed: results.length, results });
+  } catch (err) {
+    console.error('[admin] reprocess-approved error:', err);
+    res.status(500).json({ error: 'Failed to reprocess approved requests.' });
+  }
+});
+
 router.post('/users/:id/reject', async (req, res) => {
   try {
     const row = await queryOne<{ email: string; name: string }>(

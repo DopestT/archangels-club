@@ -66,7 +66,11 @@ router.get('/:username', async (req, res) => {
 
     if (!row) {
       console.log('[creator lookup] not found:', slug);
-      res.status(404).json({ error: 'Creator not found' });
+      res.status(404).json({
+        error: 'Creator not found',
+        slug,
+        hint: 'Check /api/debug/creators to see all creator slugs in the database',
+      });
       return;
     }
     res.json({ ...row, tags: JSON.parse(row.tags ?? '[]') });
