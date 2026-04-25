@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Image, Video, Music, FileText, Eye, Zap, Users } from 'lucide-react';
+import { Lock, Image, Video, Music, FileText, Eye, Zap, Users, Flame, Sparkles } from 'lucide-react';
 import type { Content } from '../../types';
 import Avatar from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
@@ -13,6 +13,12 @@ const TYPE_ICONS = {
   text: <FileText className="w-3.5 h-3.5" />,
 };
 
+// Stable pseudo-random viewer count seeded from content id
+function seededViewers(id: string): number {
+  const n = id.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0);
+  return 5 + (n % 16); // 5–20
+}
+
 interface ContentCardProps {
   content: Content;
   showCreator?: boolean;
@@ -21,11 +27,15 @@ interface ContentCardProps {
 export default function ContentCard({ content, showCreator = true }: ContentCardProps) {
   const isLocked = content.access_type === 'locked' || content.access_type === 'subscribers';
   const badgeType = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
+  const unlockCount = Number(content.unlock_count ?? 0);
 
   const spotsLeft = content.max_unlocks != null
-    ? content.max_unlocks - (content.unlock_count ?? 0)
+    ? content.max_unlocks - unlockCount
     : null;
-  const isScarce = spotsLeft != null && spotsLeft > 0 && spotsLeft <= 10;
+  const isAlmostGone = spotsLeft != null && spotsLeft > 0 && spotsLeft <= 10;
+  const isTrending = !isAlmostGone && (unlockCount >= 5 || (content.score ?? 0) >= 20);
+  const isNew = Date.now() - new Date(content.created_at).getTime() < 86_400_000;
+  const viewers = seededViewers(content.id);
 
   return (
     <Link to={`/content/${content.id}`} className="group block">
@@ -49,7 +59,6 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
           {/* Locked overlay */}
           {isLocked && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-bg-primary/65 backdrop-blur-[2px] transition-all duration-300">
-              {/* Default state */}
               <div className="flex flex-col items-center gap-2 group-hover:opacity-0 transition-opacity duration-200">
                 <div className="w-11 h-11 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
                   <Lock className="w-5 h-5 text-gold" />
@@ -63,7 +72,6 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
                 )}
               </div>
 
-              {/* Hover CTA */}
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                 <div className="w-12 h-12 rounded-full bg-gold flex items-center justify-center shadow-gold">
                   <Lock className="w-5 h-5 text-bg-primary" />
@@ -88,17 +96,29 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
           )}
 
           {/* Top row badges */}
-          <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
+          <div className="absolute top-3 left-3 right-3 flex items-start justify-between">
+            <div className="flex flex-wrap items-center gap-1.5">
               <Badge type={badgeType} />
-              {isScarce && (
-                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-arc-error/20 border border-arc-error/40 text-arc-error text-[10px] font-sans font-medium">
+              {isAlmostGone && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-arc-error/20 border border-arc-error/40 text-arc-error text-[10px] font-medium">
                   <Zap className="w-2.5 h-2.5" />
-                  {spotsLeft} left
+                  Almost Gone · {spotsLeft} left
+                </span>
+              )}
+              {isTrending && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/20 border border-orange-500/40 text-orange-400 text-[10px] font-medium">
+                  <Flame className="w-2.5 h-2.5" />
+                  Trending
+                </span>
+              )}
+              {isNew && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 text-[10px] font-medium">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  New
                 </span>
               )}
             </div>
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-bg-primary/70 backdrop-blur-sm text-xs text-arc-secondary">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-bg-primary/70 backdrop-blur-sm text-xs text-arc-secondary flex-shrink-0">
               {TYPE_ICONS[content.content_type]}
               <span className="capitalize">{content.content_type}</span>
             </div>
@@ -125,9 +145,19 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
           </p>
 
           <div className="flex items-center justify-between pt-3 border-t border-white/5">
-            <div className="flex items-center gap-1 text-xs text-arc-muted">
-              <Users className="w-3.5 h-3.5" />
-              <span>{formatCompactNumber(content.unlock_count ?? 0)} unlocks</span>
+            <div className="flex items-center gap-3 text-xs text-arc-muted">
+              <span className="flex items-center gap-1">
+                <Users className="w-3.5 h-3.5" />
+                {formatCompactNumber(unlockCount)} unlocks
+              </span>
+              <span className="flex items-center gap-1">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
+                  <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-green-400" />
+                </span>
+                <Eye className="w-3 h-3" />
+                {viewers}
+              </span>
             </div>
             <span className="text-xs text-arc-muted">{timeAgo(content.created_at)}</span>
           </div>
