@@ -40,6 +40,11 @@ async function createAdmin() {
 }
 
 createAdmin().catch((err) => {
-  console.error('Failed:', err.message);
+  console.error('Failed to create admin user');
+  console.error(err);
+  if (err instanceof Error) {
+    console.error(err.message);
+    console.error(err.stack);
+  }
   process.exit(1);
 });
