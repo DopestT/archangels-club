@@ -77,7 +77,9 @@ export default function AuthPage({ mode }: { mode: Mode }) {
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
+    console.log('handleSignup fired');
     const errs = validateSignup();
+    console.log('validation errors:', errs);
     if (errs.length) { setErrors(errs); return; }
     setErrors([]);
     setLoading(true);
