@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Lock, Heart, MessageCircle, Star, Users, ImageIcon, Crown, Send } from 'lucide-react';
-import { sampleCreators, sampleContent } from '../data/seed';
+import { Lock, Heart, MessageCircle, Star, Crown, Send } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ContentCard from '../components/content/ContentCard';
 import Avatar from '../components/ui/Avatar';
 import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber } from '../lib/utils';
+import type { CreatorProfile, Content } from '../types';
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 
@@ -25,27 +27,65 @@ export default function CreatorProfilePage() {
   const [subscribed, setSubscribed] = useState(false);
   const [tipSent, setTipSent] = useState(false);
 
-  const creator = sampleCreators.find((c) => c.username === username);
-  if (!creator) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="font-serif text-2xl text-white mb-2">Creator Not Found</h2>
-          <Link to="/explore" className="btn-outline mt-4">Back to Explore</Link>
-        </div>
-      </div>
-    );
-  }
+  const [creator, setCreator] = useState<CreatorProfile | null>(null);
+  const [content, setContent] = useState<Content[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const creatorContent = sampleContent.filter((c) => c.creator_id === creator.id);
-  const drops = creatorContent.filter((c) => c.access_type === 'locked');
-  const posts = creatorContent;
+  useEffect(() => {
+    if (!username) return;
+    setLoading(true);
+    setError('');
+
+    Promise.all([
+      fetch(`${API_BASE}/api/creators/${username}`).then((r) => r.json()),
+      fetch(`${API_BASE}/api/creators/${username}/content`).then((r) => r.json()),
+    ])
+      .then(([creatorData, contentData]) => {
+        console.log('[CreatorProfilePage] creator:', creatorData);
+        console.log('[CreatorProfilePage] content:', contentData);
+        if (creatorData.error) {
+          setError(creatorData.error);
+        } else {
+          setCreator(creatorData);
+          setContent(Array.isArray(contentData) ? contentData : []);
+        }
+      })
+      .catch((err) => {
+        console.error('[CreatorProfilePage] fetch error:', err);
+        setError('Unable to load creator profile.');
+      })
+      .finally(() => setLoading(false));
+  }, [username]);
 
   function handleTip() {
     setTipSent(true);
     setTipping(false);
     setTimeout(() => setTipSent(false), 3000);
   }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !creator) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <h2 className="font-serif text-2xl text-white mb-2">Creator Not Found</h2>
+          <p className="text-arc-secondary mb-4">{error || 'This creator does not exist.'}</p>
+          <Link to="/explore" className="btn-outline mt-4">Back to Explore</Link>
+        </div>
+      </div>
+    );
+  }
+
+  const drops = content.filter((c) => c.access_type === 'locked');
+  const posts = content;
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'posts', label: 'Posts', count: posts.length },
@@ -74,8 +114,8 @@ export default function CreatorProfilePage() {
             <div className="flex items-end gap-4">
               <div className="relative">
                 <Avatar
-                  src={creator.avatar_url}
-                  name={creator.display_name}
+                  src={creator.avatar_url ?? undefined}
+                  name={creator.display_name ?? creator.username ?? ''}
                   size="2xl"
                   ring
                 />
@@ -166,8 +206,8 @@ export default function CreatorProfilePage() {
         {/* Stats bar */}
         <div className="grid grid-cols-3 gap-4 p-5 card-surface rounded-xl mb-6">
           {[
-            { label: 'Subscribers', value: formatCompactNumber(creator.subscriber_count ?? 0) },
-            { label: 'Content Pieces', value: creator.content_count ?? 0 },
+            { label: 'Subscribers', value: formatCompactNumber(Number(creator.subscriber_count) || 0) },
+            { label: 'Content Pieces', value: Number(creator.content_count) || 0 },
             { label: 'Starting Price', value: formatCurrency(creator.starting_price) },
           ].map(({ label, value }) => (
             <div key={label} className="text-center">
@@ -190,11 +230,13 @@ export default function CreatorProfilePage() {
         </div>
 
         {/* Tags */}
-        <div className="flex flex-wrap gap-2 mb-8">
-          {creator.tags.map((tag) => (
-            <span key={tag} className="tag-pill">{tag}</span>
-          ))}
-        </div>
+        {creator.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-8">
+            {creator.tags.map((tag) => (
+              <span key={tag} className="tag-pill">{tag}</span>
+            ))}
+          </div>
+        )}
 
         {/* Tabs */}
         <div className="border-b border-gold-border/40 mb-8">
@@ -224,9 +266,10 @@ export default function CreatorProfilePage() {
             <div>
               {(activeTab === 'posts' ? posts : drops).length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {(activeTab === 'posts' ? posts : drops).map((content) => (
-                    <ContentCard key={content.id} content={content} showCreator={false} />
-                  ))}
+                  {(activeTab === 'posts' ? posts : drops).map((item) => {
+                    console.log('[CreatorProfilePage] Clicked content:', item);
+                    return <ContentCard key={item.id} content={item} showCreator={false} />;
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-20">
@@ -246,7 +289,7 @@ export default function CreatorProfilePage() {
                 <div className="grid grid-cols-2 gap-4">
                   {[
                     { label: 'Member Since', value: new Date(creator.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) },
-                    { label: 'Content Type', value: creator.tags.join(', ') },
+                    { label: 'Content Type', value: creator.tags.join(', ') || '—' },
                     { label: 'Subscription', value: `${formatCurrency(creator.subscription_price)}/month` },
                     { label: 'Starting Price', value: `From ${formatCurrency(creator.starting_price)}` },
                   ].map(({ label, value }) => (

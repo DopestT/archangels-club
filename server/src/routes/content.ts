@@ -28,6 +28,7 @@ router.get('/', async (req, res) => {
 // GET /api/content/:id
 router.get('/:id', async (req, res) => {
   try {
+    console.log('[content] Fetching content ID:', req.params.id);
     const row = await queryOne<any>(`
       SELECT c.*, u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
         (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id) as unlock_count
