@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Image, Video, Music, FileText, Eye } from 'lucide-react';
+import { Lock, Image, Video, Music, FileText, Eye, Zap } from 'lucide-react';
 import type { Content } from '../../types';
 import Avatar from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
@@ -22,6 +22,11 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
   const isLocked = content.access_type === 'locked' || content.access_type === 'subscribers';
   const badgeType = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
 
+  const spotsLeft = content.max_unlocks != null
+    ? content.max_unlocks - (content.unlock_count ?? 0)
+    : null;
+  const isScarce = spotsLeft != null && spotsLeft > 0 && spotsLeft <= 10;
+
   return (
     <Link to={`/content/${content.id}`} className="group block" onClick={() => console.log('Clicked content:', content.id, content.title)}>
       <div className="card-surface overflow-hidden transition-all duration-300 group-hover:shadow-gold group-hover:-translate-y-0.5">
@@ -32,26 +37,41 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
               src={content.preview_url}
               alt={isLocked ? '' : content.title}
               className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 ${
-                isLocked ? 'locked-blur' : ''
+                isLocked ? 'locked-blur scale-110' : ''
               }`}
             />
           )}
 
           {/* Locked overlay */}
           {isLocked && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg-primary/60 backdrop-blur-sm">
-              <div className="w-12 h-12 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-bg-primary/65 backdrop-blur-[2px]">
+              <div className="w-11 h-11 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
                 <Lock className="w-5 h-5 text-gold" />
               </div>
               {content.access_type === 'locked' && content.price > 0 && (
                 <span className="font-serif text-xl text-gold">{formatCurrency(content.price)}</span>
               )}
+              {content.access_type === 'subscribers' && (
+                <span className="text-xs text-arc-secondary">Subscribers only</span>
+              )}
+              {/* Hover CTA */}
+              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-xs font-sans font-medium text-gold border border-gold/40 rounded-full px-3 py-1 bg-gold/10 mt-0.5">
+                {content.access_type === 'locked' ? 'Unlock Access →' : 'Subscribe to View →'}
+              </span>
             </div>
           )}
 
           {/* Top row badges */}
           <div className="absolute top-3 left-3 right-3 flex items-center justify-between">
-            <Badge type={badgeType} />
+            <div className="flex items-center gap-1.5">
+              <Badge type={badgeType} />
+              {isScarce && (
+                <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-arc-error/20 border border-arc-error/40 text-arc-error text-[10px] font-sans font-medium">
+                  <Zap className="w-2.5 h-2.5" />
+                  {spotsLeft} left
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-bg-primary/70 backdrop-blur-sm text-xs text-arc-secondary">
               {TYPE_ICONS[content.content_type]}
               <span className="capitalize">{content.content_type}</span>

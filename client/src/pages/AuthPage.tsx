@@ -27,7 +27,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signupComplete, setSignupComplete] = useState(false);
 
-  const from = (location.state as { from?: string })?.from ?? '/dashboard';
+  const from = (location.state as { from?: string })?.from ?? '/explore';
 
   function ageFromDOB(dob: string): number {
     const today = new Date();

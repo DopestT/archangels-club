@@ -7,18 +7,41 @@ import { triggerCreatorFirstPost, triggerCreatorFirstSale, triggerPurchaseConfir
 const router = Router();
 
 // GET /api/content — browse approved content only
+// Query params: sort (trending|newest), limit (max 50), creator_id, exclude_id
 router.get('/', async (req, res) => {
   try {
+    const { sort = 'newest', limit: rawLimit, creator_id, exclude_id } = req.query;
+    const rawLimitVal = parseInt(rawLimit as string, 10);
+    const limit = isNaN(rawLimitVal) ? 50 : Math.min(rawLimitVal, 50);
+
+    const params: unknown[] = [];
+    let paramIdx = 1;
+    let extraWhere = '';
+
+    if (creator_id) {
+      extraWhere += ` AND c.creator_id = $${paramIdx++}`;
+      params.push(creator_id);
+    }
+    if (exclude_id) {
+      extraWhere += ` AND c.id != $${paramIdx++}`;
+      params.push(exclude_id);
+    }
+
+    const orderBy = sort === 'trending'
+      ? 'unlock_count DESC, c.created_at DESC'
+      : 'c.created_at DESC';
+
     const rows = await query(`
       SELECT c.*, u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
+        cp.subscription_price as creator_subscription_price,
         (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id) as unlock_count
       FROM content c
       JOIN creator_profiles cp ON cp.id = c.creator_id
       JOIN users u ON u.id = cp.user_id
-      WHERE c.status = 'approved' AND cp.is_approved = 1 AND cp.application_status = 'approved'
-      ORDER BY c.created_at DESC
-      LIMIT 50
-    `);
+      WHERE c.status = 'approved' AND cp.is_approved = 1 AND cp.application_status = 'approved'${extraWhere}
+      ORDER BY ${orderBy}
+      LIMIT ${limit}
+    `, params);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch content.' });
@@ -31,6 +54,7 @@ router.get('/:id', async (req, res) => {
     console.log('[content] Fetching content ID:', req.params.id);
     const row = await queryOne<any>(`
       SELECT c.*, u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
+        cp.subscription_price as creator_subscription_price,
         (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id) as unlock_count
       FROM content c
       JOIN creator_profiles cp ON cp.id = c.creator_id

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
 import crypto from 'crypto';
-import { withTransaction, queryOne } from '../db/schema.js';
+import { withTransaction, queryOne, execute } from '../db/schema.js';
 import { triggerPurchaseConfirmation } from '../services/triggers.js';
 
 const router = Router();
@@ -35,8 +35,74 @@ router.post('/stripe', async (req, res) => {
 
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
-    const { user_id, content_id, creator_user_id, creator_profile_id, amount } = session.metadata ?? {};
+    const meta = session.metadata ?? {};
     const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
+
+    // ── Subscription checkout ────────────────────────────────────────────────
+    if (meta.type === 'subscription') {
+      const { userId, creatorId } = meta;
+      if (userId && creatorId) {
+        try {
+          const creator = await queryOne<{ user_id: string }>('SELECT user_id FROM creator_profiles WHERE id = $1', [creatorId]);
+          if (creator) {
+            const subId = crypto.randomUUID();
+            const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+            await execute(
+              `INSERT INTO subscriptions (id, subscriber_id, creator_id, status, expires_at) VALUES ($1, $2, $3, 'active', $4)
+               ON CONFLICT (subscriber_id, creator_id) DO UPDATE SET status = 'active', expires_at = $4`,
+              [subId, userId, creatorId, expiresAt]
+            );
+            const txnId = crypto.randomUUID();
+            const amount = session.amount_total ? session.amount_total / 100 : 0;
+            const platformFee = Math.round(amount * 0.2 * 100) / 100;
+            const netAmount = Math.round((amount - platformFee) * 100) / 100;
+            await execute(
+              `INSERT INTO transactions (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount, status, stripe_payment_intent_id)
+               VALUES ($1, $2, $3, 'subscription', $4, $5, $6, $7, 'completed', $8)`,
+              [txnId, userId, creator.user_id, subId, amount, platformFee, netAmount, paymentIntentId]
+            );
+            console.log(`[webhook] Subscription recorded: user=${userId} creator=${creatorId} amount=${amount}`);
+          }
+        } catch (err) {
+          console.error('[webhook] Subscription processing failed:', err);
+        }
+      }
+      res.json({ received: true });
+      return;
+    }
+
+    // ── Tip checkout ─────────────────────────────────────────────────────────
+    if (meta.type === 'tip') {
+      const { userId, creatorId } = meta;
+      if (userId && creatorId) {
+        try {
+          const creator = await queryOne<{ user_id: string }>('SELECT user_id FROM creator_profiles WHERE id = $1', [creatorId]);
+          if (creator) {
+            const txnId = crypto.randomUUID();
+            const amount = session.amount_total ? session.amount_total / 100 : 0;
+            const platformFee = Math.round(amount * 0.2 * 100) / 100;
+            const netAmount = Math.round((amount - platformFee) * 100) / 100;
+            await execute(
+              `INSERT INTO transactions (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount, status, stripe_payment_intent_id)
+               VALUES ($1, $2, $3, 'tip', $4, $5, $6, $7, 'completed', $8)`,
+              [txnId, userId, creator.user_id, paymentIntentId ?? txnId, amount, platformFee, netAmount, paymentIntentId]
+            );
+            await execute(
+              'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
+              [netAmount, creatorId]
+            );
+            console.log(`[webhook] Tip recorded: user=${userId} creator=${creatorId} amount=${amount}`);
+          }
+        } catch (err) {
+          console.error('[webhook] Tip processing failed:', err);
+        }
+      }
+      res.json({ received: true });
+      return;
+    }
+
+    // ── Content unlock checkout ───────────────────────────────────────────────
+    const { user_id, content_id, creator_user_id, creator_profile_id, amount } = meta;
 
     if (!user_id || !content_id || !creator_user_id || !creator_profile_id || !amount) {
       console.error('[webhook] Missing metadata:', session.metadata);

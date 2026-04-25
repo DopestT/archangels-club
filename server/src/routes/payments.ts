@@ -37,11 +37,6 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
       res.status(400).json({ error: 'Content has no price set' });
       return;
     }
-    if (!content.stripe_account_id || !content.stripe_onboarding_complete) {
-      res.status(403).json({ error: 'Creator has not completed payout setup. Payment unavailable.' });
-      return;
-    }
-
     const alreadyUnlocked = await queryOne(
       'SELECT id FROM content_unlocks WHERE user_id = $1 AND content_id = $2',
       [req.auth!.userId, content_id]
@@ -54,6 +49,9 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
     const stripe = getStripe();
     const amountCents = Math.round(Number(content.price) * 100);
     const feeCents = Math.round(amountCents * 0.2);
+    const hasConnect = !!content.stripe_account_id && !!content.stripe_onboarding_complete;
+
+    console.log('[payments/unlock] content:', content.title, 'price:', content.price, 'hasConnect:', hasConnect, 'buyer:', req.auth!.userId);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -66,12 +64,12 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
         },
         quantity: 1,
       }],
-      payment_intent_data: {
-        application_fee_amount: feeCents,
-        transfer_data: {
-          destination: content.stripe_account_id,
+      ...(hasConnect ? {
+        payment_intent_data: {
+          application_fee_amount: feeCents,
+          transfer_data: { destination: content.stripe_account_id },
         },
-      },
+      } : {}),
       metadata: {
         user_id: req.auth!.userId,
         content_id,
@@ -83,6 +81,7 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
       cancel_url: `${CLIENT_URL}/content/${content_id}`,
     });
 
+    console.log('[payments/unlock] session created:', session.id, '→', session.url?.substring(0, 60));
     res.json({ url: session.url });
   } catch (err) {
     console.error('[payments] create-unlock-session error:', err);

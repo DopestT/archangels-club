@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useSearchParams, Link } from 'react-router-dom';
-import { Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft, Shield, CheckCircle } from 'lucide-react';
+import { Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft, Shield, CheckCircle, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
+import ContentCard from '../components/content/ContentCard';
+import type { Content as GlobalContent } from '../types';
 import { formatCurrency, timeAgo } from '../lib/utils';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
@@ -17,6 +19,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
 
 interface Content {
   id: string;
+  creator_id: string;
   title: string;
   description: string;
   content_type: string;
@@ -28,6 +31,7 @@ interface Content {
   creator_name: string;
   creator_username: string;
   creator_avatar: string | null;
+  creator_subscription_price?: number;
   unlock_count: number;
   created_at: string;
 }
@@ -44,6 +48,7 @@ export default function LockedContentPage() {
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [moreContent, setMoreContent] = useState<GlobalContent[]>([]);
 
   const paymentSuccess = searchParams.get('payment') === 'success';
   const alreadyUnlocked = searchParams.get('unlocked') === 'true';
@@ -72,6 +77,15 @@ export default function LockedContentPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
+  // Fetch more content from same creator once content loads
+  useEffect(() => {
+    if (!content?.creator_id) return;
+    fetch(`${API_BASE}/api/content?creator_id=${encodeURIComponent(content.creator_id)}&exclude_id=${encodeURIComponent(content.id)}&limit=4`)
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setMoreContent(data); })
+      .catch(() => {});
+  }, [content?.creator_id, content?.id]);
+
   // Check unlock status once content + token are known
   useEffect(() => {
     if (!content || !token || content.access_type === 'free') return;
@@ -93,7 +107,7 @@ export default function LockedContentPage() {
       .catch(() => {});
   }, [content, token, paymentSuccess, alreadyUnlocked]);
 
-  function fetchAccess() {
+  function fetchAccess(retries = 5, delayMs = 2000) {
     if (!token || !id) return;
     fetch(`${API_BASE}/api/content/${id}/my-access`, {
       headers: { Authorization: `Bearer ${token}` },
@@ -103,9 +117,14 @@ export default function LockedContentPage() {
         if (data.unlocked) {
           setUnlocked(true);
           setMediaUrl(data.media_url ?? null);
+        } else if (retries > 0) {
+          // Webhook may not have fired yet — retry
+          setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        if (retries > 0) setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
+      });
   }
 
   async function handleUnlock() {
@@ -317,6 +336,52 @@ export default function LockedContentPage() {
             Content is moderated for platform compliance. By unlocking, you confirm you are 18 or older.
           </p>
         </div>
+
+        {/* Subscription upsell — shown on paid pieces that have a subscription option */}
+        {content.access_type === 'locked' && (content.creator_subscription_price ?? 0) > 0 && (
+          <div className="mt-5 p-5 rounded-xl bg-gold-muted border border-gold-border flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-gold/15 border border-gold-border flex items-center justify-center flex-shrink-0">
+              <Star className="w-5 h-5 text-gold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white mb-0.5">
+                Subscribe to {content.creator_name} for full access
+              </p>
+              <p className="text-xs text-arc-secondary mb-3">
+                Get unlimited access to all content for {formatCurrency(content.creator_subscription_price!)} / month — cancel anytime.
+              </p>
+              <Link
+                to={`/creator/${content.creator_username}`}
+                className="inline-flex items-center gap-2 btn-gold text-sm px-5 py-2.5"
+              >
+                <Crown className="w-4 h-4" />
+                Subscribe · {formatCurrency(content.creator_subscription_price!)} / mo
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* More from this creator */}
+        {moreContent.length > 0 && (
+          <div className="mt-10">
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="font-serif text-lg text-white">
+                More from {content.creator_name}
+              </h2>
+              <Link
+                to={`/creator/${content.creator_username}`}
+                className="text-xs text-gold hover:underline"
+              >
+                View all →
+              </Link>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              {moreContent.map((item) => (
+                <ContentCard key={item.id} content={item} showCreator={false} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

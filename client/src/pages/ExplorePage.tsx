@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, SlidersHorizontal, Lock } from 'lucide-react';
+import { Search, SlidersHorizontal, Lock, TrendingUp, Sparkles } from 'lucide-react';
 import CreatorCard from '../components/creators/CreatorCard';
-import type { CreatorProfile } from '../types';
+import ContentCard from '../components/content/ContentCard';
+import type { CreatorProfile, Content } from '../types';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
 
@@ -16,6 +17,22 @@ export default function ExplorePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const [trendingContent, setTrendingContent] = useState<Content[]>([]);
+  const [newCreators, setNewCreators] = useState<CreatorProfile[]>([]);
+
+  // Fetch trending content + newest creators once on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/api/content?sort=trending&limit=8`)
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setTrendingContent(data); })
+      .catch(() => {});
+
+    fetch(`${API_BASE}/api/creators?sort=newest&limit=6`)
+      .then((r) => r.json())
+      .then((data) => { if (Array.isArray(data)) setNewCreators(data); })
+      .catch(() => {});
+  }, []);
+
   const fetchCreators = useCallback(() => {
     setLoading(true);
     setError('');
@@ -24,23 +41,13 @@ export default function ExplorePage() {
     if (query) params.set('q', query);
     if (activeTag !== 'All') params.set('tag', activeTag);
 
-    console.log('[ExplorePage] fetching:', `${API_BASE}/api/creators?${params}`);
-
     fetch(`${API_BASE}/api/creators?${params}`)
       .then((r) => r.json())
       .then((data) => {
-        if (!Array.isArray(data)) {
-          console.error('[ExplorePage] unexpected response:', data);
-          setError(data.error || 'Failed to load creators.');
-          return;
-        }
-        console.log('[ExplorePage] loaded', data.length, 'creators');
+        if (!Array.isArray(data)) { setError(data.error || 'Failed to load creators.'); return; }
         setCreators(data);
       })
-      .catch((err) => {
-        console.error('[ExplorePage] fetch error:', err);
-        setError('Unable to reach the server.');
-      })
+      .catch(() => setError('Unable to reach the server.'))
       .finally(() => setLoading(false));
   }, [query, activeTag, sortBy]);
 
@@ -68,7 +75,54 @@ export default function ExplorePage() {
         </div>
       </section>
 
+      {/* Trending Content */}
+      {trendingContent.length > 0 && (
+        <section className="py-12 border-b border-white/5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3 mb-7">
+              <div className="w-8 h-8 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
+                <TrendingUp className="w-4 h-4 text-gold" />
+              </div>
+              <div>
+                <h2 className="font-serif text-xl text-white">Trending Now</h2>
+                <p className="text-xs text-arc-muted">Most unlocked content this week</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+              {trendingContent.map((item) => (
+                <ContentCard key={item.id} content={item} showCreator />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* New Creators */}
+      {newCreators.length > 0 && (
+        <section className="py-12 border-b border-white/5">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3 mb-7">
+              <div className="w-8 h-8 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
+                <Sparkles className="w-4 h-4 text-gold" />
+              </div>
+              <div>
+                <h2 className="font-serif text-xl text-white">New Creators</h2>
+                <p className="text-xs text-arc-muted">Recently joined the network</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              {newCreators.map((creator) => (
+                <CreatorCard key={creator.id} creator={creator} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* All Creators */}
       <section className="py-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <h2 className="font-serif text-2xl text-white mb-8">All Creators</h2>
+
         {/* Search + sort */}
         <div className="flex flex-col sm:flex-row gap-4 mb-8">
           <div className="relative flex-1">
