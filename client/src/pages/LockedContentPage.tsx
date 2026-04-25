@@ -283,7 +283,7 @@ export default function LockedContentPage() {
           {content.creator_name && (
             <div className="pt-4 border-t border-white/5 flex items-center justify-between">
               <Link to={`/creator/${content.creator_username}`} className="flex items-center gap-3 group">
-                <Avatar src={content.creator_avatar} name={content.creator_name} size="sm" ring />
+                <Avatar src={content.creator_avatar ?? undefined} name={content.creator_name} size="sm" ring />
                 <div>
                   <p className="text-sm text-white group-hover:text-gold transition-colors">{content.creator_name}</p>
                   <p className="text-xs text-arc-muted">@{content.creator_username}</p>

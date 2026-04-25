@@ -23,7 +23,8 @@ export default function CreatorDashboard() {
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
 
-  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+  const authHeaders: Record<string, string> = {};
+  if (token) authHeaders['Authorization'] = `Bearer ${token}`;
 
   useEffect(() => {
     if (!token) return;
