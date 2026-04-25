@@ -10,6 +10,8 @@ import keyRoutes from './routes/keys.js';
 import videoRoutes from './routes/video.js';
 import notificationRoutes from './routes/notifications.js';
 import accessRequestRoutes from './routes/accessRequests.js';
+import paymentRoutes from './routes/payments.js';
+import webhookRoutes from './routes/webhooks.js';
 
 const app = express();
 const PORT = Number(process.env.PORT);
@@ -23,6 +25,10 @@ const corsOptions = {
 };
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
+
+// Webhook must receive raw body for Stripe signature verification — mount before express.json()
+app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
+
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
@@ -34,6 +40,7 @@ app.use('/api/keys', keyRoutes);
 app.use('/api/video', videoRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/access-request', accessRequestRoutes);
+app.use('/api/payments', paymentRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API' });

@@ -47,6 +47,32 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+// GET /api/content/:id/my-access — returns unlock status + media_url if unlocked
+router.get('/:id/my-access', requireAuth, async (req, res) => {
+  try {
+    const content = await queryOne<any>('SELECT * FROM content WHERE id = $1', [req.params.id]);
+    if (!content) { res.status(404).json({ error: 'Content not found' }); return; }
+
+    if (content.access_type === 'free') {
+      res.json({ unlocked: true, media_url: content.media_url });
+      return;
+    }
+
+    const unlock = await queryOne(
+      'SELECT id FROM content_unlocks WHERE user_id = $1 AND content_id = $2',
+      [req.auth!.userId, req.params.id]
+    );
+
+    if (unlock) {
+      res.json({ unlocked: true, media_url: content.media_url });
+    } else {
+      res.json({ unlocked: false, media_url: null });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check access' });
+  }
+});
+
 // POST /api/content — creator uploads (always enters pending_review)
 router.post('/', requireAuth, requireCreator, async (req, res) => {
   try {

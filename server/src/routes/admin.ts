@@ -390,13 +390,15 @@ router.get('/transactions', async (req, res) => {
   try {
     const rows = await query(`
       SELECT t.*,
-        payer.display_name AS payer_name,
-        payee.display_name AS payee_name
+        payer.display_name AS payer_name, payer.email AS payer_email,
+        payee.display_name AS payee_name,
+        c.title AS content_title
       FROM transactions t
       JOIN users payer ON payer.id = t.payer_id
       JOIN users payee ON payee.id = t.payee_id
+      LEFT JOIN content c ON c.id = t.ref_id AND t.ref_type = 'content'
       ORDER BY t.created_at DESC
-      LIMIT 100
+      LIMIT 200
     `);
     res.json(rows);
   } catch (err) {

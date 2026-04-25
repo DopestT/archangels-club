@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Crown, Lock, Shield, Eye, EyeOff, Clock, Mail, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import type { UserRole } from '../types';
 
 type Mode = 'login' | 'signup';
 
@@ -17,9 +16,6 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
-
-  // login only
-  const [role, setRole] = useState<UserRole>('fan');
 
   // signup only
   const [name, setName] = useState('');
@@ -63,16 +59,20 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     return errs;
   }
 
-  function handleLogin(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     const errs = validateLogin();
     if (errs.length) { setErrors(errs); return; }
     setErrors([]);
     setLoading(true);
-    setTimeout(() => {
-      login(role, role === 'admin' ? 'approved' : 'approved');
+    try {
+      await login(email, password);
       navigate(from, { replace: true });
-    }, 900);
+    } catch (err: unknown) {
+      setErrors([(err as Error).message ?? 'Login failed. Please try again.']);
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleSignup(e: React.FormEvent) {
@@ -261,24 +261,6 @@ export default function AuthPage({ mode }: { mode: Mode }) {
                 </div>
               </div>
 
-              {/* Demo shortcuts */}
-              <div className="flex flex-wrap gap-2 pt-1">
-                <span className="text-xs text-arc-muted self-center">Demo login as:</span>
-                {(['fan', 'creator', 'admin'] as UserRole[]).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => { setRole(r); setEmail('demo@example.com'); setPassword('password123'); }}
-                    className={`text-xs px-3 py-1 rounded-full border transition-all ${
-                      role === r
-                        ? 'border-gold text-gold bg-gold-muted'
-                        : 'border-white/10 text-arc-muted hover:border-gold/40 hover:text-white'
-                    }`}
-                  >
-                    {r}
-                  </button>
-                ))}
-              </div>
 
               <button type="submit" disabled={loading} className="btn-gold w-full py-3.5 text-sm mt-2">
                 {loading

@@ -250,6 +250,8 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_access_keys_inviter ON access_keys(inviter_id);
   CREATE INDEX IF NOT EXISTS idx_referrals_inviter ON referrals(inviter_id);
   CREATE INDEX IF NOT EXISTS idx_bundles_creator ON bundles(creator_id);
+
+  ALTER TABLE content_unlocks ADD COLUMN IF NOT EXISTS transaction_id TEXT REFERENCES transactions(id);
 `;
 
 export async function runMigrations(): Promise<void> {

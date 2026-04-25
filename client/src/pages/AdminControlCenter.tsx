@@ -34,8 +34,9 @@ interface AccessRequest { id: string; email: string; name: string; reason: strin
 interface CreatorApplication { id: string; user_id: string; bio: string; pitch: string; tags: string[]; application_status: string; created_at: string; display_name: string; username: string; avatar_url: string; email: string; }
 interface ContentItem { id: string; title: string; description: string; content_type: string; access_type: string; price: number; status: string; created_at: string; creator_name: string; creator_username: string; creator_avatar: string; }
 interface Report { id: string; subject_type: string; subject_id: string; reason: string; details: string; status: string; created_at: string; reporter_username: string; reporter_name: string; }
+interface Transaction { id: string; payer_name: string; payer_email: string; payee_name: string; ref_type: string; content_title: string | null; amount: number; platform_fee: number; net_amount: number; status: string; created_at: string; }
 
-type QueueTab = 'access' | 'creators' | 'content' | 'reports';
+type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions';
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,7 @@ export default function AdminControlCenter() {
   const [creators, setCreators] = useState<CreatorApplication[]>([]);
   const [content, setContent] = useState<ContentItem[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const adminFetch = useCallback(async (url: string, opts?: RequestInit) => {
     const res = await fetch(`${API_BASE}${url}`, {
@@ -177,18 +179,20 @@ export default function AdminControlCenter() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, ar, cr, co, rp] = await Promise.all([
+      const [s, ar, cr, co, rp, tx] = await Promise.all([
         adminFetch('/api/admin/stats'),
         adminFetch('/api/admin/access-requests'),
         adminFetch('/api/admin/creators/pending'),
         adminFetch('/api/admin/content-approvals'),
         adminFetch('/api/admin/reports'),
+        adminFetch('/api/admin/transactions'),
       ]);
       setStats(s);
       setAccessRequests(ar);
       setCreators(cr);
       setContent(co);
       setReports(rp);
+      setTransactions(tx);
     } catch (e: any) {
       toast.error('Failed to load data', e.message);
     } finally {
@@ -215,6 +219,7 @@ export default function AdminControlCenter() {
     { id: 'creators', label: 'Creator Approvals', count: creators.length },
     { id: 'content', label: 'Content Approvals', count: content.length },
     { id: 'reports', label: 'Reports', count: reports.length },
+    { id: 'transactions', label: 'Transactions', count: transactions.length },
   ];
 
   return (
@@ -462,6 +467,38 @@ export default function AdminControlCenter() {
                         <p className="text-xs text-arc-secondary leading-relaxed">{rpt.details}</p>
                       </div>
                     )}
+                  </div>
+                ))}
+              </QueueShell>
+            )}
+            {/* Transactions */}
+            {activeQueue === 'transactions' && (
+              <QueueShell label="Transactions" count={transactions.length} desc="All completed payments. Platform fee is 20%, creator receives 80%.">
+                {transactions.length === 0 && <EmptyQueue />}
+                {transactions.map((tx) => (
+                  <div key={tx.id} className="card-surface rounded-xl p-5">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                          <p className="text-sm font-medium text-white truncate">{tx.content_title ?? tx.ref_type}</p>
+                          <StatusBadge status={tx.status} />
+                        </div>
+                        <p className="text-xs text-arc-muted">
+                          <span className="text-arc-secondary">{tx.payer_name}</span>
+                          <span className="text-arc-muted"> → </span>
+                          <span className="text-arc-secondary">{tx.payee_name}</span>
+                          <span className="text-arc-muted"> · {timeAgo(tx.created_at)}</span>
+                        </p>
+                        <p className="text-[10px] text-arc-muted mt-0.5">{tx.payer_email}</p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-serif text-lg text-gold">${Number(tx.amount).toFixed(2)}</p>
+                        <p className="text-[10px] text-arc-muted mt-0.5">
+                          Fee: <span className="text-arc-secondary">${Number(tx.platform_fee).toFixed(2)}</span>
+                          {' · '}Creator: <span className="text-arc-success">${Number(tx.net_amount).toFixed(2)}</span>
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </QueueShell>
