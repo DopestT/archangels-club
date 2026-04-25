@@ -8,6 +8,7 @@
     "build": "tsc",
     "start": "tsx src/index.ts",
     "seed": "tsx src/db/seed.ts",
+    "seed:demo": "tsx src/db/seedDemo.ts",
     "create-admin": "tsx src/db/createAdmin.ts"
   },
   "dependencies": {
