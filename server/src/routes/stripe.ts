@@ -157,4 +157,105 @@ router.post('/connect/dashboard-link', requireAuth, requireCreator, async (req, 
   }
 });
 
+// POST /api/stripe/checkout — tip or subscription checkout session
+router.post('/checkout', requireAuth, async (req, res) => {
+  try {
+    const { type, creatorId, amount } = req.body as {
+      type: 'tip' | 'subscription';
+      creatorId: string;
+      amount?: number;
+    };
+
+    if (!type || !creatorId) {
+      res.status(400).json({ error: 'type and creatorId are required.' });
+      return;
+    }
+
+    const profile = await queryOne<any>(`
+      SELECT cp.id, cp.subscription_price, cp.stripe_account_id, cp.stripe_onboarding_complete,
+             u.display_name, u.username
+      FROM creator_profiles cp
+      JOIN users u ON u.id = cp.user_id
+      WHERE cp.id = $1
+    `, [creatorId]);
+
+    if (!profile) {
+      res.status(404).json({ error: 'Creator not found.' });
+      return;
+    }
+
+    console.log('[stripe/checkout] type:', type, 'creator:', profile.username, 'amount:', amount);
+
+    const stripe = getStripe();
+    const successUrl = `${CLIENT_URL}/creator/${profile.username}?payment=success&type=${type}`;
+    const cancelUrl = `${CLIENT_URL}/creator/${profile.username}`;
+    const hasConnect = !!profile.stripe_account_id && !!profile.stripe_onboarding_complete;
+
+    if (type === 'tip') {
+      const tipAmount = Number(amount);
+      if (!tipAmount || tipAmount < 1) {
+        res.status(400).json({ error: 'Tip amount must be at least $1.' });
+        return;
+      }
+
+      const unitAmount = Math.round(tipAmount * 100);
+      const feeAmount = Math.round(unitAmount * 0.2);
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `Tip to ${profile.display_name}` },
+            unit_amount: unitAmount,
+          },
+          quantity: 1,
+        }],
+        ...(hasConnect ? {
+          payment_intent_data: {
+            application_fee_amount: feeAmount,
+            transfer_data: { destination: profile.stripe_account_id },
+          },
+        } : {}),
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: { type: 'tip', creatorId, userId: req.auth!.userId },
+      });
+
+      res.json({ url: session.url });
+      return;
+    }
+
+    if (type === 'subscription') {
+      const unitAmount = Math.round(Number(profile.subscription_price) * 100);
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'subscription',
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `${profile.display_name} — Monthly Subscription` },
+            unit_amount: unitAmount,
+            recurring: { interval: 'month' },
+          },
+          quantity: 1,
+        }],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        metadata: { type: 'subscription', creatorId, userId: req.auth!.userId },
+      });
+
+      res.json({ url: session.url });
+      return;
+    }
+
+    res.status(400).json({ error: 'type must be "tip" or "subscription".' });
+  } catch (err: any) {
+    console.error('[stripe/checkout] error:', err.message, err);
+    res.status(500).json({ error: err.message || 'Failed to create checkout session.' });
+  }
+});
+
 export default router;

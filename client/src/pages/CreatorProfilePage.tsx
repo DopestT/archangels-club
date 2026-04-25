@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { Lock, Heart, MessageCircle, Star, Crown, Send } from 'lucide-react';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { Lock, Heart, MessageCircle, Star, Crown, Send, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ContentCard from '../components/content/ContentCard';
 import Avatar from '../components/ui/Avatar';
@@ -20,12 +20,13 @@ const SAMPLE_REVIEWS = [
 
 export default function CreatorProfilePage() {
   const { username } = useParams<{ username: string }>();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, token } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('posts');
   const [tipping, setTipping] = useState(false);
   const [tipAmount, setTipAmount] = useState('10');
-  const [subscribed, setSubscribed] = useState(false);
-  const [tipSent, setTipSent] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState('');
 
   const [creator, setCreator] = useState<CreatorProfile | null>(null);
   const [content, setContent] = useState<Content[]>([]);
@@ -58,10 +59,43 @@ export default function CreatorProfilePage() {
       .finally(() => setLoading(false));
   }, [username]);
 
+  async function startCheckout(type: 'tip' | 'subscription') {
+    if (!isAuthenticated) {
+      navigate('/login');
+      return;
+    }
+    if (!creator) return;
+
+    setCheckoutError('');
+    setCheckoutLoading(true);
+
+    const body: Record<string, unknown> = { type, creatorId: creator.id };
+    if (type === 'tip') body.amount = Number(tipAmount);
+
+    console.log(type === 'tip' ? 'Tip clicked' : 'Subscribe clicked', type === 'tip' ? { amount: tipAmount } : creator);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/stripe/checkout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        setCheckoutError(data.error || 'Failed to start checkout.');
+        return;
+      }
+      window.location.href = data.url;
+    } catch {
+      setCheckoutError('Unable to reach the server. Please try again.');
+    } finally {
+      setCheckoutLoading(false);
+    }
+  }
+
   function handleTip() {
-    setTipSent(true);
     setTipping(false);
-    setTimeout(() => setTipSent(false), 3000);
+    startCheckout('tip');
   }
 
   if (loading) {
@@ -138,35 +172,35 @@ export default function CreatorProfilePage() {
 
             {/* Action buttons */}
             <div className="flex items-center gap-3 mb-2">
-              {tipSent ? (
-                <span className="text-arc-success text-sm font-sans flex items-center gap-1.5">
-                  <Star className="w-4 h-4" /> Tip sent!
-                </span>
-              ) : (
-                <button
-                  onClick={() => setTipping(!tipping)}
-                  className="btn-outline text-sm px-4 py-2"
-                >
-                  <Heart className="w-4 h-4" />
-                  Tip
-                </button>
-              )}
+              <button
+                onClick={() => setTipping(!tipping)}
+                className="btn-outline text-sm px-4 py-2"
+              >
+                <Heart className="w-4 h-4" />
+                Tip
+              </button>
               <Link to="/messages" className="btn-outline text-sm px-4 py-2">
                 <MessageCircle className="w-4 h-4" />
                 Message
               </Link>
               <button
-                onClick={() => {
-                  if (!isAuthenticated) return;
-                  setSubscribed(!subscribed);
-                }}
-                className={subscribed ? 'btn-outline text-sm' : 'btn-gold text-sm'}
+                onClick={() => startCheckout('subscription')}
+                disabled={checkoutLoading}
+                className="btn-gold text-sm"
               >
                 <Crown className="w-4 h-4" />
-                {subscribed ? 'Subscribed' : `Subscribe · ${formatCurrency(creator.subscription_price)}/mo`}
+                {checkoutLoading ? 'Loading…' : `Subscribe · ${formatCurrency(creator.subscription_price)}/mo`}
               </button>
             </div>
           </div>
+
+          {/* Checkout error */}
+          {checkoutError && (
+            <div className="mt-3 p-3 rounded-xl bg-arc-error/10 border border-arc-error/30 flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 text-arc-error flex-shrink-0" />
+              <p className="text-xs text-arc-error">{checkoutError}</p>
+            </div>
+          )}
 
           {/* Tip panel */}
           {tipping && (
@@ -195,9 +229,9 @@ export default function CreatorProfilePage() {
                   min="1"
                 />
               </div>
-              <button onClick={handleTip} className="btn-gold text-sm">
+              <button onClick={handleTip} disabled={checkoutLoading} className="btn-gold text-sm">
                 <Send className="w-4 h-4" />
-                Send ${tipAmount} Tip
+                {checkoutLoading ? 'Loading…' : `Send $${tipAmount} Tip →`}
               </button>
             </div>
           )}
