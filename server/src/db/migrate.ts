@@ -228,6 +228,8 @@ const DDL = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
+  ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+
   CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
   CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
 
