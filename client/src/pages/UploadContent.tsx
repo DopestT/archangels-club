@@ -5,6 +5,9 @@ import type { ContentType, PricingConfig, VideoProcessingConfig } from '../types
 import ImageEditor from '../components/editor/ImageEditor';
 import VideoProcessor from '../components/editor/VideoProcessor';
 import PricingPanel from '../components/pricing/PricingPanel';
+import { useAuth } from '../context/AuthContext';
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
 
 const CONTENT_TYPES: { id: ContentType; icon: React.ReactNode; label: string }[] = [
   { id: 'image', icon: <Image className="w-5 h-5" />, label: 'Image' },
@@ -25,6 +28,7 @@ const DEFAULT_PRICING: PricingConfig = {
 };
 
 export default function UploadContent() {
+  const { token } = useAuth();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [contentType, setContentType] = useState<ContentType>('image');
@@ -35,6 +39,7 @@ export default function UploadContent() {
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
   const [showEditor, setShowEditor] = useState(false);
   const [status, setStatus] = useState<'idle' | 'saving' | 'submitted'>('idle');
+  const [uploadError, setUploadError] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const activeFile = enhancedFile ?? file;
@@ -59,14 +64,45 @@ export default function UploadContent() {
     setShowEditor(false);
   }
 
-  function handleSave(asDraft: boolean) {
+  async function handleSave(asDraft: boolean) {
     if (asDraft) {
+      // Draft save: store locally only for now (no backend draft endpoint)
       setStatus('saving');
-      setTimeout(() => setStatus('idle'), 1200);
+      setTimeout(() => setStatus('idle'), 800);
       return;
     }
+    if (!title.trim()) return;
+    setUploadError('');
     setStatus('saving');
-    setTimeout(() => setStatus('submitted'), 1200);
+    try {
+      const res = await fetch(`${API_BASE}/api/content`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token ?? ''}`,
+        },
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim(),
+          content_type: contentType,
+          access_type: pricingConfig.accessType,
+          price: pricingConfig.price ?? 0,
+          preview_url: previewDataUrl ?? null,
+          media_url: null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUploadError(data.error ?? 'Failed to submit content. Please try again.');
+        setStatus('idle');
+        return;
+      }
+      console.log('[UploadContent] submitted contentId:', data.id);
+      setStatus('submitted');
+    } catch {
+      setUploadError('Unable to reach the server. Please check your connection.');
+      setStatus('idle');
+    }
   }
 
   function resetUpload() {
@@ -337,6 +373,14 @@ export default function UploadContent() {
 
             {/* Pricing */}
             <PricingPanel config={pricingConfig} onChange={setPricingConfig} />
+
+            {/* Upload error */}
+            {uploadError && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/10 border border-arc-error/30">
+                <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-arc-error">{uploadError}</p>
+              </div>
+            )}
 
             {/* Actions */}
             <div className="flex items-center gap-4 pb-10">

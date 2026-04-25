@@ -234,6 +234,34 @@ router.post('/creators/:id/reject', async (req, res) => {
   }
 });
 
+// POST /api/admin/creators/:id/generate-setup-link — returns a set-password URL for the creator
+router.post('/creators/:id/generate-setup-link', async (req, res) => {
+  try {
+    const cp = await queryOne<{ user_id: string }>('SELECT user_id FROM creator_profiles WHERE id = $1', [req.params.id]);
+    if (!cp) { res.status(404).json({ error: 'Creator not found.' }); return; }
+
+    const user = await queryOne<{ email: string; display_name: string }>(
+      'SELECT email, display_name FROM users WHERE id = $1', [cp.user_id]
+    );
+    if (!user) { res.status(404).json({ error: 'User not found.' }); return; }
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    await execute(
+      'INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)',
+      [crypto.randomUUID(), user.email, resetToken, expiresAt]
+    );
+
+    const clientUrl = process.env.CLIENT_URL ?? 'http://localhost:3000';
+    const url = `${clientUrl}/set-password?token=${resetToken}`;
+    console.log(`[admin] setup link generated for creator ${req.params.id} (${user.email})`);
+    res.json({ url, email: user.email });
+  } catch (err) {
+    console.error('[admin] generate-setup-link error:', err);
+    res.status(500).json({ error: 'Failed to generate setup link.' });
+  }
+});
+
 router.post('/creators/:id/request-more-info', async (req, res) => {
   try {
     res.json({ success: true });

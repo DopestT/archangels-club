@@ -90,6 +90,23 @@ app.get('/api/debug/content', async (_req, res) => {
   }
 });
 
+app.get('/api/debug/creator-applications', async (_req, res) => {
+  try {
+    const rows = await pool.query(`
+      SELECT cp.id, cp.user_id, cp.bio, cp.tags, cp.content_categories,
+             cp.subscription_price, cp.starting_price, cp.application_status, cp.is_approved,
+             cp.pitch, cp.created_at,
+             u.email, u.username, u.display_name, u.role, u.status AS user_status
+      FROM creator_profiles cp
+      JOIN users u ON u.id = cp.user_id
+      ORDER BY cp.created_at DESC
+    `);
+    res.json(rows.rows);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 app.get('/api/debug/users', async (_req, res) => {
   try {
     const rows = await pool.query(`

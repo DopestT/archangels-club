@@ -4,6 +4,8 @@ import { ArrowLeft, Crown, Clock, Check, AlertCircle, Image, Video, Music, FileT
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../lib/utils';
 
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+
 const CONTENT_CATEGORIES = [
   { id: 'image', icon: <Image className="w-4 h-4" />, label: 'Images' },
   { id: 'video', icon: <Video className="w-4 h-4" />, label: 'Videos' },
@@ -12,7 +14,7 @@ const CONTENT_CATEGORIES = [
 ];
 
 export default function CreatorApplicationPage() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
 
   const [bio, setBio] = useState('');
   const [tags, setTags] = useState('');
@@ -43,16 +45,39 @@ export default function CreatorApplicationPage() {
     return errs;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errs = validate();
     if (errs.length) { setErrors(errs); return; }
     setErrors([]);
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    try {
+      const res = await fetch(`${API_BASE}/api/creators/apply`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          bio,
+          tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
+          categories,
+          subscription_price: parseFloat(subscriptionPrice),
+          starting_price: parseFloat(startingPrice),
+          pitch,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrors([data.error ?? 'Something went wrong. Please try again.']);
+        return;
+      }
       setSubmitted(true);
-    }, 1200);
+    } catch {
+      setErrors(['Unable to reach the server. Please check your connection.']);
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (submitted) {

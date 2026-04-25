@@ -190,6 +190,19 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     } catch {}
   }
 
+  async function copyCreatorSetupLink(id: string) {
+    try {
+      const res = await adminFetch(`/api/admin/creators/${id}/generate-setup-link`, { method: 'POST' });
+      const data = await res.json();
+      if (data.url) {
+        await navigator.clipboard.writeText(data.url);
+        alert(`Setup link copied for ${data.email}\n\n${data.url}`);
+      }
+    } catch {
+      alert('Failed to generate setup link.');
+    }
+  }
+
   async function handleContentAction(id: string, status: string, reason?: string) {
     const endpointMap: Record<string, string> = {
       approved: 'approve',
@@ -454,7 +467,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                         </div>
                       </div>
                     </div>
-                    <div className="flex gap-2 flex-shrink-0">
+                    <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
                       <button onClick={() => handleCreatorAction(app.id, 'approve')}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors">
                         <CheckCircle className="w-3.5 h-3.5" /> Approve
@@ -462,6 +475,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                       <button onClick={() => handleCreatorAction(app.id, 'reject')}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
                         <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
+                      <button onClick={() => copyCreatorSetupLink(app.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-bg-hover text-arc-secondary hover:text-white border border-white/10 hover:border-gold/30 transition-colors">
+                        <Send className="w-3.5 h-3.5" /> Copy Setup Link
                       </button>
                     </div>
                   </div>

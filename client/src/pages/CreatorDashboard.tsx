@@ -1,36 +1,45 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, AlertCircle, Crown, ExternalLink, Zap } from 'lucide-react';
+import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { sampleCustomRequests, sampleTransactions } from '../data/seed';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
-
-const RECENT_TRANSACTIONS = [
-  { id: 't1', type: 'Subscription', fan: 'Jordan M.', amount: 39.99, net: 31.99, at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-  { id: 't2', type: 'Content Unlock', fan: 'Alex R.', amount: 24.99, net: 19.99, at: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
-  { id: 't3', type: 'Tip', fan: 'Marcus T.', amount: 25.00, net: 20.00, at: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString() },
-  { id: 't4', type: 'Custom Request', fan: 'Sam L.', amount: 150, net: 120, at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString() },
-];
+interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number }
+interface Transaction { id: string; ref_type: string; amount: number; net_amount: number; payer_name: string; content_title: string | null; created_at: string }
+interface CustomRequest { id: string; description: string; offered_price: number; status: string; fan_name: string; created_at: string }
 
 export default function CreatorDashboard() {
   const { user, token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
+  const [stats, setStats] = useState<CreatorStats | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [requests, setRequests] = useState<CustomRequest[]>([]);
 
-  const authHeaders: Record<string, string> = {};
-  if (token) authHeaders['Authorization'] = `Bearer ${token}`;
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
   useEffect(() => {
     if (!token) return;
     fetch(`${API_BASE}/api/stripe/connect/status`, { headers: authHeaders })
       .then((r) => r.json())
       .then(setStripeStatus)
+      .catch(() => {});
+    fetch(`${API_BASE}/api/creators/my/stats`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then((d) => { if (!d.error) setStats(d); })
+      .catch(() => {});
+    fetch(`${API_BASE}/api/creators/my/transactions`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setTransactions(d); })
+      .catch(() => {});
+    fetch(`${API_BASE}/api/creators/my/requests`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setRequests(d); })
       .catch(() => {});
   }, [token]);
 
@@ -158,28 +167,26 @@ export default function CreatorDashboard() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
           <StatCard
             label="Total Earnings"
-            value={formatCurrency(48200)}
-            sub="↑ 12% this month"
-            trend="up"
+            value={stats ? formatCurrency(stats.total_earnings) : '—'}
+            sub="lifetime net"
             icon={<DollarSign className="w-5 h-5" />}
           />
           <StatCard
             label="Subscribers"
-            value="1,840"
-            sub="↑ 34 this week"
-            trend="up"
+            value={stats ? stats.subscriber_count.toLocaleString() : '—'}
+            sub="active subscribers"
             icon={<Users className="w-5 h-5" />}
           />
           <StatCard
             label="Content Unlocks"
-            value="4,221"
-            sub="312 this month"
+            value={stats ? stats.content_unlocks.toLocaleString() : '—'}
+            sub="total purchases"
             icon={<TrendingUp className="w-5 h-5" />}
           />
           <StatCard
             label="Tips Received"
-            value={formatCurrency(3840)}
-            sub="From 89 fans"
+            value={stats ? formatCurrency(stats.tips_total) : '—'}
+            sub="lifetime tips"
             icon={<Star className="w-5 h-5" />}
           />
         </div>
@@ -220,9 +227,9 @@ export default function CreatorDashboard() {
               </div>
               <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-3 gap-4">
                 {[
-                  { label: 'This Month', value: formatCurrency(6840) },
-                  { label: 'Platform Fee (20%)', value: formatCurrency(1368) },
-                  { label: 'Net Payout', value: formatCurrency(5472) },
+                  { label: 'Lifetime Earnings', value: stats ? formatCurrency(stats.total_earnings) : '—' },
+                  { label: 'Platform Fee (20%)', value: stats ? formatCurrency(stats.total_earnings * 0.25) : '—' },
+                  { label: 'Active Subscribers', value: stats ? stats.subscriber_count.toString() : '—' },
                 ].map(({ label, value }) => (
                   <div key={label} className="text-center">
                     <p className="text-xs text-arc-muted mb-1">{label}</p>
@@ -235,74 +242,85 @@ export default function CreatorDashboard() {
             {/* Recent transactions */}
             <div className="card-surface p-6 rounded-xl">
               <h2 className="font-serif text-lg text-white mb-5">Recent Transactions</h2>
-              <div className="space-y-0">
-                {RECENT_TRANSACTIONS.map((txn, i) => (
-                  <div
-                    key={txn.id}
-                    className={`flex items-center justify-between py-3.5 gap-4 ${
-                      i < RECENT_TRANSACTIONS.length - 1 ? 'border-b border-white/5' : ''
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg bg-gold-muted border border-gold-border flex items-center justify-center">
-                        <DollarSign className="w-4 h-4 text-gold" />
+              {transactions.length > 0 ? (
+                <div className="space-y-0">
+                  {transactions.map((txn, i) => (
+                    <div
+                      key={txn.id}
+                      className={`flex items-center justify-between py-3.5 gap-4 ${
+                        i < transactions.length - 1 ? 'border-b border-white/5' : ''
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-gold-muted border border-gold-border flex items-center justify-center">
+                          <DollarSign className="w-4 h-4 text-gold" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-white capitalize">{txn.ref_type.replace('_', ' ')}</p>
+                          <p className="text-xs text-arc-muted">from {txn.payer_name}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm text-white">{txn.type}</p>
-                        <p className="text-xs text-arc-muted">from {txn.fan}</p>
+                      <div className="text-right">
+                        <p className="text-sm font-serif text-arc-success">+{formatCurrency(Number(txn.net_amount))}</p>
+                        <p className="text-xs text-arc-muted">{timeAgo(txn.created_at)}</p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-serif text-arc-success">+{formatCurrency(txn.net)}</p>
-                      <p className="text-xs text-arc-muted">{timeAgo(txn.at)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-arc-muted text-center py-6">No transactions yet.</p>
+              )}
             </div>
 
             {/* Custom requests */}
             <div className="card-surface p-6 rounded-xl">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-serif text-lg text-white">Custom Requests</h2>
-                <span className="text-xs text-arc-muted">2 pending</span>
+                <span className="text-xs text-arc-muted">
+                  {requests.filter((r) => r.status === 'pending').length} pending
+                </span>
               </div>
-              <div className="space-y-4">
-                {sampleCustomRequests.map((req) => (
-                  <div key={req.id} className="p-4 rounded-xl bg-bg-hover border border-white/5">
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <p className="text-sm text-white leading-relaxed flex-1">{req.description}</p>
-                      <span className="font-serif text-gold text-lg flex-shrink-0">
-                        {formatCurrency(req.offered_price)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-xs px-2.5 py-0.5 rounded-full border ${
-                          req.status === 'pending'
-                            ? 'text-amber-400 bg-amber-400/10 border-amber-400/25'
-                            : req.status === 'accepted'
-                            ? 'text-arc-success bg-arc-success/10 border-arc-success/25'
-                            : 'text-arc-error bg-arc-error/10 border-arc-error/25'
-                        }`}>
-                          {req.status}
+              {requests.length > 0 ? (
+                <div className="space-y-4">
+                  {requests.map((req) => (
+                    <div key={req.id} className="p-4 rounded-xl bg-bg-hover border border-white/5">
+                      <div className="flex items-start justify-between gap-4 mb-3">
+                        <p className="text-sm text-white leading-relaxed flex-1">{req.description}</p>
+                        <span className="font-serif text-gold text-lg flex-shrink-0">
+                          {formatCurrency(Number(req.offered_price))}
                         </span>
-                        <span className="text-xs text-arc-muted">{timeAgo(req.created_at)}</span>
                       </div>
-                      {req.status === 'pending' && (
+                      <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <button className="p-1.5 rounded-lg bg-arc-success/10 text-arc-success hover:bg-arc-success/20 transition-colors">
-                            <CheckCircle className="w-4 h-4" />
-                          </button>
-                          <button className="p-1.5 rounded-lg bg-arc-error/10 text-arc-error hover:bg-arc-error/20 transition-colors">
-                            <XCircle className="w-4 h-4" />
-                          </button>
+                          <span className={`text-xs px-2.5 py-0.5 rounded-full border ${
+                            req.status === 'pending'
+                              ? 'text-amber-400 bg-amber-400/10 border-amber-400/25'
+                              : req.status === 'accepted'
+                              ? 'text-arc-success bg-arc-success/10 border-arc-success/25'
+                              : 'text-arc-error bg-arc-error/10 border-arc-error/25'
+                          }`}>
+                            {req.status}
+                          </span>
+                          <span className="text-xs text-arc-muted">{timeAgo(req.created_at)}</span>
+                          <span className="text-xs text-arc-muted">from {req.fan_name}</span>
                         </div>
-                      )}
+                        {req.status === 'pending' && (
+                          <div className="flex items-center gap-2">
+                            <button className="p-1.5 rounded-lg bg-arc-success/10 text-arc-success hover:bg-arc-success/20 transition-colors">
+                              <CheckCircle className="w-4 h-4" />
+                            </button>
+                            <button className="p-1.5 rounded-lg bg-arc-error/10 text-arc-error hover:bg-arc-error/20 transition-colors">
+                              <XCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-arc-muted text-center py-6">No custom requests yet.</p>
+              )}
             </div>
           </div>
 
