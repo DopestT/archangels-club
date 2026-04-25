@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Link } from 'react-router-dom';
 import { Search, SlidersHorizontal, Lock, TrendingUp, Sparkles, Crown, ChevronRight } from 'lucide-react';
 import CreatorCard from '../components/creators/CreatorCard';
 import FeedCard from '../components/content/FeedCard';
@@ -282,7 +283,7 @@ export default function ExplorePage() {
             <p className="text-arc-secondary text-sm mb-6 max-w-xs mx-auto">
               Creators publish exclusively here. Applications reviewed weekly — be first when they launch.
             </p>
-            <a href="/apply" className="btn-gold text-sm">Apply to Create</a>
+            <Link to="/apply-creator" className="btn-gold text-sm">Apply to Create</Link>
           </div>
         ) : null}
 
