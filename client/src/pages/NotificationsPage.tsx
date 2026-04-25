@@ -44,9 +44,10 @@ export default function NotificationsPage() {
   const [filter, setFilter] = useState<FilterTab>('all');
 
   const fetch = useCallback(async () => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) { setLoading(false); return; }
     setLoading(true);
     try { const d = await apiFetch(''); setNotifications(d.notifications ?? []); }
+    catch { setNotifications([]); }
     finally { setLoading(false); }
   }, [isAuthenticated]);
 

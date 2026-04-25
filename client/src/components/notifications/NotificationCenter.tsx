@@ -45,13 +45,13 @@ export default function NotificationCenter() {
 
   const fetchCount = useCallback(async () => {
     if (!isAuthenticated) return;
-    try { const d = await apiFetch('/unread-count'); setUnread(d.count); }
+    try { const d = await apiFetch('/unread-count'); setUnread(d.count ?? 0); }
     catch {}
   }, [isAuthenticated]);
 
   const fetchAll = useCallback(async () => {
     if (!isAuthenticated) return;
-    try { const d = await apiFetch(''); setNotifications(d.notifications); setUnread(d.unread); }
+    try { const d = await apiFetch(''); setNotifications(d.notifications ?? []); setUnread(d.unread ?? 0); }
     catch {}
   }, [isAuthenticated]);
 
