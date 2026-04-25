@@ -18,7 +18,7 @@ if (!PORT) {
 }
 
 const corsOptions = {
-  origin: ['http://localhost:3000', process.env.CLIENT_URL ?? ''].filter(Boolean),
+  origin: true,
   credentials: true,
 };
 app.options('*', cors(corsOptions));
