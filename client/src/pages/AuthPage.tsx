@@ -77,21 +77,17 @@ export default function AuthPage({ mode }: { mode: Mode }) {
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
-    console.log('handleSignup fired');
     const errs = validateSignup();
-    console.log('validation errors:', errs);
     if (errs.length) { setErrors(errs); return; }
     setErrors([]);
     setLoading(true);
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'https://archangels-club-production.up.railway.app';
-      console.log('sending request');
       const res = await fetch(`${apiBase}/api/access-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name, reason }),
       });
-      console.log('response received', res.status);
       const data = await res.json();
       if (!res.ok) {
         setErrors([data.error ?? 'Something went wrong. Please try again.']);
