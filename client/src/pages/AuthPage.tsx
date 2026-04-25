@@ -82,8 +82,9 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     setErrors([]);
     setLoading(true);
     try {
+      const apiBase = import.meta.env.VITE_API_URL || 'https://archangels-club-production.up.railway.app';
       console.log('sending request');
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/access-request`, {
+      const res = await fetch(`${apiBase}/api/access-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, name, reason }),
