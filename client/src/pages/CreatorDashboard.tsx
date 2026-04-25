@@ -1,10 +1,14 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, AlertCircle, Crown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, AlertCircle, Crown, ExternalLink, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { sampleCustomRequests, sampleTransactions } from '../data/seed';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+
+interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
 
 const RECENT_TRANSACTIONS = [
   { id: 't1', type: 'Subscription', fan: 'Jordan M.', amount: 39.99, net: 31.99, at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
@@ -14,7 +18,57 @@ const RECENT_TRANSACTIONS = [
 ];
 
 export default function CreatorDashboard() {
-  const { user } = useAuth();
+  const { user, token } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
+  const [stripeLoading, setStripeLoading] = useState(false);
+
+  const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/api/stripe/connect/status`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then(setStripeStatus)
+      .catch(() => {});
+  }, [token]);
+
+  // After Stripe redirects back with ?stripe=return, verify onboarding
+  useEffect(() => {
+    if (searchParams.get('stripe') !== 'return' || !token) return;
+    setSearchParams({}, { replace: true });
+    fetch(`${API_BASE}/api/stripe/connect/verify`, { method: 'POST', headers: authHeaders })
+      .then((r) => r.json())
+      .then((data) => setStripeStatus((prev) => prev ? { ...prev, onboarded: data.onboarded } : null))
+      .catch(() => {});
+  }, [searchParams, token]);
+
+  async function startStripeOnboarding() {
+    if (!token) return;
+    setStripeLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/stripe/connect/start`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } catch {
+      // silent — user can retry
+    } finally {
+      setStripeLoading(false);
+    }
+  }
+
+  async function openStripeDashboard() {
+    if (!token) return;
+    const res = await fetch(`${API_BASE}/api/stripe/connect/dashboard-link`, {
+      method: 'POST',
+      headers: authHeaders,
+    });
+    const data = await res.json();
+    if (data.url) window.open(data.url, '_blank');
+  }
 
   return (
     <div className="min-h-screen bg-bg-primary py-10">
@@ -52,6 +106,50 @@ export default function CreatorDashboard() {
                 Expect a response within <strong className="text-amber-200">48–72 hours</strong>.
               </p>
             </div>
+          </div>
+        )}
+
+        {/* Stripe Connect Banner */}
+        {stripeStatus !== null && !stripeStatus.onboarded && (
+          <div className="flex items-start gap-4 p-5 rounded-xl bg-bg-surface border border-gold/30 mb-8">
+            <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/25 flex items-center justify-center flex-shrink-0">
+              <Zap className="w-4 h-4 text-gold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white mb-0.5">Set up payouts to start earning</p>
+              <p className="text-xs text-arc-secondary leading-relaxed">
+                Connect your bank account via Stripe. Once set up, 80% of every payment goes directly to you — automatically.
+              </p>
+            </div>
+            <button
+              onClick={startStripeOnboarding}
+              disabled={stripeLoading}
+              className="btn-gold text-xs px-4 py-2 flex-shrink-0 flex items-center gap-1.5"
+            >
+              {stripeLoading ? (
+                <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+              ) : (
+                <ExternalLink className="w-3.5 h-3.5" />
+              )}
+              {stripeLoading ? 'Loading…' : 'Set Up Payouts'}
+            </button>
+          </div>
+        )}
+
+        {stripeStatus?.onboarded && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-arc-success/8 border border-arc-success/25 mb-8">
+            <CheckCircle className="w-4 h-4 text-arc-success flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-arc-success">Payouts connected</p>
+              <p className="text-xs text-arc-muted mt-0.5">Your Stripe account is set up. You'll receive 80% of every sale automatically.</p>
+            </div>
+            <button onClick={openStripeDashboard} className="text-xs text-gold hover:underline flex items-center gap-1">
+              <ExternalLink className="w-3 h-3" />
+              Stripe Dashboard
+            </button>
           </div>
         )}
 

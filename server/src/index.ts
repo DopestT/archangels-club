@@ -12,6 +12,7 @@ import notificationRoutes from './routes/notifications.js';
 import accessRequestRoutes from './routes/accessRequests.js';
 import paymentRoutes from './routes/payments.js';
 import webhookRoutes from './routes/webhooks.js';
+import stripeRoutes from './routes/stripe.js';
 
 const app = express();
 const PORT = Number(process.env.PORT);
@@ -41,6 +42,7 @@ app.use('/api/video', videoRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/access-request', accessRequestRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/stripe', stripeRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API' });

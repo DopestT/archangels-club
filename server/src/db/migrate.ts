@@ -252,6 +252,11 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_bundles_creator ON bundles(creator_id);
 
   ALTER TABLE content_unlocks ADD COLUMN IF NOT EXISTS transaction_id TEXT REFERENCES transactions(id);
+
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS stripe_account_id TEXT;
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS stripe_onboarding_complete SMALLINT NOT NULL DEFAULT 0;
+
+  ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT;
 `;
 
 export async function runMigrations(): Promise<void> {

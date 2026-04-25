@@ -18,7 +18,7 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
     if (!content_id) { res.status(400).json({ error: 'content_id required' }); return; }
 
     const content = await queryOne<any>(
-      `SELECT c.*, cp.user_id as creator_user_id
+      `SELECT c.*, cp.user_id as creator_user_id, cp.stripe_account_id, cp.stripe_onboarding_complete
        FROM content c
        JOIN creator_profiles cp ON cp.id = c.creator_id
        WHERE c.id = $1`,
@@ -37,6 +37,10 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
       res.status(400).json({ error: 'Content has no price set' });
       return;
     }
+    if (!content.stripe_account_id || !content.stripe_onboarding_complete) {
+      res.status(403).json({ error: 'Creator has not completed payout setup. Payment unavailable.' });
+      return;
+    }
 
     const alreadyUnlocked = await queryOne(
       'SELECT id FROM content_unlocks WHERE user_id = $1 AND content_id = $2',
@@ -49,6 +53,7 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
 
     const stripe = getStripe();
     const amountCents = Math.round(Number(content.price) * 100);
+    const feeCents = Math.round(amountCents * 0.2);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -61,6 +66,12 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
         },
         quantity: 1,
       }],
+      payment_intent_data: {
+        application_fee_amount: feeCents,
+        transfer_data: {
+          destination: content.stripe_account_id,
+        },
+      },
       metadata: {
         user_id: req.auth!.userId,
         content_id,

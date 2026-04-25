@@ -23,7 +23,6 @@ router.post('/stripe', async (req, res) => {
       return;
     }
   } else {
-    // No secret configured — accept raw body as JSON (dev / test mode)
     try {
       event = (typeof req.body === 'string' || Buffer.isBuffer(req.body))
         ? JSON.parse(req.body.toString())
@@ -37,6 +36,7 @@ router.post('/stripe', async (req, res) => {
   if (event.type === 'checkout.session.completed') {
     const session = event.data.object as Stripe.Checkout.Session;
     const { user_id, content_id, creator_user_id, creator_profile_id, amount } = session.metadata ?? {};
+    const paymentIntentId = typeof session.payment_intent === 'string' ? session.payment_intent : null;
 
     if (!user_id || !content_id || !creator_user_id || !creator_profile_id || !amount) {
       console.error('[webhook] Missing metadata:', session.metadata);
@@ -60,9 +60,9 @@ router.post('/stripe', async (req, res) => {
 
       await withTransaction(async (client) => {
         await client.query(
-          `INSERT INTO transactions (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount, status)
-           VALUES ($1, $2, $3, 'content', $4, $5, $6, $7, 'completed')`,
-          [txnId, user_id, creator_user_id, content_id, amountNum, platformFee, netAmount]
+          `INSERT INTO transactions (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount, status, stripe_payment_intent_id)
+           VALUES ($1, $2, $3, 'content', $4, $5, $6, $7, 'completed', $8)`,
+          [txnId, user_id, creator_user_id, content_id, amountNum, platformFee, netAmount, paymentIntentId]
         );
         await client.query(
           'INSERT INTO content_unlocks (id, user_id, content_id, transaction_id) VALUES ($1, $2, $3, $4)',
@@ -79,12 +79,18 @@ router.post('/stripe', async (req, res) => {
         triggerPurchaseConfirmation(user_id, content.title, content_id).catch(console.error);
       }
 
-      console.log(`[webhook] Unlocked: user=${user_id} content=${content_id} amount=${amountNum}`);
+      console.log(`[webhook] Unlocked: user=${user_id} content=${content_id} amount=${amountNum} intent=${paymentIntentId}`);
     } catch (err) {
       console.error('[webhook] Processing failed:', err);
       res.status(500).json({ error: 'Webhook processing failed' });
       return;
     }
+  }
+
+  if (event.type === 'payment_intent.succeeded') {
+    const intent = event.data.object as Stripe.PaymentIntent;
+    // Already handled via checkout.session.completed — log only
+    console.log(`[webhook] payment_intent.succeeded: ${intent.id}`);
   }
 
   res.json({ received: true });
