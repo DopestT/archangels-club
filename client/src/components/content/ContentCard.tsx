@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Image, Video, Music, FileText, Eye, Zap } from 'lucide-react';
+import { Lock, Image, Video, Music, FileText, Eye, Zap, Users } from 'lucide-react';
 import type { Content } from '../../types';
 import Avatar from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
@@ -28,11 +28,11 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
   const isScarce = spotsLeft != null && spotsLeft > 0 && spotsLeft <= 10;
 
   return (
-    <Link to={`/content/${content.id}`} className="group block" onClick={() => console.log('Clicked content:', content.id, content.title)}>
+    <Link to={`/content/${content.id}`} className="group block">
       <div className="card-surface overflow-hidden transition-all duration-300 group-hover:shadow-gold group-hover:-translate-y-0.5">
         {/* Preview image */}
         <div className="relative h-52 overflow-hidden bg-bg-hover">
-          {content.preview_url && (
+          {content.preview_url ? (
             <img
               src={content.preview_url}
               alt={isLocked ? '' : content.title}
@@ -40,23 +40,49 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
                 isLocked ? 'locked-blur scale-110' : ''
               }`}
             />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-arc-muted">
+              {TYPE_ICONS[content.content_type]}
+            </div>
           )}
 
           {/* Locked overlay */}
           {isLocked && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-bg-primary/65 backdrop-blur-[2px]">
-              <div className="w-11 h-11 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
-                <Lock className="w-5 h-5 text-gold" />
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-bg-primary/65 backdrop-blur-[2px] transition-all duration-300">
+              {/* Default state */}
+              <div className="flex flex-col items-center gap-2 group-hover:opacity-0 transition-opacity duration-200">
+                <div className="w-11 h-11 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
+                  <Lock className="w-5 h-5 text-gold" />
+                </div>
+                <span className="text-[10px] font-sans text-arc-muted uppercase tracking-widest">Members Only</span>
+                {content.access_type === 'locked' && content.price > 0 && (
+                  <span className="font-serif text-2xl text-gold leading-none">{formatCurrency(content.price)}</span>
+                )}
+                {content.access_type === 'subscribers' && (
+                  <span className="text-xs text-arc-secondary">Subscribers only</span>
+                )}
               </div>
-              {content.access_type === 'locked' && content.price > 0 && (
-                <span className="font-serif text-xl text-gold">{formatCurrency(content.price)}</span>
-              )}
-              {content.access_type === 'subscribers' && (
-                <span className="text-xs text-arc-secondary">Subscribers only</span>
-              )}
+
               {/* Hover CTA */}
-              <span className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 text-xs font-sans font-medium text-gold border border-gold/40 rounded-full px-3 py-1 bg-gold/10 mt-0.5">
-                {content.access_type === 'locked' ? 'Unlock Access →' : 'Subscribe to View →'}
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="w-12 h-12 rounded-full bg-gold flex items-center justify-center shadow-gold">
+                  <Lock className="w-5 h-5 text-bg-primary" />
+                </div>
+                <span className="font-sans font-medium text-white text-sm">
+                  {content.access_type === 'locked'
+                    ? content.price > 0 ? `Unlock · ${formatCurrency(content.price)}` : 'Unlock Access'
+                    : 'Subscribe to View'}
+                </span>
+                <span className="text-[10px] text-arc-muted">Tap to unlock exclusive content</span>
+              </div>
+            </div>
+          )}
+
+          {/* Price overlay on free content (hover) */}
+          {!isLocked && content.price > 0 && (
+            <div className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <span className="font-serif text-sm text-gold bg-bg-primary/80 backdrop-blur-sm px-2 py-1 rounded-lg border border-gold/20">
+                {formatCurrency(content.price)}
               </span>
             </div>
           )}
@@ -100,7 +126,7 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
 
           <div className="flex items-center justify-between pt-3 border-t border-white/5">
             <div className="flex items-center gap-1 text-xs text-arc-muted">
-              <Eye className="w-3.5 h-3.5" />
+              <Users className="w-3.5 h-3.5" />
               <span>{formatCompactNumber(content.unlock_count ?? 0)} unlocks</span>
             </div>
             <span className="text-xs text-arc-muted">{timeAgo(content.created_at)}</span>

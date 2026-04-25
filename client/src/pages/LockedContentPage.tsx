@@ -47,6 +47,7 @@ export default function LockedContentPage() {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [moreContent, setMoreContent] = useState<GlobalContent[]>([]);
 
@@ -138,16 +139,20 @@ export default function LockedContentPage() {
         body: JSON.stringify({ content_id: id }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error ?? 'Payment failed'); return; }
-      if (data.already_unlocked) {
-        setUnlocked(true);
+      if (!res.ok) {
+        setError(data.error ?? 'Payment failed. Please try again.');
+        setPaying(false);
         return;
       }
-      // Redirect to Stripe Checkout
+      if (data.already_unlocked) {
+        setUnlocked(true);
+        setPaying(false);
+        return;
+      }
+      setRedirecting(true);
       window.location.href = data.url;
     } catch {
-      setError('Unable to start checkout. Please try again.');
-    } finally {
+      setError('Unable to reach checkout. Please check your connection and try again.');
       setPaying(false);
     }
   }
@@ -162,11 +167,23 @@ export default function LockedContentPage() {
 
   if (error || !content) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="font-serif text-2xl text-white mb-2">{error || 'Content Not Found'}</h2>
-          {id && <p className="text-xs text-arc-muted mb-4 font-mono">ID: {id}</p>}
-          <Link to="/explore" className="btn-outline mt-4">Back to Explore</Link>
+      <div className="min-h-screen flex flex-col items-center justify-center px-4">
+        <div className="w-16 h-16 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center mb-6">
+          <Lock className="w-7 h-7 text-gold" />
+        </div>
+        <h2 className="font-serif text-2xl text-white mb-2 text-center">This drop is members-only</h2>
+        <p className="text-arc-secondary text-sm mb-1 text-center max-w-sm">
+          {error && !error.toLowerCase().includes('not found')
+            ? error
+            : 'This content is restricted to verified members. Request your invite to unlock exclusive drops.'}
+        </p>
+        <p className="text-xs text-arc-muted mb-8 text-center">All content on Archangels Club is age-verified and moderated.</p>
+        <div className="flex items-center gap-3">
+          <Link to="/signup" className="btn-gold text-sm px-6">
+            <Crown className="w-4 h-4" />
+            Request Invite
+          </Link>
+          <Link to="/explore" className="btn-outline text-sm px-6">Explore Creators</Link>
         </div>
       </div>
     );
@@ -178,6 +195,17 @@ export default function LockedContentPage() {
 
   return (
     <div className="min-h-screen bg-bg-primary py-12">
+      {/* Checkout redirect overlay */}
+      {redirecting && (
+        <div className="fixed inset-0 z-50 bg-bg-primary/97 backdrop-blur-md flex flex-col items-center justify-center">
+          <div className="w-14 h-14 border-2 border-gold/30 border-t-gold rounded-full animate-spin mb-6" />
+          <p className="font-serif text-2xl text-white mb-2">Redirecting to checkout</p>
+          <p className="text-sm text-arc-muted max-w-xs text-center">
+            Secure payment via Stripe. You'll be returned here automatically after payment.
+          </p>
+        </div>
+      )}
+
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
         <Link
           to={content.creator_username ? `/creator/${content.creator_username}` : '/explore'}
