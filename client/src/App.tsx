@@ -19,6 +19,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AccessKeysPage from './pages/AccessKeysPage';
 import CreatorOnboarding from './pages/CreatorOnboarding';
 import NotificationsPage from './pages/NotificationsPage';
+import StaticPage from './pages/StaticPage';
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -76,6 +77,14 @@ function AppRoutes() {
         <Route path="content/:id" element={<LockedContentPage />} />
         <Route path="login" element={<AuthPage mode="login" />} />
         <Route path="signup" element={<AuthPage mode="signup" />} />
+        <Route path="privacy" element={<StaticPage page="privacy" />} />
+        <Route path="terms" element={<StaticPage page="terms" />} />
+        <Route path="compliance" element={<StaticPage page="compliance" />} />
+        <Route path="dmca" element={<StaticPage page="dmca" />} />
+        <Route path="age-verification" element={<StaticPage page="age-verification" />} />
+        <Route path="contact" element={<StaticPage page="contact" />} />
+        <Route path="report" element={<StaticPage page="report" />} />
+        <Route path="help" element={<StaticPage page="help" />} />
 
         {/* Status-gated pages — authenticated but no approval required */}
         <Route path="pending" element={

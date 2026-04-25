@@ -32,7 +32,7 @@ export default function Footer() {
                 { to: '/explore', label: 'Explore Creators' },
                 { to: '/signup', label: 'Request Access' },
                 { to: '/login', label: 'Member Login' },
-                { to: '/apply', label: 'Creator Application' },
+                { to: '/apply-creator', label: 'Creator Application' },
               ].map(({ to, label }) => (
                 <li key={to}>
                   <Link to={to} className="text-sm text-arc-secondary hover:text-gold transition-colors">
