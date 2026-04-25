@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Search, SlidersHorizontal, Lock } from 'lucide-react';
-import { sampleCreators } from '../data/seed';
 import CreatorCard from '../components/creators/CreatorCard';
+import type { CreatorProfile } from '../types';
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
 
 const ALL_TAGS = ['All', 'Lifestyle', 'Art', 'Fashion', 'Photography', 'Editorial', 'Cinematic', 'Dark Aesthetic', 'Visual Art', 'Wellness', 'Beauty', 'Fine Art', 'Music', 'Audio'];
 
@@ -10,28 +12,42 @@ export default function ExplorePage() {
   const [activeTag, setActiveTag] = useState('All');
   const [sortBy, setSortBy] = useState<'popular' | 'newest' | 'price-low' | 'price-high'>('popular');
 
-  let filtered = sampleCreators.filter((c) => c.is_approved);
+  const [creators, setCreators] = useState<CreatorProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  if (query) {
-    const q = query.toLowerCase();
-    filtered = filtered.filter(
-      (c) =>
-        c.display_name?.toLowerCase().includes(q) ||
-        c.bio.toLowerCase().includes(q) ||
-        c.tags.some((t) => t.toLowerCase().includes(q)),
-    );
-  }
+  const fetchCreators = useCallback(() => {
+    setLoading(true);
+    setError('');
 
-  if (activeTag !== 'All') {
-    filtered = filtered.filter((c) => c.tags.includes(activeTag));
-  }
+    const params = new URLSearchParams({ sort: sortBy });
+    if (query) params.set('q', query);
+    if (activeTag !== 'All') params.set('tag', activeTag);
 
-  filtered = [...filtered].sort((a, b) => {
-    if (sortBy === 'newest') return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-    if (sortBy === 'price-low') return a.subscription_price - b.subscription_price;
-    if (sortBy === 'price-high') return b.subscription_price - a.subscription_price;
-    return (b.subscriber_count ?? 0) - (a.subscriber_count ?? 0);
-  });
+    console.log('[ExplorePage] fetching:', `${API_BASE}/api/creators?${params}`);
+
+    fetch(`${API_BASE}/api/creators?${params}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!Array.isArray(data)) {
+          console.error('[ExplorePage] unexpected response:', data);
+          setError(data.error || 'Failed to load creators.');
+          return;
+        }
+        console.log('[ExplorePage] loaded', data.length, 'creators');
+        setCreators(data);
+      })
+      .catch((err) => {
+        console.error('[ExplorePage] fetch error:', err);
+        setError('Unable to reach the server.');
+      })
+      .finally(() => setLoading(false));
+  }, [query, activeTag, sortBy]);
+
+  useEffect(() => {
+    const t = setTimeout(fetchCreators, query ? 300 : 0);
+    return () => clearTimeout(t);
+  }, [fetchCreators, query]);
 
   return (
     <div className="min-h-screen bg-bg-primary">
@@ -98,20 +114,40 @@ export default function ExplorePage() {
         </div>
 
         {/* Results count */}
-        <div className="flex items-center justify-between mb-6">
-          <p className="text-sm text-arc-secondary">
-            <span className="text-gold">{filtered.length}</span> creators
-          </p>
-        </div>
+        {!loading && !error && (
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-sm text-arc-secondary">
+              <span className="text-gold">{creators.length}</span> creator{creators.length !== 1 ? 's' : ''}
+            </p>
+          </div>
+        )}
+
+        {/* Loading */}
+        {loading && (
+          <div className="flex justify-center py-24">
+            <div className="w-8 h-8 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+          </div>
+        )}
+
+        {/* Error */}
+        {!loading && error && (
+          <div className="text-center py-24">
+            <p className="text-arc-error text-sm mb-4">{error}</p>
+            <button onClick={fetchCreators} className="btn-outline text-sm">Retry</button>
+          </div>
+        )}
 
         {/* Grid */}
-        {filtered.length > 0 ? (
+        {!loading && !error && creators.length > 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filtered.map((creator) => (
+            {creators.map((creator) => (
               <CreatorCard key={creator.id} creator={creator} />
             ))}
           </div>
-        ) : (
+        )}
+
+        {/* Empty state */}
+        {!loading && !error && creators.length === 0 && (
           <div className="text-center py-24">
             <Search className="w-10 h-10 text-arc-muted mx-auto mb-4" />
             <h3 className="font-serif text-xl text-white mb-2">No creators found</h3>
