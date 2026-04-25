@@ -1,11 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Users, DollarSign, Crown, Shield, Flag, TrendingUp,
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
   Image, Video, Music, FileText, MessageSquare, UserCheck, Key, Gift, Send, Plus,
 } from 'lucide-react';
-import { sampleCreators, pendingAccessRequests, pendingCreatorApplications, pendingContentReviews, myAccessKeys, activeKeyDrops } from '../data/seed';
-import type { PendingAccessRequest, PendingCreatorApplication, PendingContentReview } from '../data/seed';
+import { sampleCreators, pendingCreatorApplications, pendingContentReviews, myAccessKeys, activeKeyDrops } from '../data/seed';
+import type { PendingCreatorApplication, PendingContentReview } from '../data/seed';
+
+interface AccessRequest {
+  id: string;
+  email: string;
+  name: string;
+  reason: string;
+  status: string;
+  created_at: string;
+}
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+const ADMIN_KEY = (import.meta.env.VITE_ADMIN_KEY as string | undefined) ?? '';
 import StatCard from '../components/ui/StatCard';
 import Logo from '../components/brand/Logo';
 import Avatar from '../components/ui/Avatar';
@@ -51,9 +63,10 @@ function UserStatusBadge({ status }: { status: string }) {
 export default function AdminDashboard({ initialTab = 'overview' }: { initialTab?: Tab }) {
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
-  // Access request actions
-  const [accessActions, setAccessActions] = useState<Record<string, string>>({});
-  const [accessRequests, setAccessRequests] = useState<PendingAccessRequest[]>(pendingAccessRequests);
+  // Access requests — fetched from API
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
+  const [accessLoading, setAccessLoading] = useState(false);
+  const [accessError, setAccessError] = useState('');
 
   // Creator approval actions
   const [creatorActions, setCreatorActions] = useState<Record<string, string>>({});
@@ -63,12 +76,42 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [activeRejection, setActiveRejection] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const pendingAccessCount = accessRequests.filter((r) => !accessActions[r.id]).length;
+  const pendingAccessCount = accessRequests.length;
   const pendingContentCount = pendingContentReviews.filter((r) => !contentActions[r.id]).length;
   const pendingCreatorCount = pendingCreatorApplications.filter((a) => !creatorActions[a.id]).length;
 
-  function handleAccessAction(id: string, action: string) {
-    setAccessActions((p) => ({ ...p, [id]: action }));
+  useEffect(() => {
+    if (activeTab === 'access-requests') loadAccessRequests();
+  }, [activeTab]);
+
+  async function loadAccessRequests() {
+    setAccessLoading(true);
+    setAccessError('');
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/access-requests`, {
+        headers: { 'x-admin-key': ADMIN_KEY },
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setAccessRequests(await res.json());
+    } catch (e) {
+      setAccessError('Failed to load requests.');
+    } finally {
+      setAccessLoading(false);
+    }
+  }
+
+  async function handleAccessAction(id: string, action: 'approved' | 'rejected') {
+    const endpoint = action === 'approved' ? 'approve' : 'reject';
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/users/${id}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'x-admin-key': ADMIN_KEY },
+      });
+      if (!res.ok) throw new Error();
+      setAccessRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch {
+      // keep item in list if call fails
+    }
   }
 
   function handleContentAction(id: string, status: string, reason?: string) {
@@ -240,62 +283,53 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
               </div>
             </div>
 
+            {accessLoading && (
+              <div className="flex items-center justify-center py-16 text-arc-muted text-sm">Loading…</div>
+            )}
+            {accessError && (
+              <div className="p-4 rounded-xl bg-arc-error/10 border border-arc-error/30 text-xs text-arc-error mb-4">{accessError}</div>
+            )}
+            {!accessLoading && !accessError && accessRequests.length === 0 && (
+              <div className="flex items-center justify-center py-16 text-arc-muted text-sm">No pending requests.</div>
+            )}
             <div className="space-y-4">
-              {accessRequests.map((req) => {
-                const action = accessActions[req.id];
-                const age = Math.floor((Date.now() - new Date(req.date_of_birth).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-                return (
-                  <div key={req.id} className={`card-surface p-6 rounded-xl transition-all ${action ? 'opacity-60' : ''}`}>
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar src={req.avatar_url} name={req.display_name} size="md" />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-white font-medium">{req.display_name}</p>
-                            {action ? <UserStatusBadge status={action} /> : <UserStatusBadge status="pending" />}
-                          </div>
-                          <p className="text-xs text-arc-muted mt-0.5">@{req.username} · {req.email}</p>
-                          <p className="text-xs text-arc-muted mt-0.5">Age: {age} · Applied {timeAgo(req.applied_at)}</p>
+              {accessRequests.map((req) => (
+                <div key={req.id} className="card-surface p-6 rounded-xl">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar src={undefined} name={req.name} size="md" />
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-white font-medium">{req.name}</p>
+                          <UserStatusBadge status={req.status} />
                         </div>
+                        <p className="text-xs text-arc-muted mt-0.5">{req.email}</p>
+                        <p className="text-xs text-arc-muted mt-0.5">Applied {timeAgo(req.created_at)}</p>
                       </div>
-
-                      {!action && (
-                        <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-                          <button
-                            onClick={() => handleAccessAction(req.id, 'approved')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
-                          >
-                            <CheckCircle className="w-3.5 h-3.5" /> Approve
-                          </button>
-                          <button
-                            onClick={() => handleAccessAction(req.id, 'rejected')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
-                          >
-                            <XCircle className="w-3.5 h-3.5" /> Reject
-                          </button>
-                          <button
-                            onClick={() => handleAccessAction(req.id, 'suspended')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-orange-500/10 text-orange-400 hover:bg-orange-500/20 border border-orange-500/25 transition-colors"
-                          >
-                            Suspend
-                          </button>
-                          <button
-                            onClick={() => handleAccessAction(req.id, 'banned')}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/25 transition-colors"
-                          >
-                            Ban
-                          </button>
-                        </div>
-                      )}
                     </div>
 
-                    <div className="bg-bg-hover rounded-lg p-4">
-                      <p className="text-xs font-medium text-gold mb-1.5">Reason for joining:</p>
-                      <p className="text-xs text-arc-secondary leading-relaxed">{req.reason_for_joining}</p>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => handleAccessAction(req.id, 'approved')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button
+                        onClick={() => handleAccessAction(req.id, 'rejected')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
                     </div>
                   </div>
-                );
-              })}
+
+                  <div className="bg-bg-hover rounded-lg p-4">
+                    <p className="text-xs font-medium text-gold mb-1.5">Reason for joining:</p>
+                    <p className="text-xs text-arc-secondary leading-relaxed">{req.reason}</p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}

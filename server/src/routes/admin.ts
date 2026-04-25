@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { triggerAccountApproved } from '../services/triggers.js';
+import { sendUserWelcome } from '../services/email.js';
 
 const router = Router();
 
@@ -43,12 +44,40 @@ router.get('/stats', async (req, res) => {
 router.get('/access-requests', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, email, username, display_name, status, date_of_birth, reason_for_joining, created_at
-       FROM users WHERE status = 'pending' ORDER BY created_at ASC`
+      `SELECT id, email, name, reason, status, created_at
+       FROM access_requests WHERE status = 'pending' ORDER BY created_at ASC`
     );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch requests.' });
+  }
+});
+
+router.post('/users/:id/approve', async (req, res) => {
+  try {
+    const row = await queryOne<{ email: string; name: string }>(
+      `SELECT email, name FROM access_requests WHERE id = $1`,
+      [req.params.id]
+    );
+    if (!row) { res.status(404).json({ error: 'Request not found.' }); return; }
+    await execute(`UPDATE access_requests SET status = 'approved' WHERE id = $1`, [req.params.id]);
+    sendUserWelcome(row.email, row.name).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve request.' });
+  }
+});
+
+router.post('/users/:id/reject', async (req, res) => {
+  try {
+    const changed = await execute(
+      `UPDATE access_requests SET status = 'rejected' WHERE id = $1`,
+      [req.params.id]
+    );
+    if (changed === 0) { res.status(404).json({ error: 'Request not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject request.' });
   }
 });
 
