@@ -11,18 +11,28 @@ function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY);
 }
 
-// GET /api/stripe/test — verify connectivity
+// GET /api/stripe/test — verify connectivity with real error detail
 router.get('/test', async (_req, res) => {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    res.status(503).json({ connected: false, error: 'STRIPE_SECRET_KEY not configured' });
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) {
+    res.json({ connected: false, error: 'Missing STRIPE_SECRET_KEY' });
     return;
   }
   try {
-    const stripe = getStripe();
-    const account = await stripe.accounts.list({ limit: 1 });
-    res.json({ connected: true, mode: process.env.STRIPE_SECRET_KEY.startsWith('sk_live') ? 'live' : 'test' });
-  } catch (err) {
-    res.status(503).json({ connected: false, error: 'Stripe connection failed' });
+    const stripe = new Stripe(key, { apiVersion: '2025-04-30.basil' });
+    await stripe.balance.retrieve();
+    res.json({
+      connected: true,
+      mode: key.startsWith('sk_test') ? 'test' : 'live',
+      key_prefix: key.substring(0, 7),
+    });
+  } catch (err: any) {
+    res.json({
+      connected: false,
+      error: err.message,
+      type: err.type,
+      code: err.code,
+    });
   }
 });
 
