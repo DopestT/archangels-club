@@ -4,8 +4,7 @@ import {
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
   Image, Video, Music, FileText, MessageSquare, UserCheck, Key, Gift, Send, Plus,
 } from 'lucide-react';
-import { sampleCreators, pendingCreatorApplications, pendingContentReviews, myAccessKeys, activeKeyDrops } from '../data/seed';
-import type { PendingCreatorApplication, PendingContentReview } from '../data/seed';
+import { myAccessKeys, activeKeyDrops } from '../data/seed';
 
 interface AccessRequest {
   id: string;
@@ -64,60 +63,149 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
-  // Access requests — fetched from API
+  // Access requests
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessError, setAccessError] = useState('');
 
-  // Creator approval actions
-  const [creatorActions, setCreatorActions] = useState<Record<string, string>>({});
+  // Creator applications
+  const [creatorApps, setCreatorApps] = useState<any[]>([]);
+  const [creatorAppsLoading, setCreatorAppsLoading] = useState(false);
+  const [approvedCreators, setApprovedCreators] = useState<any[]>([]);
 
-  // Content approval actions
+  // Content queue
+  const [contentQueue, setContentQueue] = useState<any[]>([]);
+  const [contentQueueLoading, setContentQueueLoading] = useState(false);
   const [contentActions, setContentActions] = useState<Record<string, { status: string; reason?: string }>>({});
   const [activeRejection, setActiveRejection] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
-  const pendingAccessCount = accessRequests.length;
-  const pendingContentCount = pendingContentReviews.filter((r) => !contentActions[r.id]).length;
-  const pendingCreatorCount = pendingCreatorApplications.filter((a) => !creatorActions[a.id]).length;
+  // Stats + transactions
+  const [stats, setStats] = useState<any | null>(null);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [transactionsLoading, setTransactionsLoading] = useState(false);
+
+  const pendingAccessCount = accessRequests.filter((r) => r.status === 'pending').length;
+  const pendingContentCount = contentQueue.filter((r) => !contentActions[r.id]).length;
+  const pendingCreatorCount = creatorApps.length;
+
+  function adminFetch(path: string, options?: RequestInit) {
+    return fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options?.headers ?? {}),
+      },
+    });
+  }
+
+  useEffect(() => {
+    loadStats();
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'access-requests') loadAccessRequests();
+    if (activeTab === 'creator-approvals') loadCreatorApps();
+    if (activeTab === 'content-approvals') loadContentQueue();
+    if (activeTab === 'transactions') loadTransactions();
   }, [activeTab]);
+
+  async function loadStats() {
+    try {
+      const res = await adminFetch('/api/admin/stats');
+      const data = await res.json();
+      if (!data.error) setStats(data);
+    } catch {}
+  }
 
   async function loadAccessRequests() {
     setAccessLoading(true);
     setAccessError('');
     try {
-      const res = await fetch(`${API_BASE}/api/admin/access-requests`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      const res = await adminFetch('/api/admin/access-requests');
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       console.log('[admin] access-requests response:', data);
       setAccessRequests(data);
-    } catch (e) {
+    } catch {
       setAccessError('Failed to load requests.');
     } finally {
       setAccessLoading(false);
     }
   }
 
-  async function handleAccessAction(id: string, action: 'approved' | 'rejected') {
-    const endpoint = action === 'approved' ? 'approve' : 'reject';
+  async function loadCreatorApps() {
+    setCreatorAppsLoading(true);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${id}/${endpoint}`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-      if (!res.ok) throw new Error();
-      setAccessRequests((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      // keep item in list if call fails
+      const [appsRes, creatorsRes] = await Promise.all([
+        adminFetch('/api/admin/creators/pending'),
+        fetch(`${API_BASE}/api/creators`),
+      ]);
+      const apps = await appsRes.json();
+      const creators = await creatorsRes.json();
+      setCreatorApps(Array.isArray(apps) ? apps : []);
+      setApprovedCreators(Array.isArray(creators) ? creators : []);
+    } catch {} finally {
+      setCreatorAppsLoading(false);
     }
   }
 
-  function handleContentAction(id: string, status: string, reason?: string) {
+  async function loadContentQueue() {
+    setContentQueueLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/content-approvals');
+      const data = await res.json();
+      setContentQueue(Array.isArray(data) ? data : []);
+    } catch {} finally {
+      setContentQueueLoading(false);
+    }
+  }
+
+  async function loadTransactions() {
+    setTransactionsLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/transactions');
+      const data = await res.json();
+      setTransactions(Array.isArray(data) ? data : []);
+    } catch {} finally {
+      setTransactionsLoading(false);
+    }
+  }
+
+  async function handleAccessAction(id: string, action: 'approved' | 'rejected') {
+    const endpoint = action === 'approved' ? 'approve' : 'reject';
+    try {
+      const res = await adminFetch(`/api/admin/users/${id}/${endpoint}`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+      setAccessRequests((prev) => prev.filter((r) => r.id !== id));
+    } catch {}
+  }
+
+  async function handleCreatorAction(id: string, action: 'approve' | 'reject') {
+    try {
+      const res = await adminFetch(`/api/admin/creators/${id}/${action}`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+      setCreatorApps((prev) => prev.filter((a) => a.id !== id));
+    } catch {}
+  }
+
+  async function handleContentAction(id: string, status: string, reason?: string) {
+    const endpointMap: Record<string, string> = {
+      approved: 'approve',
+      rejected: 'reject',
+      changes_requested: 'request-changes',
+      removed: 'remove',
+    };
+    const endpoint = endpointMap[status];
+    if (endpoint) {
+      try {
+        await adminFetch(`/api/admin/content/${id}/${endpoint}`, {
+          method: 'POST',
+          body: JSON.stringify({ rejection_reason: reason }),
+        });
+      } catch {}
+    }
     setContentActions((p) => ({ ...p, [id]: { status, reason } }));
     setActiveRejection(null);
     setRejectionReason('');
@@ -155,10 +243,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          <StatCard label="Total Users" value="8,412" sub="↑ 124 this week" trend="up" icon={<Users className="w-5 h-5" />} />
-          <StatCard label="Pending Requests" value={pendingAccessCount} sub="Require review" icon={<Clock className="w-5 h-5" />} />
-          <StatCard label="Platform Revenue" value={formatCurrency(28840)} sub="↑ 18% this month" trend="up" icon={<DollarSign className="w-5 h-5" />} />
-          <StatCard label="Content Queue" value={pendingContentCount} sub="Awaiting approval" icon={<Lock className="w-5 h-5" />} />
+          <StatCard label="Total Users" value={stats?.totalUsers ?? '—'} sub={`${stats?.approvedUsers ?? 0} approved`} trend="up" icon={<Users className="w-5 h-5" />} />
+          <StatCard label="Pending Requests" value={stats?.pendingAccessRequests ?? pendingAccessCount} sub="Require review" icon={<Clock className="w-5 h-5" />} />
+          <StatCard label="Platform Revenue" value={formatCurrency(stats?.totalRevenue ?? 0)} sub={`${formatCurrency(stats?.totalVolume ?? 0)} gross volume`} trend="up" icon={<DollarSign className="w-5 h-5" />} />
+          <StatCard label="Content Queue" value={stats?.pendingContent ?? pendingContentCount} sub="Awaiting approval" icon={<Lock className="w-5 h-5" />} />
         </div>
 
         {/* Tabs */}
@@ -347,75 +435,78 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
               </p>
             </div>
 
+            {creatorAppsLoading && (
+              <div className="flex items-center justify-center py-12 text-arc-muted text-sm">Loading…</div>
+            )}
+
             {/* Pending applications */}
             <div className="space-y-4 mb-10">
-              {pendingCreatorApplications.map((app) => {
-                const action = creatorActions[app.id];
-                return (
-                  <div key={app.id} className={`card-surface p-6 rounded-xl ${action ? 'opacity-60' : ''}`}>
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex items-center gap-3">
-                        <Avatar src={app.avatar_url} name={app.display_name} size="md" />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="text-white font-medium">{app.display_name}</p>
-                            <UserStatusBadge status={action ?? 'pending'} />
-                          </div>
-                          <p className="text-xs text-arc-muted">@{app.username} · Applied {timeAgo(app.applied_at)}</p>
-                          <div className="flex gap-1.5 mt-1.5">
-                            {app.tags.map((t) => <span key={t} className="tag-pill text-xs">{t}</span>)}
-                          </div>
+              {creatorApps.map((app) => (
+                <div key={app.id} className="card-surface p-6 rounded-xl">
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <Avatar src={app.avatar_url} name={app.display_name} size="md" />
+                      <div>
+                        <p className="text-white font-medium">{app.display_name}</p>
+                        <p className="text-xs text-arc-muted">@{app.username} · Applied {timeAgo(app.created_at)}</p>
+                        <div className="flex gap-1.5 mt-1.5 flex-wrap">
+                          {(app.tags ?? []).map((t: string) => <span key={t} className="tag-pill text-xs">{t}</span>)}
                         </div>
                       </div>
-                      {!action && (
-                        <div className="flex gap-2 flex-shrink-0">
-                          <button onClick={() => setCreatorActions((p) => ({ ...p, [app.id]: 'approved' }))}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors">
-                            <CheckCircle className="w-3.5 h-3.5" /> Approve
-                          </button>
-                          <button onClick={() => setCreatorActions((p) => ({ ...p, [app.id]: 'rejected' }))}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
-                            <XCircle className="w-3.5 h-3.5" /> Reject
-                          </button>
-                        </div>
-                      )}
                     </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      <div className="bg-bg-hover rounded-lg p-3">
-                        <p className="text-xs font-medium text-gold mb-1.5">Bio</p>
-                        <p className="text-xs text-arc-secondary leading-relaxed line-clamp-3">{app.bio}</p>
-                      </div>
-                      <div className="bg-bg-hover rounded-lg p-3">
-                        <p className="text-xs font-medium text-gold mb-1.5">Pitch</p>
-                        <p className="text-xs text-arc-secondary leading-relaxed line-clamp-3">{app.pitch}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-4 mt-3 text-xs text-arc-muted">
-                      <span>Content: {app.content_categories}</span>
-                      <span>Sub price: {formatCurrency(app.subscription_price)}/mo</span>
-                      <span>Starting: {formatCurrency(app.starting_price)}</span>
+                    <div className="flex gap-2 flex-shrink-0">
+                      <button onClick={() => handleCreatorAction(app.id, 'approve')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors">
+                        <CheckCircle className="w-3.5 h-3.5" /> Approve
+                      </button>
+                      <button onClick={() => handleCreatorAction(app.id, 'reject')}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
+                        <XCircle className="w-3.5 h-3.5" /> Reject
+                      </button>
                     </div>
                   </div>
-                );
-              })}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="bg-bg-hover rounded-lg p-3">
+                      <p className="text-xs font-medium text-gold mb-1.5">Bio</p>
+                      <p className="text-xs text-arc-secondary leading-relaxed line-clamp-3">{app.bio}</p>
+                    </div>
+                    <div className="bg-bg-hover rounded-lg p-3">
+                      <p className="text-xs font-medium text-gold mb-1.5">Pitch</p>
+                      <p className="text-xs text-arc-secondary leading-relaxed line-clamp-3">{app.pitch}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4 mt-3 text-xs text-arc-muted flex-wrap">
+                    <span>Sub price: {formatCurrency(app.subscription_price)}/mo</span>
+                    <span>Starting: {formatCurrency(app.starting_price)}</span>
+                    <span>Email: {app.email}</span>
+                  </div>
+                </div>
+              ))}
+
+              {!creatorAppsLoading && creatorApps.length === 0 && (
+                <div className="text-center py-12">
+                  <CheckCircle className="w-8 h-8 text-arc-success mx-auto mb-3" />
+                  <p className="text-arc-secondary text-sm">No pending creator applications.</p>
+                </div>
+              )}
             </div>
 
-            {/* Existing approved creators table */}
+            {/* Active creators table */}
             <h2 className="font-serif text-xl text-white mb-4">Active Creators</h2>
             <div className="card-surface rounded-xl overflow-hidden">
               <table className="w-full">
                 <thead>
                   <tr className="border-b border-gold-border/40">
-                    {['Creator', 'Status', 'Subscribers', 'Earnings', 'Verified'].map((h) => (
+                    {['Creator', 'Subscribers', 'Earnings', 'Verified'].map((h) => (
                       <th key={h} className="text-left px-5 py-3 text-xs font-medium text-arc-muted uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {sampleCreators.map((c, i) => (
-                    <tr key={c.id} className={i < sampleCreators.length - 1 ? 'border-b border-white/5' : ''}>
+                  {approvedCreators.map((c, i) => (
+                    <tr key={c.id} className={i < approvedCreators.length - 1 ? 'border-b border-white/5' : ''}>
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <Avatar src={c.avatar_url} name={c.display_name} size="xs" />
@@ -425,9 +516,8 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-4"><UserStatusBadge status={c.application_status} /></td>
-                      <td className="px-5 py-4 text-sm text-arc-secondary">{(c.subscriber_count ?? 0).toLocaleString()}</td>
-                      <td className="px-5 py-4 text-sm text-gold font-serif">{formatCurrency(c.total_earnings)}</td>
+                      <td className="px-5 py-4 text-sm text-arc-secondary">{Number(c.subscriber_count ?? 0).toLocaleString()}</td>
+                      <td className="px-5 py-4 text-sm text-gold font-serif">{formatCurrency(c.total_earnings ?? 0)}</td>
                       <td className="px-5 py-4">
                         {c.is_verified_creator
                           ? <CheckCircle className="w-4 h-4 text-arc-success" />
@@ -435,6 +525,9 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                       </td>
                     </tr>
                   ))}
+                  {approvedCreators.length === 0 && (
+                    <tr><td colSpan={4} className="px-5 py-8 text-center text-arc-muted text-sm">No approved creators yet.</td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -451,8 +544,12 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
               </p>
             </div>
 
+            {contentQueueLoading && (
+              <div className="flex items-center justify-center py-12 text-arc-muted text-sm">Loading…</div>
+            )}
+
             <div className="space-y-4">
-              {pendingContentReviews.map((item) => {
+              {contentQueue.map((item) => {
                 const action = contentActions[item.id];
                 return (
                   <div key={item.id} className={`card-surface rounded-xl overflow-hidden transition-all ${action ? 'opacity-60' : ''}`}>
@@ -468,7 +565,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                           </>
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-arc-muted">
-                            {TYPE_ICONS[item.content_type]}
+                            {TYPE_ICONS[item.content_type] ?? <FileText className="w-5 h-5" />}
                           </div>
                         )}
                         <div className="absolute top-2 left-2">
@@ -502,11 +599,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                             {action
                               ? <UserStatusBadge status={action.status} />
                               : <UserStatusBadge status="pending_review" />}
-                            <p className="text-xs text-arc-muted mt-1">{timeAgo(item.submitted_at)}</p>
+                            <p className="text-xs text-arc-muted mt-1">{timeAgo(item.created_at)}</p>
                           </div>
                         </div>
 
-                        {/* Rejection reason input */}
                         {activeRejection === item.id && (
                           <div className="mb-3">
                             <textarea
@@ -520,48 +616,34 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
                         {!action && (
                           <div className="flex flex-wrap items-center gap-2">
-                            <button
-                              onClick={() => handleContentAction(item.id, 'approved')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
-                            >
+                            <button onClick={() => handleContentAction(item.id, 'approved')}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors">
                               <CheckCircle className="w-3.5 h-3.5" /> Approve
                             </button>
 
                             {activeRejection === item.id ? (
                               <>
-                                <button
-                                  onClick={() => handleContentAction(item.id, 'rejected', rejectionReason)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
-                                >
+                                <button onClick={() => handleContentAction(item.id, 'rejected', rejectionReason)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
                                   <XCircle className="w-3.5 h-3.5" /> Confirm Rejection
                                 </button>
-                                <button
-                                  onClick={() => { setActiveRejection(null); setRejectionReason(''); }}
-                                  className="text-xs text-arc-muted hover:text-white transition-colors"
-                                >
-                                  Cancel
-                                </button>
+                                <button onClick={() => { setActiveRejection(null); setRejectionReason(''); }}
+                                  className="text-xs text-arc-muted hover:text-white transition-colors">Cancel</button>
                               </>
                             ) : (
-                              <button
-                                onClick={() => setActiveRejection(item.id)}
-                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
-                              >
+                              <button onClick={() => setActiveRejection(item.id)}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
                                 <XCircle className="w-3.5 h-3.5" /> Reject
                               </button>
                             )}
 
-                            <button
-                              onClick={() => handleContentAction(item.id, 'changes_requested')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10 transition-colors"
-                            >
+                            <button onClick={() => handleContentAction(item.id, 'changes_requested')}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10 transition-colors">
                               <MessageSquare className="w-3.5 h-3.5" /> Request Changes
                             </button>
 
-                            <button
-                              onClick={() => handleContentAction(item.id, 'removed')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/25 transition-colors"
-                            >
+                            <button onClick={() => handleContentAction(item.id, 'removed')}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/25 transition-colors">
                               Remove
                             </button>
                           </div>
@@ -579,7 +661,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                 );
               })}
 
-              {pendingContentReviews.length === 0 && (
+              {!contentQueueLoading && contentQueue.length === 0 && (
                 <div className="text-center py-20">
                   <CheckCircle className="w-10 h-10 text-arc-success mx-auto mb-3" />
                   <p className="text-arc-secondary">No content in the review queue.</p>
@@ -627,26 +709,36 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
         {/* ── TRANSACTIONS ────────────────────────────────────────────────── */}
         {activeTab === 'transactions' && (
           <div className="card-surface rounded-xl overflow-hidden">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gold-border/40">
-                  {['Type', 'Amount', 'Platform Fee (20%)', 'Creator Payout', 'Time'].map((h) => (
-                    <th key={h} className="text-left px-5 py-3.5 text-xs font-medium text-arc-muted uppercase tracking-wider">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {RECENT_TRANSACTIONS.map((txn, i) => (
-                  <tr key={txn.id} className={i < RECENT_TRANSACTIONS.length - 1 ? 'border-b border-white/5' : ''}>
-                    <td className="px-5 py-4 text-sm text-white">{txn.type}</td>
-                    <td className="px-5 py-4 text-sm font-serif text-white">{formatCurrency(txn.amount)}</td>
-                    <td className="px-5 py-4 text-sm text-gold">{formatCurrency(txn.fee)}</td>
-                    <td className="px-5 py-4 text-sm text-arc-success">{formatCurrency(txn.amount - txn.fee)}</td>
-                    <td className="px-5 py-4 text-xs text-arc-muted">{timeAgo(txn.at)}</td>
+            {transactionsLoading && (
+              <div className="flex items-center justify-center py-12 text-arc-muted text-sm">Loading…</div>
+            )}
+            {!transactionsLoading && (
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gold-border/40">
+                    {['Type', 'Payer', 'Creator', 'Amount', 'Platform Fee', 'Payout', 'Time'].map((h) => (
+                      <th key={h} className="text-left px-5 py-3.5 text-xs font-medium text-arc-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
+                    ))}
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {transactions.map((txn, i) => (
+                    <tr key={txn.id} className={i < transactions.length - 1 ? 'border-b border-white/5' : ''}>
+                      <td className="px-5 py-4 text-xs text-white capitalize">{txn.ref_type}</td>
+                      <td className="px-5 py-4 text-xs text-arc-secondary">{txn.payer_name}</td>
+                      <td className="px-5 py-4 text-xs text-arc-secondary">{txn.payee_name}</td>
+                      <td className="px-5 py-4 text-sm font-serif text-white">{formatCurrency(txn.amount)}</td>
+                      <td className="px-5 py-4 text-sm text-gold">{formatCurrency(txn.platform_fee)}</td>
+                      <td className="px-5 py-4 text-sm text-arc-success">{formatCurrency(txn.net_amount)}</td>
+                      <td className="px-5 py-4 text-xs text-arc-muted whitespace-nowrap">{timeAgo(txn.created_at)}</td>
+                    </tr>
+                  ))}
+                  {transactions.length === 0 && (
+                    <tr><td colSpan={7} className="px-5 py-12 text-center text-arc-muted text-sm">No transactions yet.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            )}
           </div>
         )}
 
