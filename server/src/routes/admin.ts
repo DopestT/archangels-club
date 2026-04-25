@@ -416,4 +416,34 @@ router.get('/users', async (req, res) => {
   }
 });
 
+// ── Role Management ───────────────────────────────────────────────────────────
+
+router.post('/promote-to-admin', async (req, res) => {
+  try {
+    const { email } = req.body as { email?: string };
+
+    if (!email || !email.includes('@')) {
+      res.status(400).json({ error: 'Valid email is required.' });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+
+    const result = await execute(
+      'UPDATE users SET role = $1 WHERE email = $2',
+      ['admin', normalizedEmail]
+    );
+
+    if (result === 0) {
+      res.status(404).json({ error: 'User not found.' });
+      return;
+    }
+
+    res.json({ success: true, message: `User ${normalizedEmail} promoted to admin.` });
+  } catch (err) {
+    console.error('Admin promotion error:', err);
+    res.status(500).json({ error: 'Failed to promote user.' });
+  }
+});
+
 export default router;
