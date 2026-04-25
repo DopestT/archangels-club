@@ -16,6 +16,7 @@ import CreatorApplicationPage from './pages/CreatorApplicationPage';
 import UploadContent from './pages/UploadContent';
 import MessagesPage from './pages/MessagesPage';
 import AdminDashboard from './pages/AdminDashboard';
+import AdminControlCenter from './pages/AdminControlCenter';
 import AccessKeysPage from './pages/AccessKeysPage';
 import CreatorOnboarding from './pages/CreatorOnboarding';
 import NotificationsPage from './pages/NotificationsPage';
@@ -161,6 +162,11 @@ function AppRoutes() {
         <Route path="admin/creator-approvals" element={
           <ProtectedRoute requireAdmin>
             <AdminDashboard initialTab="creator-approvals" />
+          </ProtectedRoute>
+        } />
+        <Route path="admin/control-center" element={
+          <ProtectedRoute requireAdmin>
+            <AdminControlCenter />
           </ProtectedRoute>
         } />
 

@@ -231,6 +231,10 @@ const DDL = `
   ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
   ALTER TABLE access_requests ALTER COLUMN username DROP NOT NULL;
 
+  ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
+  ALTER TABLE content ADD CONSTRAINT content_status_check
+    CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested'));
+
   CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
   CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
 

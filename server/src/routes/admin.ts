@@ -2,7 +2,11 @@ import { Router } from 'express';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { triggerAccountApproved } from '../services/triggers.js';
-import { sendUserWelcome } from '../services/email.js';
+import {
+  sendUserWelcome, sendUserRejected, sendUserMoreInfoRequested,
+  sendCreatorWelcome, sendCreatorRejected,
+  sendContentApproved, sendContentRejected, sendContentChangesRequested,
+} from '../services/email.js';
 
 const router = Router();
 
@@ -11,26 +15,33 @@ router.use(requireAuth, requireAdmin);
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
   try {
-    const [[totalUsers], [pendingUsers], [approvedUsers], [totalCreators], [pendingCreators], [pendingContent], revenueRow] =
-      await Promise.all([
-        query<{ n: string }>(`SELECT COUNT(*) as n FROM users`),
-        query<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE status = 'pending'`),
-        query<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE status = 'approved'`),
-        query<{ n: string }>(`SELECT COUNT(*) as n FROM creator_profiles WHERE application_status = 'approved'`),
-        query<{ n: string }>(`SELECT COUNT(*) as n FROM creator_profiles WHERE application_status = 'pending'`),
-        query<{ n: string }>(`SELECT COUNT(*) as n FROM content WHERE status = 'pending_review'`),
-        queryOne<{ total_fee: string; total_volume: string }>(
-          `SELECT SUM(platform_fee) as total_fee, SUM(amount) as total_volume FROM transactions WHERE status = 'completed'`
-        ),
-      ]);
+    const [
+      [totalUsers], [pendingAccessRequests], [approvedUsers],
+      [totalCreators], [pendingCreators], [pendingContent],
+      [openReports], [activeSubscriptions], revenueRow,
+    ] = await Promise.all([
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM users`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM access_requests WHERE status = 'pending'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE status = 'approved'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM creator_profiles WHERE application_status = 'approved'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM creator_profiles WHERE application_status = 'pending'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM content WHERE status = 'pending_review'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM reports WHERE status = 'open'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM subscriptions WHERE status = 'active'`),
+      queryOne<{ total_fee: string; total_volume: string }>(
+        `SELECT SUM(platform_fee) as total_fee, SUM(amount) as total_volume FROM transactions WHERE status = 'completed'`
+      ),
+    ]);
 
     res.json({
       totalUsers: parseInt(totalUsers?.n ?? '0', 10),
-      pendingUsers: parseInt(pendingUsers?.n ?? '0', 10),
+      pendingAccessRequests: parseInt(pendingAccessRequests?.n ?? '0', 10),
       approvedUsers: parseInt(approvedUsers?.n ?? '0', 10),
       totalCreators: parseInt(totalCreators?.n ?? '0', 10),
       pendingCreators: parseInt(pendingCreators?.n ?? '0', 10),
       pendingContent: parseInt(pendingContent?.n ?? '0', 10),
+      openReports: parseInt(openReports?.n ?? '0', 10),
+      activeSubscriptions: parseInt(activeSubscriptions?.n ?? '0', 10),
       totalRevenue: parseFloat(revenueRow?.total_fee ?? '0'),
       totalVolume: parseFloat(revenueRow?.total_volume ?? '0'),
     });
@@ -70,14 +81,201 @@ router.post('/users/:id/approve', async (req, res) => {
 
 router.post('/users/:id/reject', async (req, res) => {
   try {
+    const row = await queryOne<{ email: string; name: string }>(
+      `SELECT email, name FROM access_requests WHERE id = $1`, [req.params.id]
+    );
+    if (!row) { res.status(404).json({ error: 'Request not found.' }); return; }
+    await execute(`UPDATE access_requests SET status = 'rejected' WHERE id = $1`, [req.params.id]);
+    sendUserRejected(row.email, row.name).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject request.' });
+  }
+});
+
+router.post('/users/:id/request-more-info', async (req, res) => {
+  try {
+    const row = await queryOne<{ email: string; name: string }>(
+      `SELECT email, name FROM access_requests WHERE id = $1`, [req.params.id]
+    );
+    if (!row) { res.status(404).json({ error: 'Request not found.' }); return; }
+    sendUserMoreInfoRequested(row.email, row.name).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to send request.' });
+  }
+});
+
+router.post('/users/:id/suspend', async (req, res) => {
+  try {
     const changed = await execute(
-      `UPDATE access_requests SET status = 'rejected' WHERE id = $1`,
-      [req.params.id]
+      `UPDATE access_requests SET status = 'rejected' WHERE id = $1`, [req.params.id]
     );
     if (changed === 0) { res.status(404).json({ error: 'Request not found.' }); return; }
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: 'Failed to reject request.' });
+    res.status(500).json({ error: 'Failed to suspend.' });
+  }
+});
+
+// ── Creator Actions ───────────────────────────────────────────────────────────
+
+router.post('/creators/:id/approve', async (req, res) => {
+  try {
+    const cp = await queryOne<{ user_id: string }>(`SELECT user_id FROM creator_profiles WHERE id = $1`, [req.params.id]);
+    if (!cp) { res.status(404).json({ error: 'Creator not found.' }); return; }
+    await execute(`UPDATE creator_profiles SET application_status = 'approved', is_approved = 1 WHERE id = $1`, [req.params.id]);
+    await execute(`UPDATE users SET role = 'creator', is_verified_creator = 1 WHERE id = $1`, [cp.user_id]);
+    const user = await queryOne<{ email: string; display_name: string }>(`SELECT email, display_name FROM users WHERE id = $1`, [cp.user_id]);
+    if (user) sendCreatorWelcome(user.email, user.display_name).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve creator.' });
+  }
+});
+
+router.post('/creators/:id/reject', async (req, res) => {
+  try {
+    const cp = await queryOne<{ user_id: string }>(`SELECT user_id FROM creator_profiles WHERE id = $1`, [req.params.id]);
+    if (!cp) { res.status(404).json({ error: 'Creator not found.' }); return; }
+    await execute(`UPDATE creator_profiles SET application_status = 'rejected' WHERE id = $1`, [req.params.id]);
+    const user = await queryOne<{ email: string; display_name: string }>(`SELECT email, display_name FROM users WHERE id = $1`, [cp.user_id]);
+    if (user) sendCreatorRejected(user.email, user.display_name).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject creator.' });
+  }
+});
+
+router.post('/creators/:id/request-more-info', async (req, res) => {
+  try {
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed.' });
+  }
+});
+
+router.post('/creators/:id/suspend', async (req, res) => {
+  try {
+    const changed = await execute(`UPDATE creator_profiles SET application_status = 'suspended' WHERE id = $1`, [req.params.id]);
+    if (changed === 0) { res.status(404).json({ error: 'Creator not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to suspend creator.' });
+  }
+});
+
+// ── Content Actions ───────────────────────────────────────────────────────────
+
+router.post('/content/:id/approve', async (req, res) => {
+  try {
+    const row = await queryOne<{ creator_id: string; title: string }>(
+      `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+    await execute(`UPDATE content SET status = 'approved' WHERE id = $1`, [req.params.id]);
+    const user = await queryOne<{ email: string; display_name: string }>(
+      `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
+      [row.creator_id]
+    );
+    if (user) sendContentApproved(user.email, user.display_name, row.title).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to approve content.' });
+  }
+});
+
+router.post('/content/:id/reject', async (req, res) => {
+  try {
+    const row = await queryOne<{ creator_id: string; title: string }>(
+      `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+    await execute(`UPDATE content SET status = 'rejected' WHERE id = $1`, [req.params.id]);
+    const user = await queryOne<{ email: string; display_name: string }>(
+      `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
+      [row.creator_id]
+    );
+    if (user) sendContentRejected(user.email, user.display_name, row.title).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to reject content.' });
+  }
+});
+
+router.post('/content/:id/request-changes', async (req, res) => {
+  try {
+    const row = await queryOne<{ creator_id: string; title: string }>(
+      `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+    await execute(`UPDATE content SET status = 'changes_requested' WHERE id = $1`, [req.params.id]);
+    const user = await queryOne<{ email: string; display_name: string }>(
+      `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
+      [row.creator_id]
+    );
+    if (user) sendContentChangesRequested(user.email, user.display_name, row.title).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to request changes.' });
+  }
+});
+
+router.post('/content/:id/remove', async (req, res) => {
+  try {
+    const changed = await execute(`UPDATE content SET status = 'removed' WHERE id = $1`, [req.params.id]);
+    if (changed === 0) { res.status(404).json({ error: 'Content not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to remove content.' });
+  }
+});
+
+// ── Reports ───────────────────────────────────────────────────────────────────
+
+router.get('/reports', async (req, res) => {
+  try {
+    const rows = await query(`
+      SELECT r.id, r.subject_type, r.subject_id, r.reason, r.details, r.status, r.created_at,
+             u.username as reporter_username, u.display_name as reporter_name
+      FROM reports r
+      JOIN users u ON u.id = r.reporter_id
+      WHERE r.status = 'open'
+      ORDER BY r.created_at ASC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch reports.' });
+  }
+});
+
+router.post('/reports/:id/dismiss', async (req, res) => {
+  try {
+    const changed = await execute(`UPDATE reports SET status = 'dismissed' WHERE id = $1`, [req.params.id]);
+    if (changed === 0) { res.status(404).json({ error: 'Report not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to dismiss report.' });
+  }
+});
+
+router.post('/reports/:id/take-action', async (req, res) => {
+  try {
+    const changed = await execute(`UPDATE reports SET status = 'actioned' WHERE id = $1`, [req.params.id]);
+    if (changed === 0) { res.status(404).json({ error: 'Report not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update report.' });
+  }
+});
+
+router.post('/reports/:id/escalate', async (req, res) => {
+  try {
+    const changed = await execute(`UPDATE reports SET status = 'actioned' WHERE id = $1`, [req.params.id]);
+    if (changed === 0) { res.status(404).json({ error: 'Report not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to escalate report.' });
   }
 });
 

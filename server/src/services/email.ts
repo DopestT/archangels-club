@@ -198,6 +198,90 @@ export async function sendUserWelcome(to: string, name: string) {
   }));
 }
 
+export async function sendUserRejected(to: string, name: string) {
+  return send(to, 'Update on your access request', buildHtml({
+    eyebrow: 'Access Request',
+    heading: 'Your request was not approved.',
+    lines: [
+      `Hi ${name},`,
+      'After review, we were unable to approve your access request at this time.',
+      'If you believe this was in error or would like to provide additional information, you may submit a new request.',
+    ],
+    ctaLabel: 'Learn More →',
+    ctaUrl: `${BASE_URL}/signup`,
+  }));
+}
+
+export async function sendUserMoreInfoRequested(to: string, name: string) {
+  return send(to, 'Additional information needed', buildHtml({
+    eyebrow: 'Access Request',
+    heading: 'We need a bit more information.',
+    lines: [
+      `Hi ${name},`,
+      "Our team is reviewing your access request and needs additional information before we can make a decision.",
+      "Please reply to this email with any details that support your application.",
+    ],
+    ctaLabel: 'Submit New Request →',
+    ctaUrl: `${BASE_URL}/signup`,
+  }));
+}
+
+export async function sendCreatorRejected(to: string, name: string) {
+  return send(to, 'Update on your creator application', buildHtml({
+    eyebrow: 'Creator Application',
+    heading: 'Your creator application was not approved.',
+    lines: [
+      `Hi ${name},`,
+      "After review, we were unable to approve your creator application at this time.",
+      "You may reapply after 30 days. Ensure your profile is complete and your content plan meets our community standards.",
+    ],
+    ctaLabel: 'View Requirements →',
+    ctaUrl: `${BASE_URL}/apply-creator`,
+  }));
+}
+
+export async function sendContentApproved(to: string, name: string, contentTitle: string) {
+  return send(to, 'Your content is live', buildHtml({
+    eyebrow: 'Content Approved',
+    heading: 'Your content is now live.',
+    lines: [
+      `${name},`,
+      `<strong style="color:#FFFFFF;">${contentTitle}</strong> has been approved and is now visible to members.`,
+      "Promote it to your subscribers to maximize reach.",
+    ],
+    ctaLabel: 'View Content →',
+    ctaUrl: `${BASE_URL}/creator`,
+  }));
+}
+
+export async function sendContentRejected(to: string, name: string, contentTitle: string) {
+  return send(to, 'Content not approved', buildHtml({
+    eyebrow: 'Content Review',
+    heading: 'Your content was not approved.',
+    lines: [
+      `${name},`,
+      `<strong style="color:#FFFFFF;">${contentTitle}</strong> did not meet our content guidelines and has not been published.`,
+      "Review our content policy and resubmit if appropriate.",
+    ],
+    ctaLabel: 'View Guidelines →',
+    ctaUrl: `${BASE_URL}/creator`,
+  }));
+}
+
+export async function sendContentChangesRequested(to: string, name: string, contentTitle: string) {
+  return send(to, 'Changes requested on your content', buildHtml({
+    eyebrow: 'Content Review',
+    heading: 'Changes requested.',
+    lines: [
+      `${name},`,
+      `Our team has reviewed <strong style="color:#FFFFFF;">${contentTitle}</strong> and is requesting changes before it can be approved.`,
+      "Edit your content and resubmit for review.",
+    ],
+    ctaLabel: 'Edit Content →',
+    ctaUrl: `${BASE_URL}/creator`,
+  }));
+}
+
 export async function sendUserNewContent(to: string, name: string, creatorName: string, contentTitle: string, contentId: string) {
   return send(to, `New content from ${creatorName}`, buildHtml({
     eyebrow: 'New Content',
