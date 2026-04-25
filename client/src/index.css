@@ -94,6 +94,15 @@
     user-select: none;
   }
 
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   .members-pill {
     @apply inline-flex items-center gap-1.5 px-3 py-1 text-xs font-sans font-medium tracking-widest uppercase;
     color: #D4AF37;

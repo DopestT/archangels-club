@@ -7,12 +7,14 @@ import { triggerCreatorFirstPost, triggerCreatorFirstSale, triggerPurchaseConfir
 const router = Router();
 
 // GET /api/content — browse approved content only
-// Query params: sort (trending|newest), limit (max 50), creator_id, exclude_id
+// Query params: sort (trending|newest), limit (max 50), offset, creator_id, exclude_id
 router.get('/', async (req, res) => {
   try {
-    const { sort = 'newest', limit: rawLimit, creator_id, exclude_id } = req.query;
+    const { sort = 'newest', limit: rawLimit, offset: rawOffset, creator_id, exclude_id } = req.query;
     const rawLimitVal = parseInt(rawLimit as string, 10);
     const limit = isNaN(rawLimitVal) ? 50 : Math.min(rawLimitVal, 50);
+    const rawOffsetVal = parseInt(rawOffset as string, 10);
+    const offsetNum = isNaN(rawOffsetVal) ? 0 : Math.max(0, rawOffsetVal);
 
     const params: unknown[] = [];
     let paramIdx = 1;
@@ -40,7 +42,7 @@ router.get('/', async (req, res) => {
       JOIN users u ON u.id = cp.user_id
       WHERE c.status = 'approved' AND cp.is_approved = 1 AND cp.application_status = 'approved'${extraWhere}
       ORDER BY ${orderBy}
-      LIMIT ${limit}
+      LIMIT ${limit} OFFSET ${offsetNum}
     `, params);
     res.json(rows);
   } catch (err) {
