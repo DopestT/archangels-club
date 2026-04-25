@@ -8,7 +8,9 @@ import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber } from '../lib/utils';
 import type { CreatorProfile, Content } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+const VITE_API_URL = import.meta.env.VITE_API_URL as string | undefined;
+const API_BASE = VITE_API_URL || 'https://archangels-club-production.up.railway.app';
+console.log('API URL:', VITE_API_URL);
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 
@@ -141,6 +143,14 @@ export default function CreatorProfilePage() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Backend connectivity warning */}
+        {!VITE_API_URL && (
+          <div className="mt-4 mb-4 p-3 rounded-xl bg-arc-error/10 border border-arc-error/30 flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4 text-arc-error flex-shrink-0" />
+            <p className="text-xs text-arc-error">Backend not connected — VITE_API_URL is not set. Using fallback URL.</p>
+          </div>
+        )}
+
         {/* Profile header */}
         <div className="relative -mt-16 sm:-mt-20 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
