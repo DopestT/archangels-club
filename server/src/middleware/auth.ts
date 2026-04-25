@@ -25,20 +25,24 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const adminKey = req.headers['x-admin-key'];
   if (adminKey && process.env.ADMIN_KEY && adminKey === process.env.ADMIN_KEY) {
     req.auth = { userId: 'admin', role: 'admin' };
+    console.log('[auth] admin-key bypass, role=admin');
     next();
     return;
   }
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
+    console.log('[auth] missing or malformed Authorization header');
     res.status(401).json({ error: 'Authentication required' });
     return;
   }
   try {
     const token = header.slice(7);
     const payload = jwt.verify(token, JWT_SECRET) as AuthPayload;
+    console.log(`[auth] token valid — userId=${payload.userId} role=${payload.role}`);
     req.auth = payload;
     next();
-  } catch {
+  } catch (err) {
+    console.log('[auth] token verification failed:', (err as Error).message);
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }

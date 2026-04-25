@@ -9,11 +9,9 @@ import {
 import { useToast } from '../components/ui/Toast';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
-const ADMIN_KEY = (import.meta.env.VITE_ADMIN_KEY as string | undefined) ?? '';
-
-const ADMIN_HEADERS = { 'x-admin-key': ADMIN_KEY, 'Content-Type': 'application/json' };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -154,6 +152,7 @@ function ActionBtn({ label, variant, onClick, icon }: { label: string; variant: 
 
 export default function AdminControlCenter() {
   const toast = useToast();
+  const { token } = useAuth();
   const [stats, setStats] = useState<Stats | null>(null);
   const [activeQueue, setActiveQueue] = useState<QueueTab>('access');
   const [loading, setLoading] = useState(false);
@@ -165,16 +164,18 @@ export default function AdminControlCenter() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
 
   const adminFetch = useCallback(async (url: string, opts?: RequestInit) => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(`${API_BASE}${url}`, {
       ...opts,
-      headers: { ...ADMIN_HEADERS, ...(opts?.headers ?? {}) },
+      headers: { ...headers, ...(opts?.headers ?? {}) },
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Request failed' }));
       throw new Error(err.error ?? 'Request failed');
     }
     return res.json();
-  }, []);
+  }, [token]);
 
   const loadAll = useCallback(async () => {
     setLoading(true);

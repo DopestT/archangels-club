@@ -17,12 +17,12 @@ interface AccessRequest {
 }
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
-const ADMIN_KEY = (import.meta.env.VITE_ADMIN_KEY as string | undefined) ?? '';
 import StatCard from '../components/ui/StatCard';
 import Logo from '../components/brand/Logo';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import type { KeyType } from '../types';
+import { useAuth } from '../context/AuthContext';
 
 const RECENT_TRANSACTIONS = [
   { id: 'at1', type: 'Subscription', amount: 39.99, fee: 8.00, at: new Date(Date.now() - 10 * 60 * 1000).toISOString() },
@@ -61,6 +61,7 @@ function UserStatusBadge({ status }: { status: string }) {
 }
 
 export default function AdminDashboard({ initialTab = 'overview' }: { initialTab?: Tab }) {
+  const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   // Access requests — fetched from API
@@ -89,7 +90,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     setAccessError('');
     try {
       const res = await fetch(`${API_BASE}/api/admin/access-requests`, {
-        headers: { 'x-admin-key': ADMIN_KEY },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
@@ -107,7 +108,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${id}/${endpoint}`, {
         method: 'POST',
-        headers: { 'x-admin-key': ADMIN_KEY },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error();
       setAccessRequests((prev) => prev.filter((r) => r.id !== id));
