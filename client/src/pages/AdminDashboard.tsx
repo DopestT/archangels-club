@@ -92,7 +92,9 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
         headers: { 'x-admin-key': ADMIN_KEY },
       });
       if (!res.ok) throw new Error(await res.text());
-      setAccessRequests(await res.json());
+      const data = await res.json();
+      console.log('[admin] access-requests response:', data);
+      setAccessRequests(data);
     } catch (e) {
       setAccessError('Failed to load requests.');
     } finally {
@@ -290,7 +292,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
               <div className="p-4 rounded-xl bg-arc-error/10 border border-arc-error/30 text-xs text-arc-error mb-4">{accessError}</div>
             )}
             {!accessLoading && !accessError && accessRequests.length === 0 && (
-              <div className="flex items-center justify-center py-16 text-arc-muted text-sm">No pending requests.</div>
+              <div className="flex items-center justify-center py-16 text-arc-muted text-sm">No access requests found.</div>
             )}
             <div className="space-y-4">
               {accessRequests.map((req) => (

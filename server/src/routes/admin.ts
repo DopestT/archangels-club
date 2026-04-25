@@ -56,8 +56,9 @@ router.get('/access-requests', async (req, res) => {
   try {
     const rows = await query(
       `SELECT id, email, name, reason, status, created_at
-       FROM access_requests WHERE status = 'pending' ORDER BY created_at ASC`
+       FROM access_requests ORDER BY created_at DESC`
     );
+    console.log(`[admin] access-requests: ${rows.length} rows`);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch requests.' });
