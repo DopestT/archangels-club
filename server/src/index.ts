@@ -17,10 +17,12 @@ if (!PORT) {
   throw new Error("PORT environment variable is required");
 }
 
-app.use(cors({
+const corsOptions = {
   origin: ['http://localhost:3000', process.env.CLIENT_URL ?? ''].filter(Boolean),
   credentials: true,
-}));
+};
+app.options('*', cors(corsOptions));
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use('/api/auth', authRoutes);
