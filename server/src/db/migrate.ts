@@ -229,6 +229,7 @@ const DDL = `
   );
 
   ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
+  ALTER TABLE access_requests ALTER COLUMN username DROP NOT NULL;
 
   CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
   CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
