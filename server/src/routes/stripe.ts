@@ -19,7 +19,7 @@ router.get('/test', async (_req, res) => {
     return;
   }
   try {
-    const stripe = new Stripe(key, { apiVersion: '2025-04-30.basil' });
+    const stripe = new Stripe(key);
     await stripe.balance.retrieve();
     res.json({
       connected: true,
