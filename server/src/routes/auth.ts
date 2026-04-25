@@ -53,7 +53,15 @@ router.post('/login', async (req, res) => {
       [email?.toLowerCase()]
     );
 
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+    if (!user) {
+      res.status(401).json({ error: 'Invalid email or password.' });
+      return;
+    }
+    if (!user.password_hash) {
+      res.status(401).json({ error: 'Please set your password first. Check your email for the setup link.' });
+      return;
+    }
+    if (!(await bcrypt.compare(password, user.password_hash))) {
       res.status(401).json({ error: 'Invalid email or password.' });
       return;
     }
@@ -68,6 +76,47 @@ router.post('/login', async (req, res) => {
     res.json({ token, user: safeUser });
   } catch (err) {
     res.status(500).json({ error: 'Login failed.' });
+  }
+});
+
+router.post('/set-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!token || !password) {
+      res.status(400).json({ error: 'Token and password are required.' });
+      return;
+    }
+    if (password.length < 8) {
+      res.status(400).json({ error: 'Password must be at least 8 characters.' });
+      return;
+    }
+
+    const reset = await queryOne<any>(
+      'SELECT * FROM password_resets WHERE token = $1',
+      [token]
+    );
+    if (!reset) {
+      res.status(400).json({ error: 'Invalid or expired link.' });
+      return;
+    }
+    if (reset.used) {
+      res.status(400).json({ error: 'This link has already been used.' });
+      return;
+    }
+    if (new Date() > new Date(reset.expires_at)) {
+      res.status(400).json({ error: 'This link has expired. Contact support for a new one.' });
+      return;
+    }
+
+    const hash = await bcrypt.hash(password, 12);
+    await execute('UPDATE users SET password_hash = $1 WHERE email = $2', [hash, reset.email]);
+    await execute('UPDATE password_resets SET used = true WHERE id = $1', [reset.id]);
+
+    console.log(`[auth] Password set for: ${reset.email}`);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth] set-password error:', err);
+    res.status(500).json({ error: 'Failed to set password.' });
   }
 });
 

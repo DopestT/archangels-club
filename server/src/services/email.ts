@@ -184,6 +184,20 @@ export async function sendCreatorDropLive(to: string, name: string, dropName: st
 
 // ─── User templates ───────────────────────────────────────────────────────────
 
+export async function sendSetPasswordEmail(to: string, name: string, token: string) {
+  return send(to, "You've been approved — set your password", buildHtml({
+    eyebrow: 'Access Granted',
+    heading: "You're in. Set your password to get started.",
+    lines: [
+      `Welcome, ${name || 'there'}.`,
+      "Your access to Archangels Club has been approved. Click below to set your password and activate your account.",
+      "<strong style=\"color:#D4AF37;\">This link expires in 1 hour.</strong>",
+    ],
+    ctaLabel: 'Set Your Password →',
+    ctaUrl: `${BASE_URL}/set-password?token=${token}`,
+  }));
+}
+
 export async function sendUserWelcome(to: string, name: string) {
   return send(to, "You're in", buildHtml({
     eyebrow: 'Access Granted',

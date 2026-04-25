@@ -253,6 +253,19 @@ const DDL = `
 
   ALTER TABLE content_unlocks ADD COLUMN IF NOT EXISTS transaction_id TEXT REFERENCES transactions(id);
 
+  CREATE TABLE IF NOT EXISTS password_resets (
+    id TEXT PRIMARY KEY,
+    email TEXT NOT NULL,
+    token TEXT UNIQUE NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_password_resets_token ON password_resets(token);
+
+  ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+
   ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS stripe_account_id TEXT;
   ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS stripe_onboarding_complete SMALLINT NOT NULL DEFAULT 0;
 

@@ -21,6 +21,7 @@ import AccessKeysPage from './pages/AccessKeysPage';
 import CreatorOnboarding from './pages/CreatorOnboarding';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
+import SetPasswordPage from './pages/SetPasswordPage';
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -78,6 +79,7 @@ function AppRoutes() {
         <Route path="content/:id" element={<LockedContentPage />} />
         <Route path="login" element={<AuthPage mode="login" />} />
         <Route path="signup" element={<AuthPage mode="signup" />} />
+        <Route path="set-password" element={<SetPasswordPage />} />
         <Route path="privacy" element={<StaticPage page="privacy" />} />
         <Route path="terms" element={<StaticPage page="terms" />} />
         <Route path="compliance" element={<StaticPage page="compliance" />} />
