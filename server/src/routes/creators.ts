@@ -51,18 +51,27 @@ router.get('/', async (req, res) => {
 // GET /api/creators/:username
 router.get('/:username', async (req, res) => {
   try {
+    const slug = req.params.username.toLowerCase();
+    console.log('[creator lookup]', slug);
+
     const row = await queryOne<any>(`
       SELECT cp.*, u.display_name, u.username, u.avatar_url, u.is_verified_creator,
         (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active') as subscriber_count,
         (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND c.status = 'approved') as content_count
       FROM creator_profiles cp
       JOIN users u ON u.id = cp.user_id
-      WHERE u.username = $1
-    `, [req.params.username]);
+      WHERE LOWER(u.username) = $1
+         OR LOWER(REPLACE(u.display_name, ' ', '')) = $1
+    `, [slug]);
 
-    if (!row) { res.status(404).json({ error: 'Creator not found' }); return; }
+    if (!row) {
+      console.log('[creator lookup] not found:', slug);
+      res.status(404).json({ error: 'Creator not found' });
+      return;
+    }
     res.json({ ...row, tags: JSON.parse(row.tags ?? '[]') });
   } catch (err) {
+    console.error('[creator lookup] error:', err);
     res.status(500).json({ error: 'Failed to fetch creator.' });
   }
 });
@@ -70,9 +79,11 @@ router.get('/:username', async (req, res) => {
 // GET /api/creators/:username/content
 router.get('/:username/content', async (req, res) => {
   try {
+    const slug = req.params.username.toLowerCase();
     const creator = await queryOne<any>(`
-      SELECT cp.id FROM creator_profiles cp JOIN users u ON u.id = cp.user_id WHERE u.username = $1
-    `, [req.params.username]);
+      SELECT cp.id FROM creator_profiles cp JOIN users u ON u.id = cp.user_id
+      WHERE LOWER(u.username) = $1 OR LOWER(REPLACE(u.display_name, ' ', '')) = $1
+    `, [slug]);
 
     if (!creator) { res.status(404).json({ error: 'Creator not found' }); return; }
 
