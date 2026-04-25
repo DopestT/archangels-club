@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, SlidersHorizontal, Lock, TrendingUp, Sparkles, Crown, ChevronRight } from 'lucide-react';
 import CreatorCard from '../components/creators/CreatorCard';
 import FeedCard from '../components/content/FeedCard';
+import LiveActivity from '../components/explore/LiveActivity';
 import type { CreatorProfile, Content } from '../types';
 
 const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
@@ -397,6 +398,8 @@ export default function ExplorePage() {
           </div>
         )}
       </section>
+
+      <LiveActivity content={[...trendingContent, ...risingContent, ...feedItems]} />
     </div>
   );
 }
