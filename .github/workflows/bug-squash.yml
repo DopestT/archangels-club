@@ -1,0 +1,107 @@
+name: Bug Squash
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  bug-squash:
+    name: Bug Squash
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install server dependencies
+        run: npm ci
+        working-directory: server
+
+      - name: Install client dependencies
+        run: npm ci
+        working-directory: client
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+        working-directory: client
+
+      # ── Static analysis ──────────────────────────────────────────────────────
+
+      - name: TypeScript — server
+        run: npm run typecheck
+        working-directory: server
+
+      - name: TypeScript — client
+        run: npm run typecheck
+        working-directory: client
+
+      - name: ESLint — server
+        run: npm run lint
+        working-directory: server
+
+      - name: ESLint — client
+        run: npm run lint
+        working-directory: client
+
+      # ── Tests ────────────────────────────────────────────────────────────────
+
+      - name: Backend unit tests
+        run: npm run test
+        working-directory: server
+        env:
+          NODE_ENV: test
+
+      # ── Build ────────────────────────────────────────────────────────────────
+
+      - name: Frontend build
+        run: npm run build
+        working-directory: client
+        env:
+          VITE_API_URL: https://archangels-club-production.up.railway.app
+
+      # ── Live checks ──────────────────────────────────────────────────────────
+
+      - name: API health checks
+        run: node scripts/check-api.mjs
+        env:
+          API_BASE_URL: https://archangels-club-production.up.railway.app
+
+      - name: Playwright E2E tests
+        run: npx playwright test
+        working-directory: client
+        env:
+          PLAYWRIGHT_BASE_URL: https://www.archangelsclub.com
+          API_BASE_URL: https://archangels-club-production.up.railway.app
+
+      # ── On failure: generate report and upload artifacts ─────────────────────
+
+      - name: Generate bug report
+        if: failure()
+        run: node scripts/bug-report.mjs || true
+
+      - name: Upload bug report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bug-report-${{ github.sha }}
+          path: |
+            bug-report.json
+            test-results/
+          retention-days: 14
+
+      - name: Upload Playwright traces & screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-${{ github.sha }}
+          path: |
+            client/playwright-report/
+            client/test-results/
+          retention-days: 14

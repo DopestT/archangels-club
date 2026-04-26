@@ -1,0 +1,15 @@
+{
+  "name": "archangels-club",
+  "private": true,
+  "scripts": {
+    "check":       "npm run typecheck && npm run lint",
+    "typecheck":   "npm --prefix server run typecheck && npm --prefix client run typecheck",
+    "lint":        "npm --prefix server run lint && npm --prefix client run lint",
+    "test":        "npm --prefix server run test",
+    "test:api":    "node scripts/check-api.mjs",
+    "test:e2e":    "npm --prefix client run test:e2e",
+    "bug:squash":  "npm run typecheck && npm run lint && npm run test && npm --prefix client run build && npm run test:api && npm run test:e2e",
+    "bug:report":  "node scripts/bug-report.mjs",
+    "bug:fix":     "node scripts/bug-fix.mjs"
+  }
+}
