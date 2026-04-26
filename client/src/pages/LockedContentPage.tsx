@@ -8,7 +8,7 @@ import ContentCard from '../components/content/ContentCard';
 import type { Content as GlobalContent } from '../types';
 import { formatCurrency, timeAgo } from '../lib/utils';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://archangels-club-production.up.railway.app';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-5 h-5" />,

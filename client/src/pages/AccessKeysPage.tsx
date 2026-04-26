@@ -10,7 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import type { KeyType, UserTierStatus } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://archangels-club-production.up.railway.app';
 
 // ─── Visual config ────────────────────────────────────────────────────────────
 

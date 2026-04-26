@@ -8,7 +8,7 @@ import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../lib/utils';
 import type { CreatorProfile, Content } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://archangels-club-production.up.railway.app';
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 
