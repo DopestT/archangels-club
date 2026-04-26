@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft,
-  Shield, CheckCircle, Star, Users, X as XIcon, AlertCircle,
+  Shield, CheckCircle, Star, Users, X as XIcon, AlertCircle, Eye,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
@@ -202,9 +202,11 @@ export default function LockedContentPage() {
   const [paying,        setPaying]        = useState(false);
   const [redirecting,   setRedirecting]   = useState(false);
   const [error,         setError]         = useState<string | null>(null);
-  const [isSubscribed,  setIsSubscribed]  = useState(false);
+  const [isSubscribed,    setIsSubscribed]    = useState(false);
   const [discountedPrice, setDiscountedPrice] = useState<number | null>(null);
-  const [showModal,     setShowModal]     = useState(false);
+  const [isAdminPreview,  setIsAdminPreview]  = useState(false);
+  const [isCreatorPreview, setIsCreatorPreview] = useState(false);
+  const [showModal,       setShowModal]       = useState(false);
   const [moreContent,   setMoreContent]   = useState<GlobalContent[]>([]);
 
   const paymentSuccess  = searchParams.get('payment') === 'success';
@@ -243,6 +245,8 @@ export default function LockedContentPage() {
       .then(data => {
         if (data.is_subscribed !== undefined) setIsSubscribed(!!data.is_subscribed);
         if (data.discounted_price != null) setDiscountedPrice(Number(data.discounted_price));
+        if (data.is_admin_preview)   setIsAdminPreview(true);
+        if (data.is_creator_preview) setIsCreatorPreview(true);
         if (data.unlocked) {
           setUnlocked(true);
           setMediaUrl(data.media_url ?? null);
@@ -365,7 +369,9 @@ export default function LockedContentPage() {
 
   const isLocked      = content.access_type !== 'free' && !unlocked;
   const badgeType     = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
-  const canPurchase   = isAuthenticated && (isApproved || isAdmin) && content.access_type === 'locked';
+  const previewMode   = isAdminPreview ? 'Admin Preview Mode' : isCreatorPreview ? 'Creator Preview Mode' : null;
+  const canPurchase   = isAuthenticated && (isApproved || isAdmin) && content.access_type === 'locked'
+                        && !isAdminPreview && !isCreatorPreview;
 
   // Effective price this user pays (discounted if subscribed)
   const effectivePrice = discountedPrice ?? Number(content.price);
@@ -411,6 +417,21 @@ export default function LockedContentPage() {
           <ArrowLeft className="w-4 h-4" />
           Back to Profile
         </Link>
+
+        {/* Preview mode banner — admin / creator */}
+        {previewMode && (
+          <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-amber-500/10 border border-amber-500/30 mb-6">
+            <Eye className="w-4 h-4 text-amber-400 flex-shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-amber-400">{previewMode}</p>
+              <p className="text-xs text-amber-400/60 mt-0.5">
+                {isAdminPreview
+                  ? 'You are viewing this content as an administrator. Paywall is bypassed.'
+                  : 'You are viewing your own content. Purchases are disabled.'}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Payment success banner */}
         {paymentSuccess && unlocked && (

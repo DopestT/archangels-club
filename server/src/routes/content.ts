@@ -90,11 +90,32 @@ router.get('/:id', async (req, res) => {
 // GET /api/content/:id/my-access — unlock status, media_url if unlocked, subscription discount info
 router.get('/:id/my-access', requireAuth, async (req, res) => {
   try {
-    const content = await queryOne<any>('SELECT * FROM content WHERE id = $1', [req.params.id]);
+    const content = await queryOne<any>(
+      `SELECT c.*, cp.user_id AS creator_user_id
+       FROM content c
+       JOIN creator_profiles cp ON cp.id = c.creator_id
+       WHERE c.id = $1`,
+      [req.params.id]
+    );
     if (!content) { res.status(404).json({ error: 'Content not found' }); return; }
 
+    // Admin: unrestricted access to all content
+    if (req.auth!.role === 'admin') {
+      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false,
+        discounted_price: null, is_admin_preview: true, is_creator_preview: false });
+      return;
+    }
+
+    // Creator viewing their own content: no paywall, cannot purchase
+    if (content.creator_user_id === req.auth!.userId) {
+      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false,
+        discounted_price: null, is_admin_preview: false, is_creator_preview: true });
+      return;
+    }
+
     if (content.access_type === 'free') {
-      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false, discounted_price: null });
+      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false,
+        discounted_price: null, is_admin_preview: false, is_creator_preview: false });
       return;
     }
 
@@ -113,9 +134,11 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     // Subscriber-only content: accessible to active subscribers without unlock fee
     if (content.access_type === 'subscribers') {
       if (isSubscribed) {
-        res.json({ unlocked: true, media_url: content.media_url, is_subscribed: true, discounted_price: null });
+        res.json({ unlocked: true, media_url: content.media_url, is_subscribed: true,
+          discounted_price: null, is_admin_preview: false, is_creator_preview: false });
       } else {
-        res.json({ unlocked: false, media_url: null, is_subscribed: false, discounted_price: null });
+        res.json({ unlocked: false, media_url: null, is_subscribed: false,
+          discounted_price: null, is_admin_preview: false, is_creator_preview: false });
       }
       return;
     }
@@ -126,9 +149,11 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     );
 
     if (unlock) {
-      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: isSubscribed, discounted_price: null });
+      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: isSubscribed,
+        discounted_price: null, is_admin_preview: false, is_creator_preview: false });
     } else {
-      res.json({ unlocked: false, media_url: null, is_subscribed: isSubscribed, discounted_price: discountedPrice });
+      res.json({ unlocked: false, media_url: null, is_subscribed: isSubscribed,
+        discounted_price: discountedPrice, is_admin_preview: false, is_creator_preview: false });
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to check access' });
