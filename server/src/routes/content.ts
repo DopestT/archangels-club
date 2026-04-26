@@ -87,14 +87,36 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// GET /api/content/:id/my-access — returns unlock status + media_url if unlocked
+// GET /api/content/:id/my-access — unlock status, media_url if unlocked, subscription discount info
 router.get('/:id/my-access', requireAuth, async (req, res) => {
   try {
     const content = await queryOne<any>('SELECT * FROM content WHERE id = $1', [req.params.id]);
     if (!content) { res.status(404).json({ error: 'Content not found' }); return; }
 
     if (content.access_type === 'free') {
-      res.json({ unlocked: true, media_url: content.media_url });
+      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false, discounted_price: null });
+      return;
+    }
+
+    // Check active subscription to this creator
+    const sub = await queryOne<{ id: string }>(
+      `SELECT id FROM subscriptions
+       WHERE subscriber_id = $1 AND creator_id = $2 AND status = 'active' AND expires_at > NOW()`,
+      [req.auth!.userId, content.creator_id]
+    );
+    const isSubscribed = !!sub;
+    const discountPct = isSubscribed ? (Number(content.subscriber_discount_pct) || 0) : 0;
+    const discountedPrice = discountPct > 0
+      ? Math.round(Number(content.price) * (1 - discountPct / 100) * 100) / 100
+      : null;
+
+    // Subscriber-only content: accessible to active subscribers without unlock fee
+    if (content.access_type === 'subscribers') {
+      if (isSubscribed) {
+        res.json({ unlocked: true, media_url: content.media_url, is_subscribed: true, discounted_price: null });
+      } else {
+        res.json({ unlocked: false, media_url: null, is_subscribed: false, discounted_price: null });
+      }
       return;
     }
 
@@ -104,9 +126,9 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     );
 
     if (unlock) {
-      res.json({ unlocked: true, media_url: content.media_url });
+      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: isSubscribed, discounted_price: null });
     } else {
-      res.json({ unlocked: false, media_url: null });
+      res.json({ unlocked: false, media_url: null, is_subscribed: isSubscribed, discounted_price: discountedPrice });
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to check access' });

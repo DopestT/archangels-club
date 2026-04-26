@@ -56,8 +56,8 @@ export default function PostPurchaseUpsell({ bundleName, bundlePrice, bundleSavi
           <div className="flex items-center gap-3">
             <Crown className="w-4 h-4 text-gold" />
             <div className="text-left">
-              <p className="text-sm text-white">Unlock everything</p>
-              <p className="text-xs text-arc-muted">Subscribe for full access</p>
+              <p className="text-sm text-white">Subscribe for more</p>
+              <p className="text-xs text-arc-muted">Exclusive posts + discounts on future drops</p>
             </div>
           </div>
           <span className="font-serif text-gold">{formatCurrency(subscriptionPrice)}<span className="text-xs text-arc-muted font-sans">/mo</span></span>

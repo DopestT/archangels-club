@@ -49,6 +49,8 @@ export default function LockedContentPage() {
   const [paying, setPaying] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [discountedPrice, setDiscountedPrice] = useState<number | null>(null);
   const [moreContent, setMoreContent] = useState<GlobalContent[]>([]);
 
   const paymentSuccess = searchParams.get('payment') === 'success';
@@ -87,6 +89,8 @@ export default function LockedContentPage() {
     })
       .then((r) => r.json())
       .then((data) => {
+        if (data.is_subscribed !== undefined) setIsSubscribed(!!data.is_subscribed);
+        if (data.discounted_price != null) setDiscountedPrice(Number(data.discounted_price));
         if (data.unlocked) {
           setUnlocked(true);
           setMediaUrl(data.media_url ?? null);
@@ -262,7 +266,14 @@ export default function LockedContentPage() {
               <div className="text-center">
                 <p className="font-serif text-2xl text-white mb-1">Locked Content</p>
                 {content.access_type === 'locked' && content.price > 0 && (
-                  <p className="text-3xl font-serif text-gold">{formatCurrency(content.price)}</p>
+                  discountedPrice != null ? (
+                    <div className="flex items-baseline justify-center gap-2">
+                      <p className="text-3xl font-serif text-gold">{formatCurrency(discountedPrice)}</p>
+                      <p className="text-lg font-serif text-arc-muted line-through">{formatCurrency(content.price)}</p>
+                    </div>
+                  ) : (
+                    <p className="text-3xl font-serif text-gold">{formatCurrency(content.price)}</p>
+                  )
                 )}
                 {content.access_type === 'subscribers' && (
                   <p className="text-sm text-arc-secondary">Subscribers only</p>
@@ -288,7 +299,7 @@ export default function LockedContentPage() {
                     <Unlock className="w-4 h-4" />
                   )}
                   {paying ? 'Redirecting to checkout…' : content.access_type === 'locked'
-                    ? `Unlock Access · ${formatCurrency(content.price)}`
+                    ? `Unlock Access · ${formatCurrency(discountedPrice ?? content.price)}`
                     : 'Subscribe to Unlock'}
                 </button>
               ) : isAuthenticated ? (
@@ -339,7 +350,14 @@ export default function LockedContentPage() {
             {content.access_type === 'locked' && content.price > 0 && (
               <div className="text-right flex-shrink-0">
                 <p className="text-xs text-arc-muted mb-0.5">Price</p>
-                <p className="font-serif text-2xl text-gold">{formatCurrency(content.price)}</p>
+                {discountedPrice != null ? (
+                  <>
+                    <p className="font-serif text-2xl text-gold">{formatCurrency(discountedPrice)}</p>
+                    <p className="text-sm text-arc-muted line-through">{formatCurrency(content.price)}</p>
+                  </>
+                ) : (
+                  <p className="font-serif text-2xl text-gold">{formatCurrency(content.price)}</p>
+                )}
               </div>
             )}
           </div>
@@ -376,10 +394,10 @@ export default function LockedContentPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white mb-0.5">
-                Subscribe to {content.creator_name} for full access
+                Subscribe to {content.creator_name}
               </p>
               <p className="text-xs text-arc-secondary mb-3">
-                Get unlimited access to all content for {formatCurrency(content.creator_subscription_price!)} / month — cancel anytime.
+                Get exclusive subscriber posts + discounts on locked drops for {formatCurrency(content.creator_subscription_price!)} / month — cancel anytime.
               </p>
               <Link
                 to={`/creator/${content.creator_username}`}

@@ -40,7 +40,7 @@ export default function PriceStack({ price, subscriptionPrice, subscriberDiscoun
           <Crown className="w-4 h-4 text-gold" />
           <div>
             <p className="text-sm font-medium text-gold">Subscribe</p>
-            <p className="text-xs text-arc-muted">Unlock all subscriber content</p>
+            <p className="text-xs text-arc-muted">Exclusive posts + discounts on drops</p>
           </div>
         </div>
         <div className="text-right">

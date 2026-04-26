@@ -46,12 +46,26 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
       return;
     }
 
+    // Apply subscriber discount if the buyer has an active subscription to this creator
+    const sub = await queryOne<{ id: string }>(
+      `SELECT id FROM subscriptions
+       WHERE subscriber_id = $1 AND creator_id = $2 AND status = 'active' AND expires_at > NOW()`,
+      [req.auth!.userId, content.creator_id]
+    );
+    const isSubscribed = !!sub;
+    const discountPct = isSubscribed ? (Number(content.subscriber_discount_pct) || 0) : 0;
+    const effectivePrice = discountPct > 0
+      ? Math.round(Number(content.price) * (1 - discountPct / 100) * 100) / 100
+      : Number(content.price);
+
     const stripe = getStripe();
-    const amountCents = Math.round(Number(content.price) * 100);
+    const amountCents = Math.round(effectivePrice * 100);
     const feeCents = Math.round(amountCents * 0.2);
     const hasConnect = !!content.stripe_account_id && !!content.stripe_onboarding_complete;
 
-    console.log('[payments/unlock] content:', content.title, 'price:', content.price, 'hasConnect:', hasConnect, 'buyer:', req.auth!.userId);
+    console.log('[payments/unlock] content:', content.title, 'basePrice:', content.price,
+      'isSubscribed:', isSubscribed, 'discountPct:', discountPct, 'effectivePrice:', effectivePrice,
+      'hasConnect:', hasConnect, 'buyer:', req.auth!.userId);
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
@@ -75,7 +89,7 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
         content_id,
         creator_user_id: content.creator_user_id,
         creator_profile_id: content.creator_id,
-        amount: String(content.price),
+        amount: String(effectivePrice),
       },
       success_url: `${CLIENT_URL}/content/${content_id}?payment=success`,
       cancel_url: `${CLIENT_URL}/content/${content_id}`,

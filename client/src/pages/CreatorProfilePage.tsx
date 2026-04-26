@@ -437,7 +437,7 @@ export default function CreatorProfilePage() {
                 </div>
                 <ul className="space-y-2 mb-5">
                   {[
-                    'Full access to all drops and posts',
+                    'Exclusive subscriber-only posts + discounts on drops',
                     'Priority on custom content requests',
                     'Subscriber-exclusive content',
                     'Cancel anytime — no commitment',
