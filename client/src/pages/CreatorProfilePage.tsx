@@ -12,11 +12,6 @@ const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 
-const SAMPLE_REVIEWS = [
-  { id: 'r1', name: 'Jordan M.', rating: 5, text: 'Absolutely worth every cent. The quality and exclusivity here is unmatched.', date: '3 days ago' },
-  { id: 'r2', name: 'Alex R.', rating: 5, text: 'Responded to my custom request within hours. Delivered beyond expectations.', date: '1 week ago' },
-  { id: 'r3', name: 'Marcus T.', rating: 5, text: 'The subscriber drop last week was fire. This is why I stay subscribed.', date: '2 weeks ago' },
-];
 
 export default function CreatorProfilePage() {
   const { username } = useParams<{ username: string }>();
@@ -51,8 +46,7 @@ export default function CreatorProfilePage() {
           setContent(Array.isArray(contentData) ? contentData : []);
         }
       })
-      .catch((err) => {
-        console.error('[CreatorProfilePage] fetch error:', err);
+      .catch(() => {
         setError('Unable to load creator profile.');
       })
       .finally(() => setLoading(false));
@@ -137,7 +131,7 @@ export default function CreatorProfilePage() {
     { id: 'posts', label: 'Posts', count: posts.length },
     { id: 'drops', label: 'Private Drops', count: drops.length },
     { id: 'about', label: 'About' },
-    { id: 'reviews', label: 'Reviews', count: SAMPLE_REVIEWS.length },
+    { id: 'reviews', label: 'Reviews' },
   ];
 
   return (
@@ -460,23 +454,14 @@ export default function CreatorProfilePage() {
           )}
 
           {activeTab === 'reviews' && (
-            <div className="max-w-2xl space-y-4">
-              {SAMPLE_REVIEWS.map((review) => (
-                <div key={review.id} className="card-surface p-6 rounded-xl">
-                  <div className="flex items-start justify-between gap-4 mb-3">
-                    <div>
-                      <p className="text-sm font-sans font-medium text-white">{review.name}</p>
-                      <div className="flex items-center gap-0.5 mt-1">
-                        {Array.from({ length: review.rating }).map((_, i) => (
-                          <Star key={i} className="w-3.5 h-3.5 text-gold fill-gold" />
-                        ))}
-                      </div>
-                    </div>
-                    <span className="text-xs text-arc-muted">{review.date}</span>
-                  </div>
-                  <p className="text-sm text-arc-secondary leading-relaxed">{review.text}</p>
+            <div className="max-w-2xl">
+              <div className="text-center py-16">
+                <div className="w-12 h-12 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center mx-auto mb-4">
+                  <Star className="w-5 h-5 text-gold" />
                 </div>
-              ))}
+                <p className="text-arc-secondary text-sm mb-1">No reviews yet.</p>
+                <p className="text-xs text-arc-muted">Reviews from subscribers will appear here.</p>
+              </div>
             </div>
           )}
         </div>

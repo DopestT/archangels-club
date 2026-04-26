@@ -36,13 +36,6 @@ import { formatCurrency, timeAgo } from '../lib/utils';
 import type { KeyType } from '../types';
 import { useAuth } from '../context/AuthContext';
 
-const RECENT_TRANSACTIONS = [
-  { id: 'at1', type: 'Subscription', amount: 39.99, fee: 8.00, at: new Date(Date.now() - 10 * 60 * 1000).toISOString() },
-  { id: 'at2', type: 'Content Unlock', amount: 49.99, fee: 10.00, at: new Date(Date.now() - 25 * 60 * 1000).toISOString() },
-  { id: 'at3', type: 'Tip', amount: 100, fee: 20.00, at: new Date(Date.now() - 60 * 60 * 1000).toISOString() },
-  { id: 'at4', type: 'Custom Request', amount: 200, fee: 40.00, at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-];
-
 type Tab = 'overview' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'keys';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -114,6 +107,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
   useEffect(() => {
     loadStats();
+    loadTransactions();
   }, []);
 
   useEffect(() => {
@@ -140,8 +134,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setAccessRequests(data);
-    } catch (err) {
-      console.error('[admin] loadAccessRequests:', err);
+    } catch {
       setAccessError('Failed to load requests.');
     } finally {
       setAccessLoading(false);
@@ -193,8 +186,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
       setFlaggedContent(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('[admin] loadFlaggedContent:', err);
+    } catch {
     } finally {
       setFlaggedLoading(false);
     }
@@ -204,9 +196,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     try {
       await adminFetch(`/api/admin/reports/${reportId}/dismiss`, { method: 'POST' });
       setFlaggedContent(prev => prev.filter(r => r.id !== reportId));
-    } catch (err) {
-      console.error('[admin] dismiss report:', err);
-    }
+    } catch {}
   }
 
   async function handleReportRemove(report: Report) {
@@ -216,9 +206,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
       }
       await adminFetch(`/api/admin/reports/${report.id}/take-action`, { method: 'POST' });
       setFlaggedContent(prev => prev.filter(r => r.id !== report.id));
-    } catch (err) {
-      console.error('[admin] remove content from report:', err);
-    }
+    } catch {}
   }
 
   async function handleAccessAction(id: string, action: 'approved' | 'rejected') {
@@ -349,9 +337,9 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                 </div>
                 <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-3 gap-4 text-center">
                   {[
-                    { label: 'Gross Volume', value: formatCurrency(144200) },
-                    { label: 'Platform Fees (20%)', value: formatCurrency(28840) },
-                    { label: 'Creator Payouts', value: formatCurrency(115360) },
+                    { label: 'Gross Volume', value: stats ? formatCurrency(stats.totalVolume) : '—' },
+                    { label: 'Platform Fees (20%)', value: stats ? formatCurrency(stats.totalRevenue) : '—' },
+                    { label: 'Creator Payouts', value: stats ? formatCurrency(stats.totalVolume - stats.totalRevenue) : '—' },
                   ].map(({ label, value }) => (
                     <div key={label}><p className="text-xs text-arc-muted mb-1">{label}</p><p className="text-sm font-serif text-gold">{value}</p></div>
                   ))}
@@ -361,12 +349,16 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
               {/* Recent transactions */}
               <div className="card-surface p-6 rounded-xl">
                 <h2 className="font-serif text-lg text-white mb-5">Recent Transactions</h2>
-                {RECENT_TRANSACTIONS.map((txn, i) => (
-                  <div key={txn.id} className={`flex items-center justify-between py-3.5 ${i < RECENT_TRANSACTIONS.length - 1 ? 'border-b border-white/5' : ''}`}>
-                    <div><p className="text-sm text-white">{txn.type}</p><p className="text-xs text-arc-muted">{timeAgo(txn.at)}</p></div>
-                    <div className="text-right"><p className="text-sm font-serif text-white">{formatCurrency(txn.amount)}</p><p className="text-xs text-gold">Fee: {formatCurrency(txn.fee)}</p></div>
-                  </div>
-                ))}
+                {transactions.length > 0 ? (
+                  transactions.slice(0, 5).map((txn, i) => (
+                    <div key={txn.id} className={`flex items-center justify-between py-3.5 ${i < Math.min(transactions.length, 5) - 1 ? 'border-b border-white/5' : ''}`}>
+                      <div><p className="text-sm text-white capitalize">{txn.ref_type.replace('_', ' ')}</p><p className="text-xs text-arc-muted">{timeAgo(txn.created_at)}</p></div>
+                      <div className="text-right"><p className="text-sm font-serif text-white">{formatCurrency(txn.amount)}</p><p className="text-xs text-gold">Fee: {formatCurrency(txn.platform_fee)}</p></div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-arc-muted text-center py-6">No transactions yet.</p>
+                )}
               </div>
             </div>
 

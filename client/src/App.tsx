@@ -184,6 +184,21 @@ function AppRoutes() {
             <AdminDashboard initialTab="creator-approvals" />
           </ProtectedRoute>
         } />
+        <Route path="admin/flagged" element={
+          <ProtectedRoute requireAdmin>
+            <AdminDashboard initialTab="flagged" />
+          </ProtectedRoute>
+        } />
+        <Route path="admin/transactions" element={
+          <ProtectedRoute requireAdmin>
+            <AdminDashboard initialTab="transactions" />
+          </ProtectedRoute>
+        } />
+        <Route path="admin/keys" element={
+          <ProtectedRoute requireAdmin>
+            <AdminDashboard initialTab="keys" />
+          </ProtectedRoute>
+        } />
         <Route path="admin/control-center" element={
           <ProtectedRoute requireAdmin>
             <AdminControlCenter />

@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
-  Crown, Users, DollarSign, Flag, Bell, Settings, LayoutDashboard,
+  Crown, Users, DollarSign, Flag, LayoutDashboard,
   UserCheck, Image, CheckCircle, XCircle, MessageSquare, AlertTriangle,
-  RefreshCw, Star, ArrowDownToLine, TrendingUp, Clock, Shield, Eye,
+  RefreshCw, Star, ArrowDownToLine, TrendingUp, Clock, Shield,
   ChevronRight,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
@@ -43,13 +43,10 @@ const NAV = [
   { to: '/admin/access-requests', label: 'Access Requests', icon: UserCheck },
   { to: '/admin/creator-approvals', label: 'Creator Approvals', icon: Crown },
   { to: '/admin/content-approvals', label: 'Content Approvals', icon: Image },
-  { to: '/admin', label: 'Users', icon: Users },
-  { to: '/admin', label: 'Creators', icon: Star },
-  { to: '/admin', label: 'Transactions', icon: DollarSign },
-  { to: '/admin', label: 'Payouts', icon: ArrowDownToLine },
-  { to: '/admin', label: 'Reports', icon: Flag },
-  { to: '/admin', label: 'Notifications', icon: Bell },
-  { to: '/admin', label: 'Settings', icon: Settings },
+  { to: '/admin/flagged', label: 'Reports', icon: Flag },
+  { to: '/admin/transactions', label: 'Transactions', icon: DollarSign },
+  { to: '/admin/keys', label: 'Access Keys', icon: Star },
+  { to: '/admin', label: 'Overview', icon: Users },
 ];
 
 function Sidebar() {
