@@ -15,6 +15,17 @@ const router = Router();
 
 router.use(requireAuth, requireAdmin);
 
+async function generateUniqueUsername(emailPrefix: string): Promise<string> {
+  const base = (emailPrefix.replace(/[^a-z0-9]/g, '') || 'user').slice(0, 30);
+  let candidate = base;
+  let suffix = 2;
+  while (true) {
+    const taken = await queryOne<{ id: string }>('SELECT id FROM users WHERE username = $1', [candidate]);
+    if (!taken) return candidate;
+    candidate = `${base}${suffix++}`;
+  }
+}
+
 // GET /api/admin/stats
 router.get('/stats', async (req, res) => {
   try {
@@ -85,16 +96,14 @@ router.post('/users/:id/approve', async (req, res) => {
 
     if (existing) {
       await execute(`UPDATE users SET status = 'approved' WHERE id = $1`, [existing.id]);
-      console.log(`[admin] Existing user approved: ${email}`);
     } else {
       const userId = crypto.randomUUID();
-      const username = email.split('@')[0].replace(/[^a-z0-9]/g, '');
+      const username = await generateUniqueUsername(email.split('@')[0]);
       await execute(
         `INSERT INTO users (id, email, username, password_hash, display_name, role, status)
          VALUES ($1, $2, $3, NULL, $4, 'fan', 'approved')`,
         [userId, email, username, displayName]
       );
-      console.log(`[admin] User created on approval: ${email} (id=${userId})`);
     }
 
     // Generate one-time set-password token (expires in 1 hour)
@@ -136,7 +145,7 @@ router.post('/reprocess-approved', async (req, res) => {
 
       if (!existing) {
         const userId = crypto.randomUUID();
-        const username = email.split('@')[0].replace(/[^a-z0-9]/g, '');
+        const username = await generateUniqueUsername(email.split('@')[0]);
         await execute(
           `INSERT INTO users (id, email, username, password_hash, display_name, role, status)
            VALUES ($1, $2, $3, NULL, $4, 'fan', 'approved')`,

@@ -50,7 +50,7 @@ router.get('/', async (req, res) => {
       CROSS JOIN LATERAL (
         SELECT
           (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id)::int AS unlock_count,
-          (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id AND cu.created_at >= NOW() - INTERVAL '24 hours')::int AS recent_unlocks_24h,
+          (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id AND cu.unlocked_at >= NOW() - INTERVAL '24 hours')::int AS recent_unlocks_24h,
           (SELECT COALESCE(SUM(t.net_amount), 0) FROM transactions t WHERE t.ref_type = 'content' AND t.ref_id = c.id AND t.status = 'completed') AS content_revenue
       ) stats
       WHERE c.status = 'approved' AND cp.is_approved = 1 AND cp.application_status = 'approved'${extraWhere}
@@ -67,7 +67,6 @@ router.get('/', async (req, res) => {
 // GET /api/content/:id
 router.get('/:id', async (req, res) => {
   try {
-    console.log('[content] Fetching content ID:', req.params.id);
     const row = await queryOne<any>(`
       SELECT c.*, u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
         cp.subscription_price as creator_subscription_price,

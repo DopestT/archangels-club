@@ -270,6 +270,9 @@ const DDL = `
   ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS stripe_onboarding_complete SMALLINT NOT NULL DEFAULT 0;
 
   ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT;
+
+  ALTER TABLE content_unlocks ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
+  UPDATE content_unlocks SET created_at = unlocked_at WHERE created_at IS NULL;
 `;
 
 export async function runMigrations(): Promise<void> {
