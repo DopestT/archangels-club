@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, SlidersHorizontal, Lock, TrendingUp, Sparkles, Crown, ChevronRight } from 'lucide-react';
+import { Search, SlidersHorizontal, Lock, TrendingUp, Sparkles, Crown, ChevronRight, ChevronLeft } from 'lucide-react';
 import CreatorCard from '../components/creators/CreatorCard';
 import FeedCard from '../components/content/FeedCard';
 import LiveActivity from '../components/explore/LiveActivity';
@@ -35,13 +35,48 @@ function SectionHeader({ icon, title, sub, count }: { icon: React.ReactNode; tit
 
 // Horizontal scroll strip of FeedCards
 function FeedStrip({ items }: { items: Content[] }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const scroll = (dir: 1 | -1) =>
+    ref.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
+
   return (
-    <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
-      {items.map((item) => (
-        <div key={item.id} className="flex-none w-44 sm:w-52">
-          <FeedCard content={item} />
-        </div>
-      ))}
+    <div className="relative group/strip">
+      {/* Left arrow — desktop only, visible on hover */}
+      <button
+        onClick={() => scroll(-1)}
+        aria-label="Scroll left"
+        className="hidden lg:flex absolute left-1 top-1/2 -translate-y-1/2 z-10
+                   w-9 h-9 items-center justify-center rounded-full
+                   bg-bg-surface/90 backdrop-blur-sm border border-white/10 text-white shadow-lg
+                   opacity-0 group-hover/strip:opacity-100 transition-opacity duration-200"
+      >
+        <ChevronLeft className="w-4 h-4" />
+      </button>
+
+      {/* Scroll container */}
+      <div
+        ref={ref}
+        className="flex gap-4 overflow-x-auto overflow-y-hidden snap-x snap-mandatory no-scrollbar pb-2"
+        style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+      >
+        {items.map((item) => (
+          <div key={item.id} className="flex-none w-[260px] snap-start">
+            <FeedCard content={item} />
+          </div>
+        ))}
+      </div>
+
+      {/* Right arrow — desktop only, visible on hover */}
+      <button
+        onClick={() => scroll(1)}
+        aria-label="Scroll right"
+        className="hidden lg:flex absolute right-1 top-1/2 -translate-y-1/2 z-10
+                   w-9 h-9 items-center justify-center rounded-full
+                   bg-bg-surface/90 backdrop-blur-sm border border-white/10 text-white shadow-lg
+                   opacity-0 group-hover/strip:opacity-100 transition-opacity duration-200"
+      >
+        <ChevronRight className="w-4 h-4" />
+      </button>
     </div>
   );
 }
