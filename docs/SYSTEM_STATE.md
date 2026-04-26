@@ -1,6 +1,6 @@
 # Archangels Club — System State
 
-Last updated: 2026-04-26
+Last updated: 2026-04-26 (05:20 ET)
 
 This document reflects the current state of the entire system. Update it whenever a major change ships.
 
@@ -131,7 +131,7 @@ Base URL: `https://archangels-club-production.up.railway.app`
 |---|---|---|---|
 | GET | `/` | none | Browse approved content (sort, filter, paginate) |
 | GET | `/:id` | none | Get content metadata (media_url stripped if locked) |
-| GET | `/:id/my-access` | JWT | Check if current user has unlocked this content |
+| GET | `/:id/my-access` | JWT | Check unlock status; returns `{ unlocked, media_url, is_subscribed, discounted_price }` |
 | POST | `/` | JWT+creator | Upload new content (enters pending_review) |
 | POST | `/:id/unlock` | JWT+approved | Direct unlock (used post-webhook; creates transaction + unlock record) |
 
@@ -340,22 +340,29 @@ PostgreSQL on Railway. Tables created/migrated via `server/src/db/migrate.ts` (r
 
 ### Content Unlock (pay-per-item)
 ```
-User clicks "Unlock Access · $X.XX"
-  → handleUnlock() in LockedContentPage
-  → if not authenticated: redirect to /login?next=/content/:id
-  → POST /api/payments/create-unlock-session { content_id }
-    → validates content exists, is approved, is locked, has price > 0
-    → checks if already unlocked (returns { already_unlocked: true } if so)
-    → creates Stripe Checkout Session (payment mode)
-    → if creator has Stripe Connect: routes 80% to creator via transfer_data
-    → if no Connect: full amount to platform
-    → returns { url: stripeCheckoutUrl }
-  → window.location.href = url (redirect to Stripe)
+User visits /content/:id
+  → GET /api/content/:id — metadata fetched (media_url stripped if locked)
+  → GET /api/content/:id/my-access (if authenticated)
+    → returns { unlocked, media_url, is_subscribed, discounted_price }
+    → if is_subscribed + discounted_price set: lock overlay shows discounted price with strikethrough original
+  → User clicks "Unlock Access · $X.XX"
+    → handleUnlock() in LockedContentPage
+    → if not authenticated: redirect to /login?next=/content/:id
+    → POST /api/payments/create-unlock-session { content_id }
+      → validates content exists, is approved, is locked, has price > 0
+      → checks if already unlocked (returns { already_unlocked: true } if so)
+      → queries subscriptions table — applies subscriber_discount_pct if active sub found
+      → creates Stripe Checkout Session (payment mode) at effectivePrice
+      → if creator has Stripe Connect: routes 80% to creator via transfer_data
+      → if no Connect: full amount to platform
+      → metadata.amount = effectivePrice (discounted amount, not base price)
+      → returns { url: stripeCheckoutUrl }
+    → window.location.href = url (redirect to Stripe)
   → User pays on Stripe
   → Stripe calls POST /api/webhooks/stripe (checkout.session.completed)
     → reads metadata: { user_id, content_id, creator_user_id, creator_profile_id, amount }
     → idempotency check (skip if unlock row already exists)
-    → INSERT INTO transactions
+    → INSERT INTO transactions (amount = metadata.amount = actual charged amount)
     → INSERT INTO content_unlocks
     → UPDATE creator_profiles SET total_earnings += net_amount
   → Stripe redirects to /content/:id?payment=success
@@ -364,8 +371,16 @@ User clicks "Unlock Access · $X.XX"
   → on exhaustion: shows "Payment received — access being confirmed"
 ```
 
-**Platform fee:** 20%
+**Platform fee:** 20% of effective (post-discount) price
 **Stripe Connect required for creator payout:** optional — if not set up, payment goes to platform
+
+### Subscription Model
+Subscriptions do **not** unlock all paid content. They provide:
+- Access to `access_type = 'subscribers'` posts (exclusive subscriber-only content)
+- A percentage discount (`subscriber_discount_pct`) on `access_type = 'locked'` (paid) content
+- Discounted price is shown with strikethrough on lock overlay when `is_subscribed = true`
+
+Subscription scope is per-creator. `subscriptions` table: `status = 'active' AND expires_at > NOW()`.
 
 ### Tip
 ```
@@ -433,8 +448,12 @@ Run to seed: `cd server && DATABASE_URL=<public-railway-url> npm run seed:demo`
 
 2. **`isApproved` reads from stale localStorage** — if admin approves a user while they're logged in, they must log out and back in for `isApproved` to update. No `/api/auth/me` refresh on page load.
 
-3. **Admin endpoints have no auth guard** — `/api/admin/*` routes currently accept requests without a JWT. Acceptable for private beta; must be locked before public launch.
+3. **`media_url` is null for all demo content** — demo seed inserts `media_url = NULL`. After unlock, `/my-access` returns `{ unlocked: true, media_url: null }`. Content players render nothing. Real content needs actual media URLs.
 
-4. **`media_url` is null for all demo content** — demo seed inserts `media_url = NULL`. After unlock, `/my-access` returns `{ unlocked: true, media_url: null }`. Content players render nothing. Real content needs actual media URLs.
+4. **Creator payout requires Stripe Connect** — if creator hasn't completed Express onboarding, their share of payments accumulates in the platform Stripe account, not disbursed automatically.
 
-5. **Creator payout requires Stripe Connect** — if creator hasn't completed Express onboarding, their share of payments accumulates in the platform Stripe account, not disbursed automatically.
+6. **Subscription discount only applies to `locked` content** — `subscriber_discount_pct` is applied only when `access_type = 'locked'`. Subscriber-only (`access_type = 'subscribers'`) content is free to active subscribers; free (`access_type = 'free'`) content needs no discount.
+
+7. **`discounted_price` only returned when discount > 0** — `/my-access` returns `discounted_price: null` if `subscriber_discount_pct = 0` or user is not subscribed. Frontend falls back to `content.price` when null.
+
+8. **Admin endpoints have no auth guard** — `/api/admin/*` routes currently accept requests without a JWT. Acceptable for private beta; must be locked before public launch.
