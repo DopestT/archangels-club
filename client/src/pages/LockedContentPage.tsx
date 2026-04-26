@@ -8,7 +8,7 @@ import ContentCard from '../components/content/ContentCard';
 import type { Content as GlobalContent } from '../types';
 import { formatCurrency, timeAgo } from '../lib/utils';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-5 h-5" />,
@@ -38,7 +38,6 @@ interface Content {
 
 export default function LockedContentPage() {
   const { id } = useParams<{ id: string }>();
-  console.log('Content ID:', id);
   const [searchParams] = useSearchParams();
   const { isAuthenticated, token, isApproved, isAdmin } = useAuth();
 
@@ -60,7 +59,6 @@ export default function LockedContentPage() {
       setLoading(false);
       return;
     }
-    console.log('Fetching content from:', `${API_BASE}/api/content/${id}`);
     fetch(`${API_BASE}/api/content/${id}`)
       .then((r) => r.json())
       .then((data) => {

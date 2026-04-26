@@ -7,7 +7,7 @@ import VideoProcessor from '../components/editor/VideoProcessor';
 import PricingPanel from '../components/pricing/PricingPanel';
 import { useAuth } from '../context/AuthContext';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 const CONTENT_TYPES: { id: ContentType; icon: React.ReactNode; label: string }[] = [
   { id: 'image', icon: <Image className="w-5 h-5" />, label: 'Image' },
@@ -64,13 +64,7 @@ export default function UploadContent() {
     setShowEditor(false);
   }
 
-  async function handleSave(asDraft: boolean) {
-    if (asDraft) {
-      // Draft save: store locally only for now (no backend draft endpoint)
-      setStatus('saving');
-      setTimeout(() => setStatus('idle'), 800);
-      return;
-    }
+  async function handleSave() {
     if (!title.trim()) return;
     setUploadError('');
     setStatus('saving');
@@ -97,7 +91,6 @@ export default function UploadContent() {
         setStatus('idle');
         return;
       }
-      console.log('[UploadContent] submitted contentId:', data.id);
       setStatus('submitted');
     } catch {
       setUploadError('Unable to reach the server. Please check your connection.');
@@ -385,7 +378,7 @@ export default function UploadContent() {
             {/* Actions */}
             <div className="flex items-center gap-4 pb-10">
               <button
-                onClick={() => handleSave(false)}
+                onClick={() => handleSave()}
                 disabled={status === 'saving' || !title}
                 className="btn-gold flex-1 py-3.5"
               >
@@ -396,13 +389,6 @@ export default function UploadContent() {
                   </svg>
                 ) : <Upload className="w-4 h-4" />}
                 {status === 'saving' ? 'Submitting…' : 'Submit for Review'}
-              </button>
-              <button
-                onClick={() => handleSave(true)}
-                disabled={status === 'saving' || !title}
-                className="btn-outline px-6 py-3.5"
-              >
-                Save as Draft
               </button>
             </div>
           </div>

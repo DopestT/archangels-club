@@ -4,7 +4,6 @@ import {
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
   Image, Video, Music, FileText, MessageSquare, UserCheck, Key, Gift, Send, Plus,
 } from 'lucide-react';
-import { myAccessKeys, activeKeyDrops } from '../data/seed';
 
 interface AccessRequest {
   id: string;
@@ -15,7 +14,21 @@ interface AccessRequest {
   created_at: string;
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+interface Report {
+  id: string;
+  subject_type: string;
+  subject_id: string;
+  reason: string;
+  details: string | null;
+  status: string;
+  created_at: string;
+  reporter_username: string;
+  reporter_name: string;
+  content_title: string | null;
+  creator_username: string | null;
+}
+
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 import StatCard from '../components/ui/StatCard';
 import Logo from '../components/brand/Logo';
 import Avatar from '../components/ui/Avatar';
@@ -28,11 +41,6 @@ const RECENT_TRANSACTIONS = [
   { id: 'at2', type: 'Content Unlock', amount: 49.99, fee: 10.00, at: new Date(Date.now() - 25 * 60 * 1000).toISOString() },
   { id: 'at3', type: 'Tip', amount: 100, fee: 20.00, at: new Date(Date.now() - 60 * 60 * 1000).toISOString() },
   { id: 'at4', type: 'Custom Request', amount: 200, fee: 40.00, at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-];
-
-const FLAGGED_CONTENT = [
-  { id: 'fc1', title: 'Suspicious Upload #42', reporter: 'user_0x1', reason: 'Potential policy violation', reported_at: new Date(Date.now() - 60 * 60 * 1000).toISOString() },
-  { id: 'fc2', title: 'Reported content from creator_3', reporter: 'user_0x2', reason: 'Undisclosed paid promotion', reported_at: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() },
 ];
 
 type Tab = 'overview' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'keys';
@@ -80,6 +88,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [activeRejection, setActiveRejection] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  // Flagged content (reports)
+  const [flaggedContent, setFlaggedContent] = useState<Report[]>([]);
+  const [flaggedLoading, setFlaggedLoading] = useState(false);
+
   // Stats + transactions
   const [stats, setStats] = useState<any | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -108,6 +120,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     if (activeTab === 'access-requests') loadAccessRequests();
     if (activeTab === 'creator-approvals') loadCreatorApps();
     if (activeTab === 'content-approvals') loadContentQueue();
+    if (activeTab === 'flagged') loadFlaggedContent();
     if (activeTab === 'transactions') loadTransactions();
   }, [activeTab]);
 
@@ -126,9 +139,9 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
       const res = await adminFetch('/api/admin/access-requests');
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      console.log('[admin] access-requests response:', data);
       setAccessRequests(data);
-    } catch {
+    } catch (err) {
+      console.error('[admin] loadAccessRequests:', err);
       setAccessError('Failed to load requests.');
     } finally {
       setAccessLoading(false);
@@ -170,6 +183,41 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
       setTransactions(Array.isArray(data) ? data : []);
     } catch {} finally {
       setTransactionsLoading(false);
+    }
+  }
+
+  async function loadFlaggedContent() {
+    setFlaggedLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/reports');
+      if (!res.ok) throw new Error(await res.text());
+      const data = await res.json();
+      setFlaggedContent(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('[admin] loadFlaggedContent:', err);
+    } finally {
+      setFlaggedLoading(false);
+    }
+  }
+
+  async function handleReportDismiss(reportId: string) {
+    try {
+      await adminFetch(`/api/admin/reports/${reportId}/dismiss`, { method: 'POST' });
+      setFlaggedContent(prev => prev.filter(r => r.id !== reportId));
+    } catch (err) {
+      console.error('[admin] dismiss report:', err);
+    }
+  }
+
+  async function handleReportRemove(report: Report) {
+    try {
+      if (report.subject_type === 'content') {
+        await adminFetch(`/api/admin/content/${report.subject_id}/remove`, { method: 'POST' });
+      }
+      await adminFetch(`/api/admin/reports/${report.id}/take-action`, { method: 'POST' });
+      setFlaggedContent(prev => prev.filter(r => r.id !== report.id));
+    } catch (err) {
+      console.error('[admin] remove content from report:', err);
     }
   }
 
@@ -229,7 +277,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     { id: 'access-requests', label: 'Access Requests', badge: pendingAccessCount },
     { id: 'creator-approvals', label: 'Creator Approvals', badge: pendingCreatorCount },
     { id: 'content-approvals', label: 'Content Approvals', badge: pendingContentCount },
-    { id: 'flagged', label: 'Flagged Content', badge: FLAGGED_CONTENT.length },
+    { id: 'flagged', label: 'Flagged Content', badge: stats?.openReports ?? flaggedContent.length },
     { id: 'transactions', label: 'Transactions' },
     { id: 'keys', label: 'Access Keys' },
   ];
@@ -334,7 +382,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                     { label: 'Access requests', count: pendingAccessCount, tab: 'access-requests' as Tab },
                     { label: 'Creator applications', count: pendingCreatorCount, tab: 'creator-approvals' as Tab },
                     { label: 'Content approvals', count: pendingContentCount, tab: 'content-approvals' as Tab },
-                    { label: 'Flagged content', count: FLAGGED_CONTENT.length, tab: 'flagged' as Tab },
+                    { label: 'Flagged content', count: stats?.openReports ?? flaggedContent.length, tab: 'flagged' as Tab },
                   ].map(({ label, count, tab }) => (
                     <button
                       key={label}
@@ -693,33 +741,71 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
           <div className="space-y-4">
             <div className="mb-4">
               <h2 className="font-serif text-xl text-white mb-1">Flagged Content</h2>
-              <p className="text-sm text-arc-secondary">{FLAGGED_CONTENT.length} items require review.</p>
+              <p className="text-sm text-arc-secondary">{flaggedContent.length} items require review.</p>
             </div>
-            {FLAGGED_CONTENT.map((item) => (
-              <div key={item.id} className="card-surface p-6 rounded-xl border border-arc-error/20">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Flag className="w-4 h-4 text-arc-error" />
-                      <p className="text-sm text-white font-medium">{item.title}</p>
+
+            {flaggedLoading && (
+              <div className="flex items-center justify-center py-16 text-arc-muted text-sm">Loading…</div>
+            )}
+
+            {!flaggedLoading && flaggedContent.length === 0 && (
+              <div className="text-center py-20">
+                <CheckCircle className="w-10 h-10 text-arc-success mx-auto mb-3" />
+                <p className="text-arc-secondary">No flagged content to review.</p>
+              </div>
+            )}
+
+            {flaggedContent.map((report) => {
+              const displayTitle = report.content_title ?? `${report.subject_type} ${report.subject_id.slice(0, 8)}`;
+              const reviewUrl = report.subject_type === 'content' ? `/content/${report.subject_id}` : null;
+              return (
+                <div key={report.id} className="card-surface p-6 rounded-xl border border-arc-error/20">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Flag className="w-4 h-4 text-arc-error flex-shrink-0" />
+                        <p className="text-sm text-white font-medium truncate">{displayTitle}</p>
+                      </div>
+                      <p className="text-xs text-arc-secondary mb-1">Reason: {report.reason}</p>
+                      {report.details && (
+                        <p className="text-xs text-arc-secondary mb-1 leading-relaxed">{report.details}</p>
+                      )}
+                      <p className="text-xs text-arc-muted">
+                        Reported by {report.reporter_name} (@{report.reporter_username}) · {timeAgo(report.created_at)}
+                      </p>
                     </div>
-                    <p className="text-xs text-arc-secondary mb-1">Reason: {item.reason}</p>
-                    <p className="text-xs text-arc-muted">Reported by {item.reporter} · {timeAgo(item.reported_at)}</p>
-                  </div>
-                  <div className="flex gap-2 flex-shrink-0">
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10">
-                      <Eye className="w-3.5 h-3.5" /> Review
-                    </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error border border-arc-error/25">
-                      <XCircle className="w-3.5 h-3.5" /> Remove
-                    </button>
-                    <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success border border-arc-success/25">
-                      <CheckCircle className="w-3.5 h-3.5" /> Clear
-                    </button>
+                    <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
+                      {reviewUrl ? (
+                        <a
+                          href={reviewUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10 transition-colors"
+                        >
+                          <Eye className="w-3.5 h-3.5" /> Review
+                        </a>
+                      ) : (
+                        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary border border-white/10 opacity-50 cursor-not-allowed">
+                          <Eye className="w-3.5 h-3.5" /> Review
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleReportRemove(report)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
+                      >
+                        <XCircle className="w-3.5 h-3.5" /> Remove
+                      </button>
+                      <button
+                        onClick={() => handleReportDismiss(report.id)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                      >
+                        <CheckCircle className="w-3.5 h-3.5" /> Clear
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -760,7 +846,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
         )}
 
         {/* ── ACCESS KEYS ─────────────────────────────────────────────────── */}
-        {activeTab === 'keys' && <AdminKeysTab />}
+        {activeTab === 'keys' && <AdminKeysTab token={token} />}
       </div>
     </div>
   );
@@ -774,42 +860,131 @@ const KEY_TYPE_STYLES: Record<KeyType, { badge: string; bg: string; border: stri
   standard: { badge: 'text-arc-secondary bg-white/5 border-white/15', bg: 'from-bg-surface to-bg-surface', border: 'border-white/10' },
 };
 
-function AdminKeysTab() {
+interface KeyDrop {
+  id: string;
+  drop_name: string;
+  key_type: KeyType;
+  quantity: number;
+  claimed: number;
+  start_time: string;
+  end_time: string;
+  is_active: number;
+}
+
+function AdminKeysTab({ token }: { token: string | null }) {
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+
+  // Issue Keys form
   const [issueType, setIssueType] = useState<KeyType>('standard');
   const [issueQty, setIssueQty] = useState('5');
   const [issueTarget, setIssueTarget] = useState('');
-  const [issued, setIssued] = useState(false);
+  const [issueLoading, setIssueLoading] = useState(false);
+  const [issueResult, setIssueResult] = useState<{ ok: boolean; msg: string } | null>(null);
+
+  // Create Drop form
   const [dropName, setDropName] = useState('');
   const [dropType, setDropType] = useState<KeyType>('gold');
   const [dropQty, setDropQty] = useState('25');
   const [dropDuration, setDropDuration] = useState('24');
-  const [dropCreated, setDropCreated] = useState(false);
+  const [dropLoading, setDropLoading] = useState(false);
+  const [dropResult, setDropResult] = useState<{ ok: boolean; msg: string } | null>(null);
 
-  function handleIssue() {
-    setIssued(true);
-    setTimeout(() => setIssued(false), 3000);
+  // Active drops
+  const [drops, setDrops] = useState<KeyDrop[]>([]);
+  const [dropsLoading, setDropsLoading] = useState(true);
+
+  function adminFetch(path: string, opts?: RequestInit) {
+    return fetch(`${API_BASE}${path}`, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', ...authHeaders, ...(opts?.headers ?? {}) },
+    });
   }
 
-  function handleCreateDrop() {
-    if (!dropName.trim()) return;
-    setDropCreated(true);
-    setTimeout(() => { setDropCreated(false); setDropName(''); }, 3000);
+  useEffect(() => {
+    setDropsLoading(true);
+    adminFetch('/api/keys/drops')
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setDrops(d); })
+      .catch(() => {})
+      .finally(() => setDropsLoading(false));
+  }, []);
+
+  async function handleIssue() {
+    if (!token) return;
+    setIssueLoading(true);
+    setIssueResult(null);
+    try {
+      const res = await adminFetch('/api/keys/admin/issue', {
+        method: 'POST',
+        body: JSON.stringify({
+          key_type: issueType,
+          quantity: parseInt(issueQty) || 1,
+          assign_to_username: issueTarget.replace('@', '').trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setIssueResult({ ok: true, msg: `${data.issued} ${issueType} key${data.issued !== 1 ? 's' : ''} issued.` });
+        setIssueTarget('');
+      } else {
+        setIssueResult({ ok: false, msg: data.error ?? 'Failed to issue keys.' });
+      }
+    } catch {
+      setIssueResult({ ok: false, msg: 'Unable to reach server.' });
+    } finally {
+      setIssueLoading(false);
+    }
   }
 
-  const totalKeys = myAccessKeys.length;
-  const unusedKeys = myAccessKeys.filter((k) => k.status === 'unused').length;
-  const usedKeys = myAccessKeys.filter((k) => k.status === 'used').length;
-  const transferredKeys = myAccessKeys.filter((k) => k.status === 'transferred').length;
+  async function handleCreateDrop() {
+    if (!dropName.trim() || !token) return;
+    setDropLoading(true);
+    setDropResult(null);
+    try {
+      const res = await adminFetch('/api/keys/admin/drops', {
+        method: 'POST',
+        body: JSON.stringify({
+          drop_name: dropName.trim(),
+          key_type: dropType,
+          quantity: parseInt(dropQty) || 25,
+          duration_hours: parseInt(dropDuration) || 24,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setDropResult({ ok: true, msg: `Drop "${dropName}" created.` });
+        setDropName('');
+        // Reload drops
+        adminFetch('/api/keys/drops').then((r) => r.json()).then((d) => { if (Array.isArray(d)) setDrops(d); }).catch(() => {});
+      } else {
+        setDropResult({ ok: false, msg: data.error ?? 'Failed to create drop.' });
+      }
+    } catch {
+      setDropResult({ ok: false, msg: 'Unable to reach server.' });
+    } finally {
+      setDropLoading(false);
+    }
+  }
+
+  async function handleRevokeDrop(dropId: string) {
+    try {
+      const res = await adminFetch(`/api/keys/admin/drops/${dropId}/revoke`, { method: 'PATCH' });
+      if (res.ok) setDrops((prev) => prev.filter((d) => d.id !== dropId));
+    } catch {}
+  }
+
+  const totalClaimed = drops.reduce((sum, d) => sum + Number(d.claimed), 0);
+  const totalCapacity = drops.reduce((sum, d) => sum + Number(d.quantity), 0);
 
   return (
     <div className="space-y-8">
-      {/* Stats */}
+      {/* Stats from active drops */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
-          { label: 'Total Issued', value: totalKeys, icon: <Key className="w-4 h-4" />, color: 'text-gold' },
-          { label: 'Available', value: unusedKeys, icon: <Key className="w-4 h-4" />, color: 'text-gold' },
-          { label: 'Redeemed', value: usedKeys, icon: <CheckCircle className="w-4 h-4" />, color: 'text-arc-success' },
-          { label: 'Transferred', value: transferredKeys, icon: <Send className="w-4 h-4" />, color: 'text-blue-400' },
+          { label: 'Active Drops', value: drops.length, icon: <Gift className="w-4 h-4" />, color: 'text-gold' },
+          { label: 'Total Capacity', value: totalCapacity, icon: <Key className="w-4 h-4" />, color: 'text-gold' },
+          { label: 'Claimed', value: totalClaimed, icon: <CheckCircle className="w-4 h-4" />, color: 'text-arc-success' },
+          { label: 'Remaining', value: totalCapacity - totalClaimed, icon: <Key className="w-4 h-4" />, color: 'text-blue-400' },
         ].map(({ label, value, icon, color }) => (
           <div key={label} className="card-surface p-4 rounded-xl text-center">
             <div className={`flex justify-center mb-1 ${color}`}>{icon}</div>
@@ -826,7 +1001,6 @@ function AdminKeysTab() {
             <Key className="w-4 h-4 text-gold" />
             <h3 className="font-serif text-lg text-white">Issue Keys</h3>
           </div>
-
           <div className="space-y-4">
             <div>
               <label className="block text-xs text-arc-secondary mb-2">Key Type</label>
@@ -834,56 +1008,32 @@ function AdminKeysTab() {
                 {(['standard', 'gold', 'black'] as KeyType[]).map((t) => {
                   const s = KEY_TYPE_STYLES[t];
                   return (
-                    <button
-                      key={t}
-                      onClick={() => setIssueType(t)}
+                    <button key={t} onClick={() => setIssueType(t)}
                       className={`py-2 rounded-lg border text-xs font-bold tracking-wider capitalize transition-all ${
                         issueType === t ? `${s.badge} ${s.border}` : 'border-white/10 text-arc-muted hover:border-white/20'
                       }`}
-                    >
-                      {t}
-                    </button>
+                    >{t}</button>
                   );
                 })}
               </div>
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-arc-secondary mb-1.5">Quantity</label>
-                <input
-                  type="number"
-                  value={issueQty}
-                  onChange={(e) => setIssueQty(e.target.value)}
-                  min="1" max="500"
-                  className="input-dark"
-                />
+                <input type="number" value={issueQty} onChange={(e) => setIssueQty(e.target.value)} min="1" max="500" className="input-dark" />
               </div>
               <div>
                 <label className="block text-xs text-arc-secondary mb-1.5">Assign to user <span className="text-arc-muted">(optional)</span></label>
-                <input
-                  type="text"
-                  value={issueTarget}
-                  onChange={(e) => setIssueTarget(e.target.value)}
-                  placeholder="@username"
-                  className="input-dark"
-                />
+                <input type="text" value={issueTarget} onChange={(e) => setIssueTarget(e.target.value)} placeholder="@username" className="input-dark" />
               </div>
             </div>
-
-            <button
-              onClick={handleIssue}
-              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all ${
-                issued
-                  ? 'bg-arc-success/10 border border-arc-success/25 text-arc-success'
-                  : 'btn-gold'
-              }`}
+            {issueResult && (
+              <p className={`text-xs ${issueResult.ok ? 'text-arc-success' : 'text-arc-error'}`}>{issueResult.msg}</p>
+            )}
+            <button onClick={handleIssue} disabled={issueLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all btn-gold disabled:opacity-50"
             >
-              {issued ? (
-                <><CheckCircle className="w-4 h-4" />{issueQty} keys issued</>
-              ) : (
-                <><Plus className="w-4 h-4" />Issue {issueQty} {issueType} key{parseInt(issueQty) !== 1 ? 's' : ''}</>
-              )}
+              {issueLoading ? 'Issuing…' : <><Plus className="w-4 h-4" />Issue {issueQty} {issueType} key{parseInt(issueQty) !== 1 ? 's' : ''}</>}
             </button>
           </div>
         </div>
@@ -894,34 +1044,21 @@ function AdminKeysTab() {
             <Gift className="w-4 h-4 text-gold" />
             <h3 className="font-serif text-lg text-white">Create Key Drop</h3>
           </div>
-
           <div className="space-y-4">
             <div>
               <label className="block text-xs text-arc-secondary mb-1.5">Drop Name</label>
-              <input
-                type="text"
-                value={dropName}
-                onChange={(e) => setDropName(e.target.value)}
-                placeholder="e.g. Summer Access Event"
-                className="input-dark"
-                maxLength={60}
-              />
+              <input type="text" value={dropName} onChange={(e) => setDropName(e.target.value)} placeholder="e.g. Summer Access Event" className="input-dark" maxLength={60} />
             </div>
-
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs text-arc-secondary mb-1.5">Key Type</label>
                 <div className="flex flex-col gap-1">
                   {(['standard', 'gold', 'black'] as KeyType[]).map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setDropType(t)}
+                    <button key={t} onClick={() => setDropType(t)}
                       className={`py-1.5 rounded-lg border text-xs font-medium capitalize transition-all ${
                         dropType === t ? KEY_TYPE_STYLES[t].badge + ' ' + KEY_TYPE_STYLES[t].border : 'border-white/10 text-arc-muted hover:border-white/20'
                       }`}
-                    >
-                      {t}
-                    </button>
+                    >{t}</button>
                   ))}
                 </div>
               </div>
@@ -936,17 +1073,13 @@ function AdminKeysTab() {
                 </div>
               </div>
             </div>
-
-            <button
-              onClick={handleCreateDrop}
-              disabled={!dropName.trim()}
-              className={`w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all ${
-                dropCreated
-                  ? 'bg-arc-success/10 border border-arc-success/25 text-arc-success'
-                  : 'btn-outline'
-              }`}
+            {dropResult && (
+              <p className={`text-xs ${dropResult.ok ? 'text-arc-success' : 'text-arc-error'}`}>{dropResult.msg}</p>
+            )}
+            <button onClick={handleCreateDrop} disabled={!dropName.trim() || dropLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all btn-outline disabled:opacity-50"
             >
-              {dropCreated ? <><CheckCircle className="w-4 h-4" />Drop created</> : <><Gift className="w-4 h-4" />Schedule Drop</>}
+              {dropLoading ? 'Creating…' : <><Gift className="w-4 h-4" />Schedule Drop</>}
             </button>
           </div>
         </div>
@@ -956,83 +1089,44 @@ function AdminKeysTab() {
       <div className="card-surface rounded-xl overflow-hidden">
         <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
           <h3 className="font-serif text-base text-white">Active &amp; Upcoming Drops</h3>
-          <span className="text-xs text-arc-muted">{activeKeyDrops.length} drops</span>
+          <span className="text-xs text-arc-muted">{drops.length} drops</span>
         </div>
-        <div className="divide-y divide-white/5">
-          {activeKeyDrops.map((drop) => {
-            const s = KEY_TYPE_STYLES[drop.key_type];
-            const pct = Math.round((drop.claimed / drop.quantity) * 100);
-            const isLive = new Date(drop.start_time) <= new Date() && new Date(drop.end_time) > new Date();
-            return (
-              <div key={drop.id} className="px-5 py-4 flex items-center gap-5">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.badge} ${s.border}`}>{drop.key_type.toUpperCase()}</span>
-                    {isLive
-                      ? <span className="text-[10px] text-arc-success font-medium">LIVE</span>
-                      : <span className="text-[10px] text-arc-muted font-medium">UPCOMING</span>}
-                  </div>
-                  <p className="text-sm text-white">{drop.drop_name}</p>
-                  <div className="flex items-center gap-3 mt-1.5">
-                    <div className="flex-1 h-1 bg-white/5 rounded-full">
-                      <div className="h-full rounded-full bg-gold transition-all" style={{ width: `${pct}%` }} />
+        {dropsLoading ? (
+          <div className="px-5 py-8 text-center text-arc-muted text-sm">Loading…</div>
+        ) : drops.length === 0 ? (
+          <div className="px-5 py-8 text-center text-arc-muted text-sm">No active drops.</div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {drops.map((drop) => {
+              const s = KEY_TYPE_STYLES[drop.key_type] ?? KEY_TYPE_STYLES.standard;
+              const pct = Math.round((Number(drop.claimed) / Number(drop.quantity)) * 100);
+              const isLive = new Date(drop.start_time) <= new Date() && new Date(drop.end_time) > new Date();
+              return (
+                <div key={drop.id} className="px-5 py-4 flex items-center gap-5">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.badge} ${s.border}`}>{drop.key_type.toUpperCase()}</span>
+                      {isLive ? <span className="text-[10px] text-arc-success font-medium">LIVE</span> : <span className="text-[10px] text-arc-muted font-medium">UPCOMING</span>}
                     </div>
-                    <span className="text-xs text-arc-muted flex-shrink-0">{drop.claimed}/{drop.quantity}</span>
+                    <p className="text-sm text-white">{drop.drop_name}</p>
+                    <div className="flex items-center gap-3 mt-1.5">
+                      <div className="flex-1 h-1 bg-white/5 rounded-full">
+                        <div className="h-full rounded-full bg-gold transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs text-arc-muted flex-shrink-0">{drop.claimed}/{drop.quantity}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button className="text-xs px-3 py-1.5 rounded-lg border border-arc-error/25 text-arc-error hover:bg-arc-error/10 transition-all">
+                  <button
+                    onClick={() => handleRevokeDrop(drop.id)}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-arc-error/25 text-arc-error hover:bg-arc-error/10 transition-all flex-shrink-0"
+                  >
                     Revoke
                   </button>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Key Registry */}
-      <div className="card-surface rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/5">
-          <h3 className="font-serif text-base text-white">Key Registry</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-white/5">
-                {['Code', 'Type', 'Status', 'Inviter', 'Invitee', 'Created'].map((h) => (
-                  <th key={h} className="text-left px-4 py-3 text-[10px] font-medium text-arc-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {myAccessKeys.map((key, i) => {
-                const s = KEY_TYPE_STYLES[key.key_type];
-                return (
-                  <tr key={key.id} className={i < myAccessKeys.length - 1 ? 'border-b border-white/5' : ''}>
-                    <td className="px-4 py-3 font-mono text-xs text-arc-secondary">{key.invite_code}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.badge} ${s.border}`}>{key.key_type.toUpperCase()}</span>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${
-                        key.status === 'unused' ? 'text-gold bg-gold-muted border-gold-border'
-                        : key.status === 'used' ? 'text-arc-success bg-arc-success/10 border-arc-success/25'
-                        : key.status === 'transferred' ? 'text-blue-400 bg-blue-500/10 border-blue-500/25'
-                        : 'text-arc-muted bg-white/5 border-white/10'
-                      }`}>
-                        {key.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-xs text-arc-secondary">{key.inviter_id === 'admin' ? 'Admin' : key.inviter_id}</td>
-                    <td className="px-4 py-3 text-xs text-arc-secondary">{key.invitee_name ?? '—'}</td>
-                    <td className="px-4 py-3 text-xs text-arc-muted whitespace-nowrap">{timeAgo(key.created_at)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

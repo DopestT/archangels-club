@@ -9,7 +9,6 @@ const router = Router();
 router.get('/', requireAuth, async (req, res) => {
   try {
     const userId = req.auth!.userId;
-    // DISTINCT ON is PostgreSQL-specific and correctly gets the last message per conversation
     const rows = await query(`
       WITH last_messages AS (
         SELECT DISTINCT ON (
@@ -30,17 +29,37 @@ router.get('/', requireAuth, async (req, res) => {
         u.avatar_url AS partner_avatar,
         lm.last_message,
         lm.last_message_at,
+        cp.id AS partner_creator_profile_id,
         (
           SELECT COUNT(*) FROM messages
           WHERE receiver_id = $1 AND sender_id = lm.partner_id AND read_at IS NULL
         ) AS unread_count
       FROM last_messages lm
       JOIN users u ON u.id = lm.partner_id
+      LEFT JOIN creator_profiles cp ON cp.user_id = lm.partner_id
       ORDER BY lm.last_message_at DESC
     `, [userId]);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch messages.' });
+  }
+});
+
+// GET /api/messages/my-requests — fan's own custom requests (must be before /:partnerId)
+router.get('/my-requests', requireAuth, async (req, res) => {
+  try {
+    const rows = await query(`
+      SELECT cr.id, cr.description, cr.offered_price, cr.status, cr.created_at,
+             u.display_name AS creator_name, u.avatar_url AS creator_avatar, u.username AS creator_username
+      FROM custom_requests cr
+      JOIN creator_profiles cp ON cp.id = cr.creator_id
+      JOIN users u ON u.id = cp.user_id
+      WHERE cr.fan_id = $1
+      ORDER BY cr.created_at DESC
+    `, [req.auth!.userId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch requests.' });
   }
 });
 

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Crown, Eye, EyeOff, CheckCircle, AlertTriangle } from 'lucide-react';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 export default function SetPasswordPage() {
   const [searchParams] = useSearchParams();

@@ -8,8 +8,7 @@ import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../lib/utils';
 import type { CreatorProfile, Content } from '../types';
 
-const VITE_API_URL = import.meta.env.VITE_API_URL as string | undefined;
-const API_BASE = VITE_API_URL || 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 
@@ -45,8 +44,6 @@ export default function CreatorProfilePage() {
       fetch(`${API_BASE}/api/creators/${username}/content`).then((r) => r.json()),
     ])
       .then(([creatorData, contentData]) => {
-        console.log('[CreatorProfilePage] creator:', creatorData);
-        console.log('[CreatorProfilePage] content:', contentData);
         if (creatorData.error) {
           setError(creatorData.error);
         } else {
@@ -70,8 +67,6 @@ export default function CreatorProfilePage() {
 
     const body: Record<string, unknown> = { type, creatorId: creator.id };
     if (type === 'tip') body.amount = Number(tipAmount);
-
-    console.log('[checkout]', type, body);
 
     try {
       const res = await fetch(`${API_BASE}/api/stripe/checkout`, {

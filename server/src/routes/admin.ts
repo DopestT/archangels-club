@@ -352,9 +352,13 @@ router.get('/reports', async (req, res) => {
   try {
     const rows = await query(`
       SELECT r.id, r.subject_type, r.subject_id, r.reason, r.details, r.status, r.created_at,
-             u.username as reporter_username, u.display_name as reporter_name
+             u.username as reporter_username, u.display_name as reporter_name,
+             c.title as content_title, cu.username as creator_username
       FROM reports r
       JOIN users u ON u.id = r.reporter_id
+      LEFT JOIN content c ON c.id = r.subject_id AND r.subject_type = 'content'
+      LEFT JOIN creator_profiles cp ON cp.id = c.creator_id
+      LEFT JOIN users cu ON cu.id = cp.user_id
       WHERE r.status = 'open'
       ORDER BY r.created_at ASC
     `);

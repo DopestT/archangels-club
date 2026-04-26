@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
 interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number }
@@ -68,6 +68,18 @@ export default function CreatorDashboard() {
     } finally {
       setStripeLoading(false);
     }
+  }
+
+  async function handleCustomRequest(id: string, status: 'accepted' | 'rejected') {
+    try {
+      const res = await fetch(`${API_BASE}/api/messages/custom-request/${id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) return;
+      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+    } catch {}
   }
 
   async function openStripeDashboard() {
@@ -306,10 +318,18 @@ export default function CreatorDashboard() {
                         </div>
                         {req.status === 'pending' && (
                           <div className="flex items-center gap-2">
-                            <button className="p-1.5 rounded-lg bg-arc-success/10 text-arc-success hover:bg-arc-success/20 transition-colors">
+                            <button
+                              onClick={() => handleCustomRequest(req.id, 'accepted')}
+                              title="Accept"
+                              className="p-1.5 rounded-lg bg-arc-success/10 text-arc-success hover:bg-arc-success/20 transition-colors"
+                            >
                               <CheckCircle className="w-4 h-4" />
                             </button>
-                            <button className="p-1.5 rounded-lg bg-arc-error/10 text-arc-error hover:bg-arc-error/20 transition-colors">
+                            <button
+                              onClick={() => handleCustomRequest(req.id, 'rejected')}
+                              title="Reject"
+                              className="p-1.5 rounded-lg bg-arc-error/10 text-arc-error hover:bg-arc-error/20 transition-colors"
+                            >
                               <XCircle className="w-4 h-4" />
                             </button>
                           </div>

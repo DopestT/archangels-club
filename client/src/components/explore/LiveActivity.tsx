@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Users, Zap } from 'lucide-react';
 import type { Content } from '../../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) || 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 interface RealEvent {
   ref_type: 'content' | 'subscription' | 'tip';

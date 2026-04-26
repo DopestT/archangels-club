@@ -22,6 +22,8 @@ import CreatorOnboarding from './pages/CreatorOnboarding';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
 import SetPasswordPage from './pages/SetPasswordPage';
+import NotFoundPage from './pages/NotFoundPage';
+import PaymentResultPage from './pages/PaymentResultPage';
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -79,6 +81,7 @@ function AppRoutes() {
         <Route path="content/:id" element={<LockedContentPage />} />
         <Route path="login" element={<AuthPage mode="login" />} />
         <Route path="signup" element={<AuthPage mode="signup" />} />
+        <Route path="request-access" element={<AuthPage mode="signup" />} />
         <Route path="set-password" element={<SetPasswordPage />} />
         <Route path="privacy" element={<StaticPage page="privacy" />} />
         <Route path="terms" element={<StaticPage page="terms" />} />
@@ -127,9 +130,24 @@ function AppRoutes() {
             <NotificationsPage />
           </ProtectedRoute>
         } />
+        <Route path="success" element={
+          <ProtectedRoute>
+            <PaymentResultPage type="success" />
+          </ProtectedRoute>
+        } />
+        <Route path="cancel" element={
+          <ProtectedRoute>
+            <PaymentResultPage type="cancel" />
+          </ProtectedRoute>
+        } />
 
         {/* Approved creators */}
         <Route path="creator" element={
+          <ProtectedRoute requireCreator>
+            <CreatorDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="creator/dashboard" element={
           <ProtectedRoute requireCreator>
             <CreatorDashboard />
           </ProtectedRoute>
@@ -173,16 +191,7 @@ function AppRoutes() {
         } />
 
         {/* 404 */}
-        <Route path="*" element={
-          <div className="min-h-[60vh] flex items-center justify-center">
-            <div className="text-center">
-              <p className="font-serif text-6xl text-gold mb-4">404</p>
-              <h1 className="font-serif text-2xl text-white mb-2">Page Not Found</h1>
-              <p className="text-arc-secondary mb-6">This area doesn't exist or access is restricted.</p>
-              <a href="/" className="btn-gold">Return Home</a>
-            </div>
-          </div>
-        } />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

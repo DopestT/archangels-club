@@ -1,13 +1,28 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Clock, Sparkles, Key } from 'lucide-react';
+import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Sparkles, Key } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { myVaultSummary } from '../data/seed';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency } from '../lib/utils';
 
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+
+interface VaultSummary {
+  available: number;
+  by_type: { standard: number; gold: number; black: number };
+}
+
 export default function MemberDashboard() {
-  const { user, isCreator } = useAuth();
+  const { user, isCreator, token } = useAuth();
+  const [vault, setVault] = useState<VaultSummary | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/api/keys/vault`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((data) => { if (data.summary) setVault(data.summary); })
+      .catch(() => {});
+  }, [token]);
 
   return (
     <div className="min-h-screen bg-bg-primary py-10">
@@ -127,9 +142,9 @@ export default function MemberDashboard() {
               </div>
               <div className="grid grid-cols-3 gap-2 mb-4 text-center">
                 {[
-                  { label: 'Available', value: myVaultSummary.available, color: 'text-gold' },
-                  { label: 'Black', value: myVaultSummary.by_type.black, color: 'text-yellow-400' },
-                  { label: 'Gold', value: myVaultSummary.by_type.gold, color: 'text-amber-400' },
+                  { label: 'Available', value: vault?.available ?? '—', color: 'text-gold' },
+                  { label: 'Black', value: vault?.by_type.black ?? '—', color: 'text-yellow-400' },
+                  { label: 'Gold', value: vault?.by_type.gold ?? '—', color: 'text-amber-400' },
                 ].map(({ label, value, color }) => (
                   <div key={label} className="bg-bg-hover rounded-lg py-2">
                     <p className={`font-serif text-lg ${color}`}>{value}</p>
