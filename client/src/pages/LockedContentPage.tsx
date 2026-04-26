@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useSearchParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import { Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft, Shield, CheckCircle, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
@@ -39,6 +39,7 @@ interface Content {
 export default function LockedContentPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const { isAuthenticated, token, isApproved, isAdmin } = useAuth();
 
   const [content, setContent] = useState<Content | null>(null);
@@ -96,48 +97,66 @@ export default function LockedContentPage() {
 
   function fetchAccess(retries = 5, delayMs = 2000) {
     if (!token || !id) return;
+    console.log(`[unlock] polling /my-access for content ${id} (retries left: ${retries})`);
     fetch(`${API_BASE}/api/content/${id}/my-access`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.json())
       .then((data) => {
+        console.log('[unlock] my-access response:', data);
         if (data.unlocked) {
           setUnlocked(true);
           setMediaUrl(data.media_url ?? null);
         } else if (retries > 0) {
-          // Webhook may not have fired yet — retry
           setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
+        } else {
+          console.warn('[unlock] all retries exhausted — webhook may not have fired yet');
+          setError('Payment received — your access is being confirmed. Refresh in a moment if the content hasn\'t unlocked.');
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.error('[unlock] my-access fetch error:', err);
         if (retries > 0) setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
       });
   }
 
   async function handleUnlock() {
+    if (!isAuthenticated) {
+      navigate(`/login?next=${encodeURIComponent(`/content/${id}`)}`);
+      return;
+    }
     if (!token) return;
+
+    console.log('[unlock] initiating checkout for content:', id);
     setPaying(true);
     setError(null);
+
     try {
+      console.log('[unlock] POST /api/payments/create-unlock-session', { content_id: id });
       const res = await fetch(`${API_BASE}/api/payments/create-unlock-session`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ content_id: id }),
       });
       const data = await res.json();
+      console.log('[unlock] response:', res.status, data);
+
       if (!res.ok) {
         setError(data.error ?? 'Payment failed. Please try again.');
         setPaying(false);
         return;
       }
       if (data.already_unlocked) {
+        console.log('[unlock] already unlocked, refreshing access');
         setUnlocked(true);
         setPaying(false);
         return;
       }
+      console.log('[unlock] redirecting to Stripe:', data.url?.substring(0, 60));
       setRedirecting(true);
       window.location.href = data.url;
-    } catch {
+    } catch (err) {
+      console.error('[unlock] fetch error:', err);
       setError('Unable to reach checkout. Please check your connection and try again.');
       setPaying(false);
     }

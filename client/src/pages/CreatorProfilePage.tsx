@@ -62,21 +62,28 @@ export default function CreatorProfilePage() {
     const body: Record<string, unknown> = { type, creatorId: creator.id };
     if (type === 'tip') body.amount = Number(tipAmount);
 
+    console.log(`[checkout] starting ${type} for creator:`, creator.username, body);
+
     try {
+      console.log('[checkout] POST /api/stripe/checkout');
       const res = await fetch(`${API_BASE}/api/stripe/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(body),
       });
       const data = await res.json();
+      console.log('[checkout] response:', res.status, data);
+
       if (!res.ok || !data.url) {
         setCheckoutError(data.error || 'Failed to start checkout. Please try again.');
         setCheckoutLoading(false);
         return;
       }
+      console.log('[checkout] redirecting to Stripe:', data.url?.substring(0, 60));
       setRedirecting(true);
       window.location.href = data.url;
-    } catch {
+    } catch (err) {
+      console.error('[checkout] fetch error:', err);
       setCheckoutError('Unable to reach the server. Please try again.');
       setCheckoutLoading(false);
     }

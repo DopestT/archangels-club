@@ -29,6 +29,7 @@ const U = {
   aria:   'demo-user-00000000-aria-000000000001',
   selena: 'demo-user-00000000-sele-000000000002',
   elara:  'demo-user-00000000-elar-000000000003',
+  fan:    'demo-user-00000000-fan-000000000004',
 };
 const P = {
   aria:   'demo-prof-00000000-aria-000000000001',
@@ -191,13 +192,33 @@ async function seedDemo() {
     }
   }
 
+  // ── Demo fan account (approved — can purchase content) ─────────────────────
+  console.log('\n── Demo Fan (@demofan) ──');
+  await pool.query(
+    `INSERT INTO users
+       (id, email, username, password_hash, display_name, role, status, is_verified_creator)
+     VALUES ($1, $2, $3, $4, $5, 'fan', 'approved', 0)
+     ON CONFLICT (email) DO UPDATE SET
+       username   = EXCLUDED.username,
+       role       = 'fan',
+       status     = 'approved'`,
+    [U.fan, 'demo.fan@archangels.demo', 'demofan', demoPassword, 'Demo Fan']
+  );
+  const fanRow = await pool.query<{ id: string }>(
+    'SELECT id FROM users WHERE email = $1', ['demo.fan@archangels.demo']
+  );
+  console.log(`  ✓ user        demo.fan@archangels.demo  (id=${fanRow.rows[0].id})`);
+  console.log('  ✓ role=fan    status=approved  (can purchase content)');
+
   console.log('\n✅  Demo seed complete.\n');
   console.log('   Explore    → /explore');
   console.log('   Aria Luxe  → /creator/arialuxe');
   console.log('   Selena Noir→ /creator/selenanoir');
   console.log('   Elara Moon → /creator/elaramoon');
-  console.log('\n   Demo login credentials (any creator):');
-  console.log('   password: DemoPass123!\n');
+  console.log('\n   Demo login credentials:');
+  console.log('   Creators & Fan:   password: DemoPass123!');
+  console.log('   Fan login email:  demo.fan@archangels.demo');
+  console.log('   (Fan account is approved — use it to test the purchase flow)\n');
 }
 
 seedDemo()
