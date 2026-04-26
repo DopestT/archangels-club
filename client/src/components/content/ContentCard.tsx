@@ -34,7 +34,7 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
 
   const spotsLeft = content.max_unlocks != null ? content.max_unlocks - unlockCount : null;
   const isAlmostGone = spotsLeft != null && spotsLeft > 0 && spotsLeft <= 10;
-  const isTrending = !isAlmostGone && (unlockCount >= 5 || (content.score ?? 0) >= 20);
+  const isTrending = !isAlmostGone && (unlockCount > 5 || (content.score ?? 0) >= 20);
   const isNew = Date.now() - new Date(content.created_at).getTime() < 86_400_000;
   const viewers = seededViewers(content.id);
 

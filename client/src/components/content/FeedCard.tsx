@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Lock, Zap, Image, Video, Music, FileText, Play, Flame, Sparkles, Eye } from 'lucide-react';
 import type { Content } from '../../types';
 import Avatar from '../ui/Avatar';
-import { formatCurrency, formatCompactNumber } from '../../lib/utils';
+import { formatCurrency, formatCompactNumber, timeAgo } from '../../lib/utils';
 
 interface FeedCardProps {
   content: Content;
@@ -23,7 +23,7 @@ export default function FeedCard({ content }: FeedCardProps) {
   const unlockCount = Number(content.unlock_count ?? 0);
   const spotsLeft = content.max_unlocks != null ? content.max_unlocks - unlockCount : null;
   const isAlmostGone = spotsLeft != null && spotsLeft > 0 && spotsLeft <= 10;
-  const isTrending = !isAlmostGone && (unlockCount >= 5 || (content.score ?? 0) >= 20);
+  const isTrending = !isAlmostGone && (unlockCount > 5 || (content.score ?? 0) >= 20);
   const isNew = !isAlmostGone && (Date.now() - new Date(content.created_at).getTime() < 86_400_000);
   const viewers = seededViewers(content.id);
 
@@ -215,10 +215,12 @@ export default function FeedCard({ content }: FeedCardProps) {
                 </div>
                 <span className="text-[11px] text-white/60">
                   <span className="text-white font-medium">{formatCompactNumber(unlockCount)}</span>
-                  {' '}unlocked
+                  {' '}unlocked · {timeAgo(content.created_at)}
                 </span>
               </div>
-            ) : <div />}
+            ) : (
+              <span className="text-[11px] text-white/40">{timeAgo(content.created_at)}</span>
+            )}
 
             <div className="flex items-center gap-1 text-[10px] text-white/50">
               <span className="relative flex h-1.5 w-1.5 mr-0.5">

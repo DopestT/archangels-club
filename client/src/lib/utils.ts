@@ -18,8 +18,10 @@ export function formatCompactNumber(n: number): string {
   return String(n);
 }
 
-export function timeAgo(dateStr: string): string {
+export function timeAgo(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
   const date = new Date(dateStr);
+  if (isNaN(date.getTime())) return '';
   const diff = Date.now() - date.getTime();
   const minutes = Math.floor(diff / 60_000);
   const hours = Math.floor(minutes / 60);
