@@ -54,25 +54,13 @@ export default function LockedContentPage() {
   const alreadyUnlocked = searchParams.get('unlocked') === 'true';
 
   useEffect(() => {
-    if (!id) {
-      setError('Invalid content ID');
-      setLoading(false);
-      return;
-    }
+    if (!id) { setLoading(false); return; }
     fetch(`${API_BASE}/api/content/${id}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.error) {
-          console.error('Missing content:', id, '— server said:', data.error);
-          setError(data.error);
-          return;
-        }
-        setContent(data);
+        if (!data.error) setContent(data);
       })
-      .catch((err) => {
-        console.error('Fetch error for content', id, err);
-        setError('Failed to load content');
-      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
 
@@ -163,17 +151,15 @@ export default function LockedContentPage() {
     );
   }
 
-  if (error || !content) {
+  if (!content) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center px-4">
         <div className="w-16 h-16 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center mb-6">
           <Lock className="w-7 h-7 text-gold" />
         </div>
-        <h2 className="font-serif text-2xl text-white mb-2 text-center">This drop is members-only</h2>
+        <h2 className="font-serif text-2xl text-white mb-2 text-center">Unlock to view this drop</h2>
         <p className="text-arc-secondary text-sm mb-1 text-center max-w-sm">
-          {error && !error.toLowerCase().includes('not found')
-            ? error
-            : 'This content is restricted to verified members. Request your invite to unlock exclusive drops.'}
+          This content is restricted to verified members. Request your invite to unlock exclusive drops.
         </p>
         <p className="text-xs text-arc-muted mb-8 text-center">All content on Archangels Club is age-verified and moderated.</p>
         <div className="flex items-center gap-3">
