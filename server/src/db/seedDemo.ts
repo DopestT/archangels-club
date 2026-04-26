@@ -147,7 +147,7 @@ async function seedDemo() {
          (id, user_id, bio, cover_image_url, tags, content_categories,
           subscription_price, starting_price, is_approved, application_status, pitch)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, 'approved', 'Demo account — auto-seeded')
-       ON CONFLICT (user_id) DO UPDATE SET
+       ON CONFLICT (id) DO UPDATE SET
          bio               = EXCLUDED.bio,
          cover_image_url   = EXCLUDED.cover_image_url,
          tags              = EXCLUDED.tags,

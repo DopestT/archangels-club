@@ -273,6 +273,12 @@ const DDL = `
 
   ALTER TABLE content_unlocks ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
   UPDATE content_unlocks SET created_at = unlocked_at WHERE created_at IS NULL;
+
+  DO $$ BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_creator_profiles_user_id') THEN
+      ALTER TABLE creator_profiles ADD CONSTRAINT uq_creator_profiles_user_id UNIQUE (user_id);
+    END IF;
+  END $$;
 `;
 
 export async function runMigrations(): Promise<void> {
