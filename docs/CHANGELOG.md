@@ -5,6 +5,23 @@ Only include sections that apply to a given entry.
 
 ---
 
+## [2026-04-26 - 05:20]
+
+### Fixed
+- Subscription messaging no longer claims "full access" or "unlock everything" — subscriptions give access to subscriber-only posts and discounts on locked drops, not all paid content
+- `LockedContentPage`: lock overlay and content info panel now show discounted price with strikethrough original when user has an active subscription
+- Unlock button price reflects subscriber discount (`discountedPrice ?? content.price`)
+- `GET /api/content/:id/my-access` now returns `{ is_subscribed, discounted_price }` so frontend can display accurate pricing without a separate call
+- `POST /api/payments/create-unlock-session` applies `subscriber_discount_pct` at checkout; `metadata.amount` records the effective (discounted) price so the webhook logs the correct amount
+
+### Changed
+- `PriceStack.tsx` subscription row: `"Unlock all subscriber content"` → `"Exclusive posts + discounts on drops"`
+- `PostPurchaseUpsell.tsx` subscribe button: `"Unlock everything"` / `"Subscribe for full access"` → `"Subscribe for more"` / `"Exclusive posts + discounts on future drops"`
+- `LockedContentPage.tsx` subscription upsell block: `"Subscribe for full access"` / `"Get unlimited access to all content"` → `"Subscribe to {name}"` / `"Get exclusive subscriber posts + discounts on locked drops"`
+- `CreatorProfilePage.tsx` subscription feature bullet: `"Full access to all drops and posts"` → `"Exclusive subscriber-only posts + discounts on drops"`
+
+---
+
 ## [2026-04-26 - 04:44]
 
 ### Added
