@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Users, DollarSign, Crown, Shield, Flag, TrendingUp,
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
-  Image, Video, Music, FileText, MessageSquare, UserCheck, Key, Gift, Send, Plus,
+  Image, Video, Music, FileText, MessageSquare, UserCheck, Key, Gift, Send, Plus, Bug,
 } from 'lucide-react';
 
 interface AccessRequest {
@@ -387,6 +388,19 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                   ))}
                 </div>
               </div>
+
+              {/* Bug Control */}
+              <Link
+                to="/admin/bug-control"
+                className="card-surface p-5 rounded-xl border border-white/5 hover:border-gold/30 transition-colors group block"
+              >
+                <h3 className="font-serif text-base text-white mb-1 flex items-center gap-2">
+                  <Bug className="w-4 h-4 text-gold" />
+                  Bug Control Center
+                </h3>
+                <p className="text-xs text-arc-muted">View test failures, API errors, and suggested fixes.</p>
+                <p className="text-xs text-gold mt-2 group-hover:underline">Open →</p>
+              </Link>
 
               {/* Compliance */}
               <div className="card-surface p-5 rounded-xl">

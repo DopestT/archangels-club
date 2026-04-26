@@ -1,0 +1,12 @@
+{
+  "timestamp": null,
+  "git_sha": "unknown",
+  "summary": {
+    "total": 0,
+    "errors": 0,
+    "warnings": 0,
+    "all_pass": true
+  },
+  "checks": [],
+  "bugs": []
+}

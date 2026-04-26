@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
-import { Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft, Shield, CheckCircle, Star } from 'lucide-react';
+import {
+  Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft,
+  Shield, CheckCircle, Star, Users, X as XIcon, AlertCircle,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
@@ -14,7 +17,7 @@ const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-5 h-5" />,
   video: <Video className="w-5 h-5" />,
   audio: <Music className="w-5 h-5" />,
-  text: <FileText className="w-5 h-5" />,
+  text:  <FileText className="w-5 h-5" />,
 };
 
 interface Content {
@@ -25,6 +28,7 @@ interface Content {
   content_type: string;
   access_type: string;
   price: number;
+  subscriber_discount_pct: number;
   status: string;
   preview_url: string | null;
   media_url: string | null;
@@ -36,59 +40,207 @@ interface Content {
   created_at: string;
 }
 
+// ── Spinner ───────────────────────────────────────────────────────────────────
+
+function Spinner() {
+  return (
+    <svg className="animate-spin h-4 w-4 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
+  );
+}
+
+// ── Unlock modal ──────────────────────────────────────────────────────────────
+
+interface UnlockModalProps {
+  content: Content;
+  effectivePrice: number;
+  subscriberPrice: number | null;
+  isSubscribed: boolean;
+  paying: boolean;
+  error: string | null;
+  onUnlock: () => void;
+  onClose: () => void;
+}
+
+function UnlockModal({
+  content, effectivePrice, subscriberPrice, isSubscribed,
+  paying, error, onUnlock, onClose,
+}: UnlockModalProps) {
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  // Close on Escape
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose(); }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      ref={backdropRef}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
+    >
+      <div className="bg-bg-surface border border-gold-border/60 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl shadow-black/60">
+
+        {/* Preview image */}
+        <div className="relative h-44 overflow-hidden bg-bg-primary">
+          {content.preview_url ? (
+            <>
+              <img
+                src={content.preview_url}
+                alt=""
+                className="w-full h-full object-cover locked-blur"
+              />
+              <div className="absolute inset-0 bg-bg-primary/50" />
+            </>
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-arc-muted">
+              {TYPE_ICONS[content.content_type]}
+            </div>
+          )}
+
+          {/* Premium Drop badge */}
+          <div className="absolute top-3 left-3 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-gold/20 border border-gold/50 backdrop-blur-sm">
+            <Crown className="w-3 h-3 text-gold" />
+            <span className="text-[10px] font-semibold text-gold uppercase tracking-wider">Premium Drop</span>
+          </div>
+
+          {/* Close button */}
+          <button
+            onClick={onClose}
+            className="absolute top-3 right-3 w-7 h-7 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center text-white/70 hover:text-white transition-colors"
+          >
+            <XIcon className="w-3.5 h-3.5" />
+          </button>
+        </div>
+
+        <div className="p-6">
+          {/* Title */}
+          <h3 className="font-serif text-xl text-white mb-1 leading-snug">{content.title}</h3>
+
+          {/* Unlock count */}
+          {content.unlock_count > 0 && (
+            <p className="flex items-center gap-1.5 text-xs text-arc-muted mb-4">
+              <Users className="w-3.5 h-3.5" />
+              {Number(content.unlock_count).toLocaleString()} people unlocked this
+            </p>
+          )}
+
+          {/* Price block */}
+          <div className="mb-5">
+            <p className="text-3xl font-serif text-gold">{formatCurrency(effectivePrice)}</p>
+            {/* Show subscriber discount as an incentive to non-subscribers */}
+            {!isSubscribed && subscriberPrice != null && (
+              <p className="text-xs text-arc-muted mt-1">
+                Subscribers pay {formatCurrency(subscriberPrice)}
+              </p>
+            )}
+            {/* Confirm subscriber discount is applied */}
+            {isSubscribed && content.subscriber_discount_pct > 0 && (
+              <p className="text-xs text-arc-success mt-1">
+                Subscriber discount applied
+              </p>
+            )}
+          </div>
+
+          {/* Error — exact message from backend */}
+          {error && (
+            <div className="flex items-start gap-2.5 p-3 rounded-lg bg-arc-error/10 border border-arc-error/30 mb-4">
+              <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-arc-error leading-snug">{error}</p>
+            </div>
+          )}
+
+          {/* Primary CTA */}
+          <button
+            onClick={onUnlock}
+            disabled={paying}
+            className="btn-gold w-full py-3.5 text-base gap-2.5 disabled:opacity-70 disabled:cursor-not-allowed"
+          >
+            {paying ? (
+              <><Spinner /> Preparing checkout…</>
+            ) : (
+              `Unlock for ${formatCurrency(effectivePrice)}`
+            )}
+          </button>
+
+          {/* Cancel */}
+          <button
+            onClick={onClose}
+            disabled={paying}
+            className="w-full text-xs text-arc-muted hover:text-arc-secondary mt-3 py-2 transition-colors disabled:opacity-50"
+          >
+            Cancel
+          </button>
+
+          {/* Stripe note */}
+          <div className="flex items-center justify-center gap-1.5 mt-3 pt-3 border-t border-white/5">
+            <Shield className="w-3 h-3 text-arc-muted" />
+            <p className="text-[10px] text-arc-muted">Secure payment via Stripe · One-time unlock</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ─────────────────────────────────────────────────────────────────
+
 export default function LockedContentPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isAuthenticated, token, isApproved, isAdmin } = useAuth();
 
-  const [content, setContent] = useState<Content | null>(null);
-  const [unlocked, setUnlocked] = useState(false);
-  const [mediaUrl, setMediaUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [paying, setPaying] = useState(false);
-  const [redirecting, setRedirecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubscribed, setIsSubscribed] = useState(false);
+  const [content,       setContent]       = useState<Content | null>(null);
+  const [unlocked,      setUnlocked]      = useState(false);
+  const [mediaUrl,      setMediaUrl]      = useState<string | null>(null);
+  const [loading,       setLoading]       = useState(true);
+  const [paying,        setPaying]        = useState(false);
+  const [redirecting,   setRedirecting]   = useState(false);
+  const [error,         setError]         = useState<string | null>(null);
+  const [isSubscribed,  setIsSubscribed]  = useState(false);
   const [discountedPrice, setDiscountedPrice] = useState<number | null>(null);
-  const [moreContent, setMoreContent] = useState<GlobalContent[]>([]);
+  const [showModal,     setShowModal]     = useState(false);
+  const [moreContent,   setMoreContent]   = useState<GlobalContent[]>([]);
 
-  const paymentSuccess = searchParams.get('payment') === 'success';
+  const paymentSuccess  = searchParams.get('payment') === 'success';
   const alreadyUnlocked = searchParams.get('unlocked') === 'true';
 
+  // Load content
   useEffect(() => {
     if (!id) { setLoading(false); return; }
     fetch(`${API_BASE}/api/content/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) setContent(data);
-      })
+      .then(r => r.json())
+      .then(data => { if (!data.error) setContent(data); })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
 
-  // Fetch more content from same creator once content loads
+  // Load more content from same creator
   useEffect(() => {
     if (!content?.creator_id) return;
     fetch(`${API_BASE}/api/content?creator_id=${encodeURIComponent(content.creator_id)}&exclude_id=${encodeURIComponent(content.id)}&limit=4`)
-      .then((r) => r.json())
-      .then((data) => { if (Array.isArray(data)) setMoreContent(data); })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setMoreContent(data); })
       .catch(() => {});
   }, [content?.creator_id, content?.id]);
 
-  // Check unlock status once content + token are known
+  // Check unlock status / subscriber discount once content + token known
   useEffect(() => {
     if (!content || !token || content.access_type === 'free') return;
     if (paymentSuccess || alreadyUnlocked) {
-      // Payment just completed — fetch media
       fetchAccess();
       return;
     }
     fetch(`${API_BASE}/api/content/${id}/my-access`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data) => {
+      .then(r => r.json())
+      .then(data => {
         if (data.is_subscribed !== undefined) setIsSubscribed(!!data.is_subscribed);
         if (data.discounted_price != null) setDiscountedPrice(Number(data.discounted_price));
         if (data.unlocked) {
@@ -101,68 +253,83 @@ export default function LockedContentPage() {
 
   function fetchAccess(retries = 5, delayMs = 2000) {
     if (!token || !id) return;
-    console.log(`[unlock] polling /my-access for content ${id} (retries left: ${retries})`);
     fetch(`${API_BASE}/api/content/${id}/my-access`, {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then((r) => r.json())
-      .then((data) => {
-        console.log('[unlock] my-access response:', data);
+      .then(r => r.json())
+      .then(data => {
         if (data.unlocked) {
           setUnlocked(true);
           setMediaUrl(data.media_url ?? null);
         } else if (retries > 0) {
           setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
         } else {
-          console.warn('[unlock] all retries exhausted — webhook may not have fired yet');
-          setError('Payment received — your access is being confirmed. Refresh in a moment if the content hasn\'t unlocked.');
+          setError("Payment received — your access is being confirmed. Refresh in a moment if the content hasn't unlocked.");
         }
       })
-      .catch((err) => {
-        console.error('[unlock] my-access fetch error:', err);
+      .catch(err => {
         if (retries > 0) setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
+        else setError(err instanceof Error ? err.message : String(err));
       });
   }
 
-  async function handleUnlock() {
+  function openModal() {
     if (!isAuthenticated) {
       navigate(`/login?next=${encodeURIComponent(`/content/${id}`)}`);
       return;
     }
+    setError(null);
+    setShowModal(true);
+  }
+
+  async function handleUnlock() {
     if (!token) return;
 
-    console.log('[unlock] initiating checkout for content:', id);
     setPaying(true);
     setError(null);
 
     try {
-      console.log('[unlock] POST /api/payments/create-unlock-session', { content_id: id });
-      const res = await fetch(`${API_BASE}/api/payments/create-unlock-session`, {
+      const res = await fetch(`${API_BASE}/api/checkout/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ content_id: id }),
+        body: JSON.stringify({ content_id: id, type: 'unlock' }),
       });
-      const data = await res.json();
-      console.log('[unlock] response:', res.status, data);
+
+      let data: any;
+      try {
+        data = await res.json();
+      } catch {
+        setPaying(false);
+        setError(`Server returned status ${res.status} with an unparseable response.`);
+        return;
+      }
 
       if (!res.ok) {
-        setError(data.error ?? 'Payment failed. Please try again.');
         setPaying(false);
+        setError(data.error ?? `Server error (HTTP ${res.status})`);
         return;
       }
+
       if (data.already_unlocked) {
-        console.log('[unlock] already unlocked, refreshing access');
         setUnlocked(true);
         setPaying(false);
+        setShowModal(false);
         return;
       }
-      console.log('[unlock] redirecting to Stripe:', data.url?.substring(0, 60));
+
+      if (!data.checkout_url) {
+        setPaying(false);
+        setError('Checkout session created but no URL was returned. Please try again.');
+        return;
+      }
+
+      setShowModal(false);
       setRedirecting(true);
-      window.location.href = data.url;
+      window.location.href = data.checkout_url;
+
     } catch (err) {
-      console.error('[unlock] fetch error:', err);
-      setError('Unable to reach checkout. Please check your connection and try again.');
       setPaying(false);
+      setError(err instanceof Error ? err.message : String(err));
     }
   }
 
@@ -196,12 +363,35 @@ export default function LockedContentPage() {
     );
   }
 
-  const isLocked = content.access_type !== 'free' && !unlocked;
-  const badgeType = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
-  const canPurchase = isAuthenticated && (isApproved || isAdmin) && content.access_type === 'locked';
+  const isLocked      = content.access_type !== 'free' && !unlocked;
+  const badgeType     = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
+  const canPurchase   = isAuthenticated && (isApproved || isAdmin) && content.access_type === 'locked';
+
+  // Effective price this user pays (discounted if subscribed)
+  const effectivePrice = discountedPrice ?? Number(content.price);
+
+  // Subscriber price shown to non-subscribers as an incentive
+  const subscriberPrice = (!isSubscribed && content.subscriber_discount_pct > 0)
+    ? Math.round(Number(content.price) * (1 - content.subscriber_discount_pct / 100) * 100) / 100
+    : null;
 
   return (
     <div className="min-h-screen bg-bg-primary py-12">
+
+      {/* Unlock modal */}
+      {showModal && (
+        <UnlockModal
+          content={content}
+          effectivePrice={effectivePrice}
+          subscriberPrice={subscriberPrice}
+          isSubscribed={isSubscribed}
+          paying={paying}
+          error={error}
+          onUnlock={handleUnlock}
+          onClose={() => { if (!paying) setShowModal(false); }}
+        />
+      )}
+
       {/* Checkout redirect overlay */}
       {redirecting && (
         <div className="fixed inset-0 z-50 bg-bg-primary/97 backdrop-blur-md flex flex-col items-center justify-center">
@@ -234,7 +424,10 @@ export default function LockedContentPage() {
         )}
 
         {/* Media area */}
-        <div className="relative rounded-2xl overflow-hidden mb-6 bg-bg-surface border border-gold-border/50" style={{ minHeight: '400px' }}>
+        <div
+          className="relative rounded-2xl overflow-hidden mb-6 bg-bg-surface border border-gold-border/50"
+          style={{ minHeight: '400px' }}
+        >
           {content.preview_url && (
             <img
               src={content.preview_url}
@@ -253,11 +446,11 @@ export default function LockedContentPage() {
           {unlocked && mediaUrl && content.content_type === 'image' && (
             <img src={mediaUrl} alt={content.title} className="w-full object-cover" style={{ maxHeight: '520px' }} />
           )}
-
           {unlocked && mediaUrl && content.content_type === 'video' && (
             <video src={mediaUrl} controls className="w-full" style={{ maxHeight: '520px' }} />
           )}
 
+          {/* Lock overlay — opens modal on click, no direct API call */}
           {isLocked && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-bg-primary/70 backdrop-blur-sm">
               <div className="w-20 h-20 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center shadow-gold">
@@ -266,41 +459,20 @@ export default function LockedContentPage() {
               <div className="text-center">
                 <p className="font-serif text-2xl text-white mb-1">Locked Content</p>
                 {content.access_type === 'locked' && content.price > 0 && (
-                  discountedPrice != null ? (
-                    <div className="flex items-baseline justify-center gap-2">
-                      <p className="text-3xl font-serif text-gold">{formatCurrency(discountedPrice)}</p>
-                      <p className="text-lg font-serif text-arc-muted line-through">{formatCurrency(content.price)}</p>
-                    </div>
-                  ) : (
-                    <p className="text-3xl font-serif text-gold">{formatCurrency(content.price)}</p>
-                  )
+                  <p className="text-3xl font-serif text-gold">{formatCurrency(effectivePrice)}</p>
                 )}
                 {content.access_type === 'subscribers' && (
                   <p className="text-sm text-arc-secondary">Subscribers only</p>
                 )}
               </div>
 
-              {error && (
-                <p className="text-sm text-arc-error bg-arc-error/10 border border-arc-error/30 px-4 py-2 rounded-lg">{error}</p>
-              )}
-
               {canPurchase ? (
                 <button
-                  onClick={handleUnlock}
-                  disabled={paying}
+                  onClick={openModal}
                   className="btn-gold px-8 py-3.5 text-base gap-3"
                 >
-                  {paying ? (
-                    <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  ) : (
-                    <Unlock className="w-4 h-4" />
-                  )}
-                  {paying ? 'Redirecting to checkout…' : content.access_type === 'locked'
-                    ? `Unlock Access · ${formatCurrency(discountedPrice ?? content.price)}`
-                    : 'Subscribe to Unlock'}
+                  <Unlock className="w-4 h-4" />
+                  Unlock for {formatCurrency(effectivePrice)}
                 </button>
               ) : isAuthenticated ? (
                 <p className="text-sm text-arc-secondary">Your account is pending approval.</p>
@@ -310,7 +482,10 @@ export default function LockedContentPage() {
                     <Crown className="w-4 h-4" />
                     Request Access to Unlock
                   </Link>
-                  <p className="text-xs text-arc-muted">Members only · <Link to="/login" className="text-gold hover:underline">Already a member?</Link></p>
+                  <p className="text-xs text-arc-muted">
+                    Members only ·{' '}
+                    <Link to="/login" className="text-gold hover:underline">Already a member?</Link>
+                  </p>
                 </div>
               )}
             </div>
@@ -340,7 +515,9 @@ export default function LockedContentPage() {
               <div className="flex items-center gap-2 mb-2">
                 <Badge type={badgeType} />
                 {content.unlock_count > 0 && (
-                  <span className="text-xs text-arc-muted">{Number(content.unlock_count).toLocaleString()} unlocks</span>
+                  <span className="text-xs text-arc-muted">
+                    {Number(content.unlock_count).toLocaleString()} unlocks
+                  </span>
                 )}
               </div>
               <h1 className="font-serif text-2xl text-white mb-2">{content.title}</h1>
@@ -386,7 +563,7 @@ export default function LockedContentPage() {
           </p>
         </div>
 
-        {/* Subscription upsell — shown on paid pieces that have a subscription option */}
+        {/* Subscription upsell */}
         {content.access_type === 'locked' && (content.creator_subscription_price ?? 0) > 0 && (
           <div className="mt-5 p-5 rounded-xl bg-gold-muted border border-gold-border flex items-start gap-4">
             <div className="w-10 h-10 rounded-full bg-gold/15 border border-gold-border flex items-center justify-center flex-shrink-0">
@@ -414,18 +591,13 @@ export default function LockedContentPage() {
         {moreContent.length > 0 && (
           <div className="mt-10">
             <div className="flex items-center justify-between mb-5">
-              <h2 className="font-serif text-lg text-white">
-                More from {content.creator_name}
-              </h2>
-              <Link
-                to={`/creator/${content.creator_username}`}
-                className="text-xs text-gold hover:underline"
-              >
+              <h2 className="font-serif text-lg text-white">More from {content.creator_name}</h2>
+              <Link to={`/creator/${content.creator_username}`} className="text-xs text-gold hover:underline">
                 View all →
               </Link>
             </div>
             <div className="grid grid-cols-2 gap-4">
-              {moreContent.map((item) => (
+              {moreContent.map(item => (
                 <ContentCard key={item.id} content={item} showCreator={false} />
               ))}
             </div>

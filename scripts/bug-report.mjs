@@ -9,10 +9,10 @@
  * Output: bug-report.json  (machine-readable)
  *         stdout           (human-readable summary)
  */
-import { execSync, spawnSync }     from 'node:child_process';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { fileURLToPath }            from 'node:url';
-import { dirname, resolve, join }   from 'node:path';
+import { execSync, spawnSync }              from 'node:child_process';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
+import { fileURLToPath }                   from 'node:url';
+import { dirname, resolve, join }          from 'node:path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT      = resolve(__dirname, '..');
@@ -217,6 +217,64 @@ report.summary.all_pass = report.checks.every(c => c.pass);
 mkdirSync(join(ROOT, 'test-results'), { recursive: true });
 const reportPath = join(ROOT, 'bug-report.json');
 writeFileSync(reportPath, JSON.stringify(report, null, 2));
+
+// ── Also write docs/BUG_REPORT.json with enriched format for Bug Control Center ─
+
+const docsPath = join(ROOT, 'docs', 'BUG_REPORT.json');
+
+// Read existing report to preserve first_seen timestamps
+let existing = { bugs: [] };
+if (existsSync(docsPath)) {
+  try { existing = JSON.parse(readFileSync(docsPath, 'utf8')); } catch {}
+}
+const existingById = Object.fromEntries((existing.bugs ?? []).map(b => [b.id, b]));
+
+const now = new Date().toISOString();
+
+function mapSeverity(s) {
+  if (s === 'error') return 'high';
+  if (s === 'warning') return 'medium';
+  return 'low';
+}
+
+function mapArea(type) {
+  if (type === 'typescript' || type === 'build') return 'frontend';
+  if (type === 'lint') return 'frontend';
+  if (type === 'sql-error') return 'database';
+  if (type === 'api-health') return 'backend';
+  if (type === 'test-failure') return 'backend';
+  return 'backend';
+}
+
+const bugs = report.errors.map(e => {
+  const prior = existingById[e.id];
+  return {
+    id:           e.id,
+    status:       prior?.status ?? 'open',
+    severity:     mapSeverity(e.severity),
+    area:         mapArea(e.type),
+    type:         e.type,
+    message:      e.message,
+    file:         e.file ?? null,
+    line:         e.line ?? null,
+    route:        e.route ?? null,
+    code:         e.code ?? null,
+    fix_category: e.fix_category ?? null,
+    suggestion:   e.suggestion ?? null,
+    first_seen:   prior?.first_seen ?? now,
+    last_seen:    now,
+  };
+});
+
+const docsReport = {
+  timestamp:  report.timestamp,
+  git_sha:    report.git_sha,
+  summary:    report.summary,
+  checks:     report.checks.map(({ name, pass }) => ({ name, pass })),
+  bugs,
+};
+
+writeFileSync(docsPath, JSON.stringify(docsReport, null, 2));
 
 // ── Print summary ─────────────────────────────────────────────────────────────
 

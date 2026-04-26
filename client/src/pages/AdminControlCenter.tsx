@@ -4,7 +4,7 @@ import {
   Crown, Users, DollarSign, Flag, LayoutDashboard,
   UserCheck, Image, CheckCircle, XCircle, MessageSquare, AlertTriangle,
   RefreshCw, Star, ArrowDownToLine, TrendingUp, Clock, Shield,
-  ChevronRight,
+  ChevronRight, Bug,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import Avatar from '../components/ui/Avatar';
@@ -46,6 +46,7 @@ const NAV = [
   { to: '/admin/flagged', label: 'Reports', icon: Flag },
   { to: '/admin/transactions', label: 'Transactions', icon: DollarSign },
   { to: '/admin/keys', label: 'Access Keys', icon: Star },
+  { to: '/admin/bug-control', label: 'Bug Control', icon: Bug },
   { to: '/admin', label: 'Overview', icon: Users },
 ];
 

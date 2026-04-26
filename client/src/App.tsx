@@ -17,6 +17,7 @@ import UploadContent from './pages/UploadContent';
 import MessagesPage from './pages/MessagesPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminControlCenter from './pages/AdminControlCenter';
+import BugControlPage from './pages/BugControlPage';
 import AccessKeysPage from './pages/AccessKeysPage';
 import CreatorOnboarding from './pages/CreatorOnboarding';
 import NotificationsPage from './pages/NotificationsPage';
@@ -202,6 +203,11 @@ function AppRoutes() {
         <Route path="admin/control-center" element={
           <ProtectedRoute requireAdmin>
             <AdminControlCenter />
+          </ProtectedRoute>
+        } />
+        <Route path="admin/bug-control" element={
+          <ProtectedRoute requireAdmin>
+            <BugControlPage />
           </ProtectedRoute>
         } />
 

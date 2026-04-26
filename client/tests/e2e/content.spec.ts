@@ -24,10 +24,10 @@ test.describe('Content page — locked', () => {
     }
   });
 
-  test('unlock button calls POST /api/payments/create-unlock-session when clicked', async ({ page }) => {
+  test('unlock button calls POST /api/checkout/create when clicked', async ({ page }) => {
     let checkoutCalled = false;
     page.on('request', req => {
-      if (req.url().includes('/api/payments/create-unlock-session') && req.method() === 'POST') {
+      if (req.url().includes('/api/checkout/create') && req.method() === 'POST') {
         checkoutCalled = true;
       }
     });
