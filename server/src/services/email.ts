@@ -9,52 +9,128 @@ function buildHtml(opts: {
   eyebrow?: string;
   heading: string;
   lines: string[];
-  ctaLabel: string;
-  ctaUrl: string;
+  ctaLabel?: string;
+  ctaUrl?: string;
+  receiptRows?: { label: string; value: string; gold?: boolean }[];
 }): string {
-  const { eyebrow, heading, lines, ctaLabel, ctaUrl } = opts;
+  const { eyebrow, heading, lines, ctaLabel, ctaUrl, receiptRows } = opts;
+
+  const ctaBlock = ctaLabel && ctaUrl ? `
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:36px;">
+                <tr>
+                  <td>
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                      href="${ctaUrl}"
+                      style="height:48px;v-text-anchor:middle;width:240px;"
+                      arcsize="5%" stroke="f" fillcolor="#C8A96A">
+                      <w:anchorlock/>
+                      <center style="color:#000000;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:bold;letter-spacing:0.06em;">${ctaLabel}</center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-->
+                    <a href="${ctaUrl}"
+                       style="background:#C8A96A;color:#000000;font-family:Helvetica,Arial,sans-serif;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;display:inline-block;letter-spacing:0.06em;border-radius:4px;-webkit-text-size-adjust:none;">
+                      ${ctaLabel}
+                    </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>` : '';
+
+  const receiptBlock = receiptRows && receiptRows.length > 0 ? `
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="margin-top:32px;border-top:1px solid rgba(200,169,106,0.15);">
+                ${receiptRows.map(row => `
+                <tr>
+                  <td style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:rgba(255,255,255,0.4);padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);">
+                    ${row.label}
+                  </td>
+                  <td align="right" style="font-family:Helvetica,Arial,sans-serif;font-size:13px;color:${row.gold ? '#C8A96A' : 'rgba(255,255,255,0.85)'};padding:12px 0;border-bottom:1px solid rgba(255,255,255,0.05);font-weight:${row.gold ? '600' : 'normal'};">
+                    ${row.value}
+                  </td>
+                </tr>`).join('')}
+              </table>` : '';
+
   return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="color-scheme" content="light" />
+  <meta name="supported-color-schemes" content="light" />
   <title>${heading}</title>
+  <!--[if mso]>
+  <noscript>
+    <xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml>
+  </noscript>
+  <![endif]-->
+  <style>
+    @media only screen and (max-width:620px) {
+      .aw-wrap { width:100% !important; }
+      .aw-card { padding:32px 24px !important; }
+    }
+  </style>
 </head>
-<body style="margin:0;padding:0;background:#09090B;font-family:Georgia,serif;">
-  <div style="max-width:600px;margin:0 auto;padding:48px 20px;">
+<body style="margin:0;padding:0;background:#000000;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
 
-    <!-- Logo -->
-    <div style="text-align:center;margin-bottom:36px;">
-      <span style="font-family:Georgia,serif;font-size:20px;color:#D4AF37;letter-spacing:0.16em;font-weight:normal;">ARCHANGELS</span>
-    </div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background:#000000;min-height:100vh;">
+  <tr>
+    <td align="center" style="padding:52px 20px 40px;">
 
-    <!-- Card -->
-    <div style="background:#0F0F14;border:1px solid rgba(212,175,55,0.18);border-radius:16px;padding:44px 40px;">
+      <table role="presentation" class="aw-wrap" cellpadding="0" cellspacing="0" border="0"
+             width="600" style="width:600px;">
 
-      ${eyebrow ? `<p style="font-family:Helvetica,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.18em;text-transform:uppercase;color:#D4AF37;margin:0 0 16px;">${eyebrow}</p>` : ''}
+        <!-- Sigil -->
+        <tr>
+          <td align="center" style="padding-bottom:32px;">
+            <span style="font-family:Georgia,'Times New Roman',serif;font-size:24px;color:#C8A96A;letter-spacing:0.24em;line-height:1;">&#10022;</span>
+          </td>
+        </tr>
 
-      <h1 style="font-family:Georgia,serif;font-size:28px;color:#FFFFFF;margin:0 0 24px;line-height:1.3;font-weight:normal;">${heading}</h1>
+        <!-- Card -->
+        <tr>
+          <td class="aw-card"
+              style="background:#080808;border:1px solid rgba(200,169,106,0.14);padding:48px 52px;">
 
-      ${lines.map(l => `<p style="font-family:Helvetica,sans-serif;font-size:15px;color:rgba(255,255,255,0.65);margin:0 0 12px;line-height:1.6;">${l}</p>`).join('')}
+            ${eyebrow ? `
+            <p style="font-family:Helvetica,Arial,sans-serif;font-size:11px;font-weight:700;letter-spacing:0.22em;text-transform:uppercase;color:#C8A96A;margin:0 0 22px;padding:0;">
+              ${eyebrow}
+            </p>` : ''}
 
-      <!-- CTA -->
-      <div style="margin-top:32px;">
-        <a href="${ctaUrl}"
-           style="display:inline-block;background:linear-gradient(135deg,#D4AF37,#B8962E);color:#09090B;font-family:Helvetica,sans-serif;font-size:14px;font-weight:700;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.04em;">
-          ${ctaLabel}
-        </a>
-      </div>
-    </div>
+            <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:26px;color:#FFFFFF;margin:0 0 28px;padding:0;line-height:1.35;font-weight:normal;letter-spacing:-0.01em;">
+              ${heading}
+            </h1>
 
-    <!-- Footer -->
-    <div style="text-align:center;margin-top:28px;">
-      <p style="font-family:Helvetica,sans-serif;font-size:11px;color:rgba(255,255,255,0.22);margin:0;">
-        Archangels Club &nbsp;·&nbsp;
-        <a href="${BASE_URL}/settings/notifications" style="color:rgba(255,255,255,0.3);text-decoration:underline;">Manage notifications</a>
-      </p>
-    </div>
+            ${lines.map(l => `
+            <p style="font-family:Helvetica,Arial,sans-serif;font-size:15px;color:rgba(255,255,255,0.58);margin:0 0 14px;padding:0;line-height:1.7;">
+              ${l}
+            </p>`).join('')}
 
-  </div>
+            ${receiptBlock}
+            ${ctaBlock}
+
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td align="center" style="padding-top:28px;">
+            <p style="font-family:Helvetica,Arial,sans-serif;font-size:11px;color:rgba(255,255,255,0.18);margin:0;padding:0;letter-spacing:0.03em;">
+              Archangels Club &nbsp;&middot;&nbsp;
+              <a href="${BASE_URL}/settings/notifications"
+                 style="color:rgba(255,255,255,0.28);text-decoration:underline;">Manage notifications</a>
+            </p>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+
 </body>
 </html>`;
 }
@@ -91,57 +167,57 @@ async function send(to: string, subject: string, html: string): Promise<SendResu
 // ─── Creator templates ────────────────────────────────────────────────────────
 
 export async function sendCreatorWelcome(to: string, name: string) {
-  return send(to, "You've been selected", buildHtml({
-    eyebrow: 'Welcome to Archangels',
-    heading: "You're in. Let's get you earning.",
+  return send(to, 'Your creator profile is live', buildHtml({
+    eyebrow: 'Creator Access',
+    heading: 'Your profile is live.',
     lines: [
-      `Hey ${name},`,
-      "You've been approved as a creator on Archangels Club. Your profile is now live and discoverable.",
-      "Creators who post within 24 hours of joining earn significantly more in their first week. Post your first piece of content now and start building momentum.",
+      `${name}.`,
+      'Your creator account on Archangels Club is active. Your profile is now visible to members.',
+      'Post your first piece of content to begin generating revenue.',
     ],
-    ctaLabel: 'Upload Now →',
+    ctaLabel: 'Upload Content',
     ctaUrl: `${BASE_URL}/upload`,
   }));
 }
 
 export async function sendCreatorFirstPostReminder(to: string, name: string) {
-  return send(to, 'Start earning today', buildHtml({
-    eyebrow: 'First Post Reminder',
-    heading: 'Creators who post early earn faster.',
+  return send(to, 'Your profile is empty', buildHtml({
+    eyebrow: 'Reminder',
+    heading: 'No content yet.',
     lines: [
-      `${name},`,
-      "You haven't posted yet. Creators who upload their first content within 24 hours of joining earn 3× more in their first month.",
-      "Upload your first post now. Even one piece of content starts the momentum.",
+      `${name}.`,
+      'Your profile is active but you have not posted. Members cannot subscribe to an empty profile.',
+      'Upload your first piece of content to start earning.',
     ],
-    ctaLabel: 'Post Now →',
+    ctaLabel: 'Upload Now',
     ctaUrl: `${BASE_URL}/upload`,
   }));
 }
 
 export async function sendCreatorFirstSale(to: string, name: string, amount: number) {
-  return send(to, 'You made your first sale', buildHtml({
-    eyebrow: 'First Sale',
-    heading: 'You just made your first sale.',
+  return send(to, 'First sale', buildHtml({
+    eyebrow: 'Sale',
+    heading: 'Your first sale.',
     lines: [
-      `Congratulations, ${name}.`,
-      `You earned <strong style="color:#D4AF37;">$${amount.toFixed(2)}</strong> on your first content unlock. This is just the start.`,
-      "Post again today while the momentum is high. Creators who follow up within 24 hours of their first sale see a 60% faster growth rate.",
+      `${name}.`,
+      `Your content earned <strong style="color:#C8A96A;">$${amount.toFixed(2)}</strong>.`,
+      'Post again to build on this.',
     ],
-    ctaLabel: 'Post Again →',
+    ctaLabel: 'Upload Content',
     ctaUrl: `${BASE_URL}/upload`,
   }));
 }
 
 export async function sendCreatorInactivity(to: string, name: string, daysSincePost: number) {
-  return send(to, "Don't lose momentum", buildHtml({
-    eyebrow: 'Activity Reminder',
-    heading: "Don't lose momentum.",
+  return send(to, `${daysSincePost} days without new content`, buildHtml({
+    eyebrow: 'Inactivity',
+    heading: `${daysSincePost} days without a post.`,
     lines: [
-      `${name},`,
-      `It's been ${daysSincePost} days since your last post. Your subscribers are waiting for new content.`,
-      "Posting today increases your visibility and keeps your earning streak alive. Even a short clip or photo set is enough.",
+      `${name}.`,
+      'Your subscribers are still active. Inactive profiles lose visibility in member discovery.',
+      'Post today to maintain your standing.',
     ],
-    ctaLabel: 'Upload Now →',
+    ctaLabel: 'Upload Now',
     ctaUrl: `${BASE_URL}/upload`,
   }));
 }
@@ -152,44 +228,46 @@ export async function sendCreatorWeeklySummary(to: string, name: string, stats: 
   newSubscribers: number;
   topPost: string;
 }) {
-  return send(to, 'Your weekly performance', buildHtml({
+  return send(to, 'Weekly summary', buildHtml({
     eyebrow: 'Weekly Summary',
-    heading: "Here's how you did this week.",
+    heading: 'This week.',
     lines: [
-      `${name}, here's your performance snapshot:`,
-      `<strong style="color:#FFFFFF;">Earnings:</strong> <span style="color:#D4AF37;">$${stats.earnings.toFixed(2)}</span> &nbsp;·&nbsp; <strong style="color:#FFFFFF;">Unlocks:</strong> ${stats.unlocks} &nbsp;·&nbsp; <strong style="color:#FFFFFF;">New Subscribers:</strong> ${stats.newSubscribers}`,
-      `<strong style="color:#FFFFFF;">Top Post:</strong> "${stats.topPost}"`,
-      "Keep the momentum going. Post new content this week to stay at the top of your subscribers' feeds.",
+      `${name}.`,
     ],
-    ctaLabel: 'View Dashboard →',
+    receiptRows: [
+      { label: 'Earnings', value: `$${stats.earnings.toFixed(2)}`, gold: true },
+      { label: 'Unlocks', value: String(stats.unlocks) },
+      { label: 'New Subscribers', value: String(stats.newSubscribers) },
+      { label: 'Top Post', value: stats.topPost },
+    ],
+    ctaLabel: 'View Dashboard',
     ctaUrl: `${BASE_URL}/creator`,
   }));
 }
 
 export async function sendCreatorDropReminder(to: string, name: string, dropName: string, dropTime: string) {
-  return send(to, 'Your drop is coming', buildHtml({
+  return send(to, 'Drop scheduled', buildHtml({
     eyebrow: 'Drop Reminder',
-    heading: 'Your drop is scheduled soon.',
+    heading: 'Your drop goes live soon.',
     lines: [
-      `${name},`,
-      `<strong style="color:#FFFFFF;">${dropName}</strong> goes live at ${dropTime}.`,
-      "Announce it to your subscribers now to build anticipation. Drops that are announced in advance convert up to 4× better.",
+      `${name}.`,
+      `<strong style="color:#FFFFFF;">${dropName}</strong> is scheduled for ${dropTime}.`,
+      'Notify your subscribers now to maximize reach at launch.',
     ],
-    ctaLabel: 'View Drop →',
+    ctaLabel: 'View Drop',
     ctaUrl: `${BASE_URL}/creator`,
   }));
 }
 
 export async function sendCreatorDropLive(to: string, name: string, dropName: string) {
   return send(to, 'Your drop is live', buildHtml({
-    eyebrow: 'Drop Alert',
-    heading: 'Your drop is live.',
+    eyebrow: 'Drop Live',
+    heading: 'Live now.',
     lines: [
-      `${name},`,
-      `<strong style="color:#D4AF37;">${dropName}</strong> is now live and available for members to unlock.`,
-      "Limited drops typically sell out within hours. Share it with your audience to maximize results.",
+      `${name}.`,
+      `<strong style="color:#C8A96A;">${dropName}</strong> is now available to members.`,
     ],
-    ctaLabel: 'View Drop →',
+    ctaLabel: 'View Drop',
     ctaUrl: `${BASE_URL}/creator`,
   }));
 }
@@ -197,85 +275,81 @@ export async function sendCreatorDropLive(to: string, name: string, dropName: st
 // ─── User templates ───────────────────────────────────────────────────────────
 
 export async function sendSetPasswordEmail(to: string, name: string, token: string) {
-  return send(to, 'Your access has been approved.', buildHtml({
+  return send(to, 'Your access has been approved', buildHtml({
     eyebrow: 'Access Granted',
-    heading: "You're in. Set your password to get started.",
+    heading: 'You have been approved.',
     lines: [
-      `Welcome, ${name || 'there'}.`,
-      "Your access to Archangels Club has been approved. Click below to set your password and activate your account.",
-      "<strong style=\"color:#D4AF37;\">This link expires in 24 hours.</strong>",
+      `${name || 'Welcome'}.`,
+      'Your access to Archangels Club has been approved. Set your password to activate your account.',
+      '<strong style="color:#C8A96A;">This link expires in 24 hours.</strong>',
     ],
-    ctaLabel: 'Set Your Password →',
+    ctaLabel: 'Set Password',
     ctaUrl: `${BASE_URL}/set-password?token=${token}`,
   }));
 }
 
 export async function sendUserWelcome(to: string, name: string) {
-  return send(to, "You're in", buildHtml({
+  return send(to, 'Access granted', buildHtml({
     eyebrow: 'Access Granted',
-    heading: "You're in. Exclusive access starts now.",
+    heading: "You're in.",
     lines: [
-      `Welcome, ${name}.`,
-      "Your access to Archangels Club has been approved. You now have full access to discover, follow, and unlock exclusive content from our creator community.",
-      "Explore the platform and find creators worth supporting.",
+      `${name}.`,
+      'Your access to Archangels Club is active. Discover and unlock exclusive content from our creator community.',
     ],
-    ctaLabel: 'Start Exploring →',
+    ctaLabel: 'Start Exploring',
     ctaUrl: `${BASE_URL}/explore`,
   }));
 }
 
 export async function sendUserRejected(to: string, name: string) {
-  return send(to, 'Update on your access request', buildHtml({
+  return send(to, 'Access request update', buildHtml({
     eyebrow: 'Access Request',
-    heading: 'Your request was not approved.',
+    heading: 'Not approved.',
     lines: [
-      `Hi ${name},`,
-      'After review, we were unable to approve your access request at this time.',
-      'If you believe this was in error or would like to provide additional information, you may submit a new request.',
+      `${name}.`,
+      'Your access request has been reviewed. At this time, we are unable to grant access.',
+      'You may submit a new request if your circumstances have changed.',
     ],
-    ctaLabel: 'Learn More →',
+    ctaLabel: 'Submit New Request',
     ctaUrl: `${BASE_URL}/signup`,
   }));
 }
 
 export async function sendUserMoreInfoRequested(to: string, name: string) {
-  return send(to, 'Additional information needed', buildHtml({
+  return send(to, 'Additional information required', buildHtml({
     eyebrow: 'Access Request',
-    heading: 'We need a bit more information.',
+    heading: 'More information required.',
     lines: [
-      `Hi ${name},`,
-      "Our team is reviewing your access request and needs additional information before we can make a decision.",
-      "Please reply to this email with any details that support your application.",
+      `${name}.`,
+      'Your request is under review. Our team requires additional information before a decision can be made.',
+      'Reply to this email with any supporting details.',
     ],
-    ctaLabel: 'Submit New Request →',
-    ctaUrl: `${BASE_URL}/signup`,
   }));
 }
 
 export async function sendCreatorRejected(to: string, name: string) {
-  return send(to, 'Update on your creator application', buildHtml({
+  return send(to, 'Creator application update', buildHtml({
     eyebrow: 'Creator Application',
-    heading: 'Your creator application was not approved.',
+    heading: 'Application not approved.',
     lines: [
-      `Hi ${name},`,
-      "After review, we were unable to approve your creator application at this time.",
-      "You may reapply after 30 days. Ensure your profile is complete and your content plan meets our community standards.",
+      `${name}.`,
+      'Your creator application has been reviewed. It does not meet our current requirements.',
+      'You may reapply after 30 days. Ensure your profile and content plan are complete before resubmitting.',
     ],
-    ctaLabel: 'View Requirements →',
+    ctaLabel: 'View Requirements',
     ctaUrl: `${BASE_URL}/apply-creator`,
   }));
 }
 
 export async function sendContentApproved(to: string, name: string, contentTitle: string) {
-  return send(to, 'Your content is live', buildHtml({
+  return send(to, 'Content approved', buildHtml({
     eyebrow: 'Content Approved',
-    heading: 'Your content is now live.',
+    heading: 'Your content is live.',
     lines: [
-      `${name},`,
+      `${name}.`,
       `<strong style="color:#FFFFFF;">${contentTitle}</strong> has been approved and is now visible to members.`,
-      "Promote it to your subscribers to maximize reach.",
     ],
-    ctaLabel: 'View Content →',
+    ctaLabel: 'View Content',
     ctaUrl: `${BASE_URL}/creator`,
   }));
 }
@@ -283,86 +357,86 @@ export async function sendContentApproved(to: string, name: string, contentTitle
 export async function sendContentRejected(to: string, name: string, contentTitle: string) {
   return send(to, 'Content not approved', buildHtml({
     eyebrow: 'Content Review',
-    heading: 'Your content was not approved.',
+    heading: 'Not approved.',
     lines: [
-      `${name},`,
-      `<strong style="color:#FFFFFF;">${contentTitle}</strong> did not meet our content guidelines and has not been published.`,
-      "Review our content policy and resubmit if appropriate.",
+      `${name}.`,
+      `<strong style="color:#FFFFFF;">${contentTitle}</strong> does not meet our content guidelines and has not been published.`,
+      'Review our content policy before resubmitting.',
     ],
-    ctaLabel: 'View Guidelines →',
+    ctaLabel: 'View Guidelines',
     ctaUrl: `${BASE_URL}/creator`,
   }));
 }
 
 export async function sendContentChangesRequested(to: string, name: string, contentTitle: string) {
-  return send(to, 'Changes requested on your content', buildHtml({
+  return send(to, 'Changes requested', buildHtml({
     eyebrow: 'Content Review',
-    heading: 'Changes requested.',
+    heading: 'Changes required.',
     lines: [
-      `${name},`,
-      `Our team has reviewed <strong style="color:#FFFFFF;">${contentTitle}</strong> and is requesting changes before it can be approved.`,
-      "Edit your content and resubmit for review.",
+      `${name}.`,
+      `<strong style="color:#FFFFFF;">${contentTitle}</strong> requires changes before it can be approved.`,
+      'Edit and resubmit for review.',
     ],
-    ctaLabel: 'Edit Content →',
+    ctaLabel: 'Edit Content',
     ctaUrl: `${BASE_URL}/creator`,
   }));
 }
 
 export async function sendUserNewContent(to: string, name: string, creatorName: string, contentTitle: string, contentId: string) {
-  return send(to, `New content from ${creatorName}`, buildHtml({
-    eyebrow: 'New Content',
-    heading: `${creatorName} just posted new content.`,
+  return send(to, `New drop from ${creatorName}`, buildHtml({
+    eyebrow: 'New Drop',
+    heading: `${creatorName} just posted.`,
     lines: [
-      `${name},`,
+      `${name}.`,
       `<strong style="color:#FFFFFF;">${contentTitle}</strong> is now available.`,
-      "Unlock it now before it's gone.",
     ],
-    ctaLabel: 'View Content →',
+    ctaLabel: 'View Now',
     ctaUrl: `${BASE_URL}/content/${contentId}`,
   }));
 }
 
 export async function sendUserDropAlert(to: string, name: string, contentTitle: string, contentId: string, remaining?: number) {
   const scarcityLine = remaining !== undefined && remaining <= 20
-    ? `<strong style="color:#D4AF37;">Only ${remaining} unlocks remaining.</strong> Don't miss it.`
-    : "Limited access. Once it's gone, it's gone.";
-  return send(to, 'Drop is live', buildHtml({
+    ? `<strong style="color:#C8A96A;">${remaining} unlocks remaining.</strong>`
+    : 'Limited availability.';
+  return send(to, 'Limited drop live', buildHtml({
     eyebrow: 'Limited Drop',
-    heading: 'A limited drop just went live.',
+    heading: 'Live now.',
     lines: [
-      `${name},`,
-      `<strong style="color:#FFFFFF;">${contentTitle}</strong> is now available for a limited time.`,
+      `${name}.`,
+      `<strong style="color:#FFFFFF;">${contentTitle}</strong> is available for a limited time.`,
       scarcityLine,
     ],
-    ctaLabel: 'Unlock Now →',
+    ctaLabel: 'Unlock Now',
     ctaUrl: `${BASE_URL}/content/${contentId}`,
   }));
 }
 
 export async function sendUserInactivity(to: string, name: string) {
-  return send(to, "Don't miss out", buildHtml({
-    eyebrow: 'You Have Unread Content',
-    heading: "New content is waiting for you.",
+  return send(to, 'Content waiting', buildHtml({
+    eyebrow: 'Unread Content',
+    heading: 'You have content waiting.',
     lines: [
-      `${name},`,
-      "You haven't unlocked anything recently. Creators you follow have been busy.",
-      "Explore new content before limited drops sell out.",
+      `${name}.`,
+      'Creators you follow have been active. New content and limited drops are available.',
     ],
-    ctaLabel: 'Explore Now →',
+    ctaLabel: 'Explore Now',
     ctaUrl: `${BASE_URL}/explore`,
   }));
 }
 
 export async function sendUserPurchaseConfirmation(to: string, name: string, contentTitle: string, contentId: string) {
   return send(to, 'Access unlocked', buildHtml({
-    eyebrow: 'Purchase Confirmed',
+    eyebrow: 'Transaction Confirmed',
     heading: 'Access unlocked.',
     lines: [
-      `${name},`,
-      `You now have full access to <strong style="color:#FFFFFF;">${contentTitle}</strong>.`,
-      "Enjoy your content. More exclusive drops are on the way.",
+      `${name}.`,
     ],
-    ctaLabel: 'View Content →',
+    receiptRows: [
+      { label: 'Content', value: contentTitle },
+      { label: 'Status', value: 'Unlocked', gold: true },
+    ],
+    ctaLabel: 'View Content',
     ctaUrl: `${BASE_URL}/content/${contentId}`,
   }));
 }
