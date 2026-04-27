@@ -1,9 +1,4 @@
-/// <reference types="vite/client" />
-
-// Production: calls Railway directly. Dev: Vite proxy forwards /api → localhost:4000.
-export const API_BASE: string = import.meta.env.PROD
-  ? 'https://archangels-club-production.up.railway.app'
-  : '';
+export const API_BASE = 'https://archangels-club-production.up.railway.app';
 
 function getToken(): string | null {
   try {
