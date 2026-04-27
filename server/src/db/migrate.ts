@@ -296,6 +296,9 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_page_views_creator ON creator_page_views(creator_id, viewed_at);
   CREATE INDEX IF NOT EXISTS idx_invite_links_creator ON creator_invite_links(creator_id);
   CREATE INDEX IF NOT EXISTS idx_invite_links_code ON creator_invite_links(invite_code);
+
+  ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
+  ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
 `;
 
 export async function runMigrations(): Promise<void> {

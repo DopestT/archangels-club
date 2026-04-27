@@ -80,9 +80,9 @@ router.get('/access-requests', async (req, res) => {
   try {
     const rows = await query(
       `SELECT id, email, name, reason, requested_role, status, created_at
-       FROM access_requests ORDER BY created_at DESC`
+       FROM access_requests WHERE status = 'pending' ORDER BY created_at DESC`
     );
-    console.log(`[admin] access-requests: ${rows.length} rows`);
+    console.log(`[admin] access-requests: ${rows.length} pending`);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch requests.' });
@@ -127,17 +127,23 @@ router.post('/users/:id/approve', async (req, res) => {
       [crypto.randomUUID(), email, resetToken, expiresAt]
     );
 
-    await execute(`UPDATE access_requests SET status = 'approved' WHERE id = $1`, [req.params.id]);
+    await execute(
+      `UPDATE access_requests SET status = 'approved', reviewed_at = NOW(), reviewed_by = $2 WHERE id = $1`,
+      [req.params.id, req.auth!.userId]
+    );
 
     // Send set-password email and capture result for caller
     const emailResult = await sendSetPasswordEmail(email, displayName, resetToken);
     console.log(`[admin] approve — email result for ${email}:`, JSON.stringify(emailResult));
 
     res.json({
-      success: true,
-      email_sent: emailResult.ok,
-      email_message_id: emailResult.messageId ?? null,
-      email_error: emailResult.error ?? null,
+      ok: true,
+      message: 'User approved',
+      data: {
+        email_sent: emailResult.ok,
+        email_message_id: emailResult.messageId ?? null,
+        email_error: emailResult.error ?? null,
+      },
     });
   } catch (err) {
     console.error('[admin] approve error:', err);
@@ -200,7 +206,10 @@ router.post('/users/:id/reject', async (req, res) => {
       `SELECT email, name FROM access_requests WHERE id = $1`, [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Request not found.' }); return; }
-    await execute(`UPDATE access_requests SET status = 'rejected' WHERE id = $1`, [req.params.id]);
+    await execute(
+      `UPDATE access_requests SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $2 WHERE id = $1`,
+      [req.params.id, req.auth!.userId]
+    );
     sendUserRejected(row.email, row.name).catch(console.error);
     res.json({ success: true });
   } catch (err) {

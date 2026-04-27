@@ -555,14 +555,24 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                         label={<><CheckCircle className="w-3.5 h-3.5" /> Approve</>}
                         successLabel="Approved"
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                        onSuccess={(result) => {
+                          setAccessRequests(prev => prev.filter(r => r.id !== req.id));
+                          const d = result.data as { email_sent?: boolean; email_error?: string } | undefined;
+                          setEmailNotice({
+                            name: req.name,
+                            sent: d?.email_sent === true,
+                            error: d?.email_error,
+                          });
+                          setTimeout(() => setEmailNotice(null), 8000);
+                        }}
+                      />
+                      <ActionButton
+                        apiCall={() => adminFetch(`/api/admin/users/${req.id}/reject`, { method: 'POST' })}
+                        label={<><XCircle className="w-3.5 h-3.5" /> Reject</>}
+                        successLabel="Rejected"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
                         onSuccess={() => setAccessRequests(prev => prev.filter(r => r.id !== req.id))}
                       />
-                      <button
-                        onClick={() => handleAccessAction(req.id, 'rejected')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
-                      >
-                        <XCircle className="w-3.5 h-3.5" /> Reject
-                      </button>
                     </div>
                   </div>
 
