@@ -136,7 +136,7 @@ test.describe('Checkout flow — unlock paid content', () => {
         // Mock mode: return a well-formed mock Stripe session so tests pass
         // in CI without real Stripe credentials.
         capturedStatus = 200;
-        capturedBody   = { checkout_url: FAKE_STRIPE_URL };
+        capturedBody   = { url: FAKE_STRIPE_URL };
         await route.fulfill({
           status:      200,
           contentType: 'application/json',
@@ -188,12 +188,12 @@ test.describe('Checkout flow — unlock paid content', () => {
     ).toBe(200);
 
     // 8c. Response body contains a Stripe checkout URL
-    // The server returns { checkout_url: session.url } — the frontend reads data.checkout_url.
-    const checkoutUrl: string | undefined = capturedBody?.checkout_url;
+    // The server returns { url: session.url } — the frontend reads data.url.
+    const checkoutUrl: string | undefined = capturedBody?.url;
 
     expect(
       checkoutUrl,
-      `Response body must contain a "checkout_url" field pointing to Stripe.\n` +
+      `Response body must contain a "url" field pointing to Stripe.\n` +
       `Received body: ${JSON.stringify(capturedBody, null, 2)}`,
     ).toBeTruthy();
 

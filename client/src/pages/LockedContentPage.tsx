@@ -326,7 +326,7 @@ export default function LockedContentPage() {
         return;
       }
 
-      if (!data.checkout_url) {
+      if (!data.url) {
         setPaying(false);
         setError('Checkout session created but no URL was returned. Please try again.');
         return;
@@ -334,7 +334,7 @@ export default function LockedContentPage() {
 
       setShowModal(false);
       setRedirecting(true);
-      window.location.href = data.checkout_url;
+      window.location.href = data.url;
 
     } catch (err) {
       setPaying(false);

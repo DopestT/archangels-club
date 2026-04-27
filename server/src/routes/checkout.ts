@@ -15,8 +15,8 @@ function getStripe() {
 router.post('/create', requireAuth, requireApproved, async (req, res) => {
   const { content_id, type } = req.body;
 
-  console.log('[checkout/create] request received — userId:', req.auth!.userId,
-    'content_id:', content_id, 'type:', type);
+  console.log('[checkout/create] body:', JSON.stringify(req.body));
+  console.log('[checkout/create] userId:', req.auth!.userId);
 
   try {
     if (!content_id) {
@@ -106,17 +106,21 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
         creator_profile_id: content.creator_id,
         amount:            String(effectivePrice),
       },
-      success_url: `${CLIENT_URL}/content/${content_id}?payment=success`,
-      cancel_url:  `${CLIENT_URL}/content/${content_id}`,
+      success_url: `${CLIENT_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url:  `${CLIENT_URL}/cancel`,
     });
 
     console.log('[checkout/create] session created:', session.id,
       '→', session.url?.substring(0, 60));
 
-    res.json({ checkout_url: session.url });
+    res.json({ url: session.url });
 
   } catch (err) {
-    console.error('[checkout/create] error:', err);
+    if (err instanceof Stripe.errors.StripeError) {
+      console.error('[checkout/create] Stripe error — type:', err.type, 'code:', err.code, 'message:', err.message);
+    } else {
+      console.error('[checkout/create] error:', err);
+    }
     const message = err instanceof Error ? err.message : String(err);
     res.status(500).json({ error: `Checkout failed: ${message}` });
   }
