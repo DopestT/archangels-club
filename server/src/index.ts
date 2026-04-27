@@ -19,6 +19,7 @@ import checkoutRoutes from './routes/checkout.js';
 import memberRoutes from './routes/members.js';
 import verificationRoutes from './routes/verification.js';
 import promoRoutes from './routes/promo.js';
+import uploadRoutes from './routes/upload.js';
 
 const app = express();
 const PORT = Number(process.env.PORT);
@@ -60,6 +61,7 @@ app.use('/api/checkout', checkoutRoutes);
 app.use('/api/members', memberRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/promo', promoRoutes);
+app.use('/api/upload', uploadRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API' });

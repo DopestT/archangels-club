@@ -8,7 +8,6 @@ import PricingPanel from '../components/pricing/PricingPanel';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../lib/api';
 
-
 const CONTENT_TYPES: { id: ContentType; icon: React.ReactNode; label: string }[] = [
   { id: 'image', icon: <Image className="w-5 h-5" />, label: 'Image' },
   { id: 'video', icon: <Video className="w-5 h-5" />, label: 'Video' },
@@ -27,6 +26,70 @@ const DEFAULT_PRICING: PricingConfig = {
   bundlePrice: null,
 };
 
+interface CloudinaryUploadResult {
+  secure_url: string;
+  public_id: string;
+  resource_type: 'image' | 'video' | 'raw';
+  version: number;
+}
+
+function buildPreviewUrl(cloudName: string, result: CloudinaryUploadResult): string {
+  const { public_id, resource_type, version } = result;
+  const v = `v${version}`;
+  if (resource_type === 'video') {
+    // Thumbnail from 3s mark, blurred
+    return `https://res.cloudinary.com/${cloudName}/video/upload/so_3,e_blur:600,q_30,w_800/${v}/${public_id}.jpg`;
+  }
+  // Image: blurred degraded preview
+  return `https://res.cloudinary.com/${cloudName}/image/upload/e_blur:1800,q_20,w_800/${v}/${public_id}`;
+}
+
+async function signUpload(token: string): Promise<{ signature: string; timestamp: number; api_key: string; cloud_name: string; folder: string }> {
+  const res = await fetch(`${API_BASE}/api/upload/sign`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+  });
+  if (!res.ok) throw new Error('Failed to get upload credentials.');
+  return res.json();
+}
+
+function uploadToCloudinary(
+  file: File,
+  resourceType: 'image' | 'video' | 'raw',
+  sign: Awaited<ReturnType<typeof signUpload>>,
+  onProgress: (pct: number) => void,
+): Promise<CloudinaryUploadResult> {
+  return new Promise((resolve, reject) => {
+    const form = new FormData();
+    form.append('file', file);
+    form.append('api_key', sign.api_key);
+    form.append('timestamp', String(sign.timestamp));
+    form.append('signature', sign.signature);
+    form.append('folder', sign.folder);
+
+    const xhr = new XMLHttpRequest();
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
+    });
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText));
+      } else {
+        reject(new Error(`Upload failed (${xhr.status})`));
+      }
+    });
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
+    xhr.open('POST', `https://api.cloudinary.com/v1_1/${sign.cloud_name}/${resourceType}/upload`);
+    xhr.send(form);
+  });
+}
+
+function toResourceType(contentType: ContentType): 'image' | 'video' | 'raw' {
+  if (contentType === 'image') return 'image';
+  if (contentType === 'video') return 'video';
+  return 'raw';
+}
+
 export default function UploadContent() {
   const { token } = useAuth();
   const [title, setTitle] = useState('');
@@ -38,12 +101,15 @@ export default function UploadContent() {
   const [videoConfig, setVideoConfig] = useState<VideoProcessingConfig | null>(null);
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
   const [showEditor, setShowEditor] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'saving' | 'submitted'>('idle');
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'saving' | 'submitted'>('idle');
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
+  const [submittedTitle, setSubmittedTitle] = useState('');
   const fileRef = useRef<HTMLInputElement>(null);
 
   const activeFile = enhancedFile ?? file;
   const canEnhance = file !== null && (contentType === 'image' || contentType === 'video');
+  const busy = status === 'uploading' || status === 'saving';
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
@@ -65,15 +131,36 @@ export default function UploadContent() {
   }
 
   async function handleSave() {
-    if (!title.trim()) return;
+    if (!title.trim() || !token || busy) return;
     setUploadError('');
-    setStatus('saving');
+    setUploadProgress(0);
+
     try {
+      let mediaUrl: string | null = null;
+      let previewUrl: string | null = previewDataUrl ?? null;
+
+      if (activeFile) {
+        setStatus('uploading');
+        const sign = await signUpload(token);
+        const result = await uploadToCloudinary(
+          activeFile,
+          toResourceType(contentType),
+          sign,
+          setUploadProgress,
+        );
+        mediaUrl = result.secure_url;
+        // Only auto-generate preview for locked content if user didn't manually set one
+        if (!previewUrl) {
+          previewUrl = buildPreviewUrl(sign.cloud_name, result);
+        }
+      }
+
+      setStatus('saving');
       const res = await fetch(`${API_BASE}/api/content`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token ?? ''}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
           title: title.trim(),
@@ -81,19 +168,22 @@ export default function UploadContent() {
           content_type: contentType,
           access_type: pricingConfig.accessType,
           price: pricingConfig.price ?? 0,
-          preview_url: previewDataUrl ?? null,
-          media_url: null,
+          preview_url: previewUrl,
+          media_url: mediaUrl,
         }),
       });
+
       const data = await res.json();
       if (!res.ok) {
         setUploadError(data.error ?? 'Failed to submit content. Please try again.');
         setStatus('idle');
         return;
       }
+
+      setSubmittedTitle(title.trim());
       setStatus('submitted');
-    } catch {
-      setUploadError('Unable to reach the server. Please check your connection.');
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Unable to reach the server.');
       setStatus('idle');
     }
   }
@@ -104,9 +194,11 @@ export default function UploadContent() {
     setPreviewDataUrl(null);
     setVideoConfig(null);
     setStatus('idle');
+    setUploadProgress(0);
     setTitle('');
     setDescription('');
     setPricingConfig(DEFAULT_PRICING);
+    setSubmittedTitle('');
   }
 
   if (status === 'submitted') {
@@ -119,7 +211,7 @@ export default function UploadContent() {
           <span className="section-eyebrow mb-4 block">Content Submitted</span>
           <h1 className="font-serif text-3xl text-white mb-4">Under Review</h1>
           <p className="text-arc-secondary leading-relaxed mb-6">
-            <strong className="text-white">{title}</strong> has been submitted for review.
+            <strong className="text-white">{submittedTitle}</strong> has been submitted for review.
             Our moderation team typically reviews content within <strong className="text-white">24 hours</strong>.
             It will go live automatically once approved.
           </p>
@@ -170,7 +262,6 @@ export default function UploadContent() {
       <div className="min-h-screen bg-bg-primary py-10">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
 
-          {/* Back */}
           <Link
             to="/creator"
             className="inline-flex items-center gap-2 text-sm text-arc-secondary hover:text-white mb-8 transition-colors"
@@ -185,7 +276,6 @@ export default function UploadContent() {
             <p className="text-arc-secondary text-sm mt-1">Submissions enter a review queue — content goes live only after moderation approval.</p>
           </div>
 
-          {/* Review process notice */}
           <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 mb-4">
             <Clock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
@@ -197,7 +287,6 @@ export default function UploadContent() {
             </div>
           </div>
 
-          {/* Content moderation notice */}
           <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/5 border border-arc-error/20 mb-8">
             <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
             <div>
@@ -210,6 +299,7 @@ export default function UploadContent() {
           </div>
 
           <div className="space-y-6">
+
             {/* Content type */}
             <div className="card-surface p-6 rounded-xl">
               <h3 className="font-serif text-lg text-white mb-4">Content Type</h3>
@@ -271,7 +361,6 @@ export default function UploadContent() {
             <div className="card-surface p-6 rounded-xl">
               <h3 className="font-serif text-lg text-white mb-4">File</h3>
 
-              {/* Drop zone */}
               {!activeFile ? (
                 <div
                   onClick={() => fileRef.current?.click()}
@@ -292,7 +381,6 @@ export default function UploadContent() {
                 </div>
               ) : (
                 <div className="border border-white/10 rounded-xl overflow-hidden">
-                  {/* Preview */}
                   {contentType === 'image' && previewDataUrl && (
                     <div className="w-full max-h-64 overflow-hidden bg-black">
                       <img src={previewDataUrl} alt="Preview" className="w-full h-full object-contain" />
@@ -303,22 +391,21 @@ export default function UploadContent() {
                       <img src={videoConfig.thumbnail} alt="Thumbnail" className="w-full h-full object-contain" />
                     </div>
                   )}
-
-                  {/* File info row */}
                   <div className="flex items-center gap-3 p-4">
                     <div className="w-8 h-8 rounded-lg bg-arc-success/10 border border-arc-success/25 flex items-center justify-center flex-shrink-0">
                       <Check className="w-4 h-4 text-arc-success" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-white truncate">{activeFile.name}</p>
-                      {videoConfig && (
-                        <p className="text-xs text-arc-muted mt-0.5">
-                          Trim: {Math.floor(videoConfig.trimStart / 60)}:{String(Math.floor(videoConfig.trimStart % 60)).padStart(2, '0')}
+                      <p className="text-xs text-arc-muted mt-0.5">
+                        {(activeFile.size / 1024 / 1024).toFixed(1)} MB
+                        {videoConfig && (
+                          <> · {Math.floor(videoConfig.trimStart / 60)}:{String(Math.floor(videoConfig.trimStart % 60)).padStart(2, '0')}
                           {' → '}
                           {Math.floor(videoConfig.trimEnd / 60)}:{String(Math.floor(videoConfig.trimEnd % 60)).padStart(2, '0')}
-                          {' · '}{videoConfig.quality}{videoConfig.slowMotion ? ' · 0.5×' : ''}
-                        </p>
-                      )}
+                          {' · '}{videoConfig.quality}{videoConfig.slowMotion ? ' · 0.5×' : ''}</>
+                        )}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {canEnhance && (
@@ -367,7 +454,33 @@ export default function UploadContent() {
             {/* Pricing */}
             <PricingPanel config={pricingConfig} onChange={setPricingConfig} />
 
-            {/* Upload error */}
+            {/* Upload progress */}
+            {status === 'uploading' && (
+              <div className="card-surface p-5 rounded-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs text-arc-secondary">Uploading file…</p>
+                  <p className="text-xs font-medium text-gold">{uploadProgress}%</p>
+                </div>
+                <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-gold transition-all duration-200"
+                    style={{ width: `${uploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {status === 'saving' && (
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20">
+                <svg className="animate-spin h-4 w-4 text-gold flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <p className="text-xs text-arc-secondary">Saving content record…</p>
+              </div>
+            )}
+
+            {/* Error */}
             {uploadError && (
               <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/10 border border-arc-error/30">
                 <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
@@ -375,22 +488,25 @@ export default function UploadContent() {
               </div>
             )}
 
-            {/* Actions */}
+            {/* Submit */}
             <div className="flex items-center gap-4 pb-10">
               <button
-                onClick={() => handleSave()}
-                disabled={status === 'saving' || !title}
-                className="btn-gold flex-1 py-3.5"
+                onClick={handleSave}
+                disabled={busy || !title.trim()}
+                className="btn-gold flex-1 py-3.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {status === 'saving' ? (
+                {busy ? (
                   <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                   </svg>
-                ) : <Upload className="w-4 h-4" />}
-                {status === 'saving' ? 'Submitting…' : 'Submit for Review'}
+                ) : (
+                  <Upload className="w-4 h-4" />
+                )}
+                {status === 'uploading' ? `Uploading… ${uploadProgress}%` : status === 'saving' ? 'Saving…' : 'Submit for Review'}
               </button>
             </div>
+
           </div>
         </div>
       </div>
