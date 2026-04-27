@@ -9,6 +9,172 @@ import { formatCurrency, formatCompactNumber, timeAgo } from '../lib/utils';
 import type { CreatorProfile, Content } from '../types';
 import { API_BASE } from '../lib/api';
 
+// ─── Tip Panel ────────────────────────────────────────────────────────────────
+
+const TIP_KEYFRAMES = `
+  @keyframes tipReveal {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes tipPulse {
+    0%,100% { box-shadow: 0 0 0 0 rgba(200,169,106,0); }
+    40%     { box-shadow: 0 0 0 8px rgba(200,169,106,0.07); }
+  }
+  @keyframes goldSweep {
+    from { transform: scaleX(0); }
+    to   { transform: scaleX(1); }
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes btnCompress {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(0.94); }
+    100% { transform: scale(0.97); }
+  }
+  @keyframes ringTighten {
+    0%   { transform: translate(-50%,-50%) scale(1.4); opacity: 0.75; }
+    100% { transform: translate(-50%,-50%) scale(0);   opacity: 0; }
+  }
+  @keyframes confirmFade {
+    from { opacity: 0; transform: translateY(2px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+`;
+
+type TipStage = 'reveal' | 'locking' | 'locked';
+
+function TipPanel({
+  creator,
+  onSubmit,
+  loading,
+}: {
+  creator: CreatorProfile;
+  onSubmit: (amount: number) => void;
+  loading: boolean;
+}) {
+  const [amount, setAmount] = useState('10');
+  const [stage, setStage] = useState<TipStage>('reveal');
+
+  function handleSend() {
+    if (stage !== 'reveal' || loading) return;
+    setStage('locking');
+    setTimeout(() => setStage('locked'), 310);
+    setTimeout(() => onSubmit(Number(amount) || 10), 720);
+  }
+
+  return (
+    <>
+      <style>{TIP_KEYFRAMES}</style>
+
+      <div
+        className="mt-4 p-5 card-surface rounded-xl"
+        style={{
+          position: 'relative',
+          overflow: 'hidden',
+          animation: 'tipReveal 450ms cubic-bezier(.2,.8,.2,1) both, tipPulse 520ms cubic-bezier(.2,.8,.2,1) 520ms 1',
+          transition: 'opacity 180ms cubic-bezier(.2,.8,.2,1)',
+          ...(stage === 'locking' ? { opacity: 0.82 } : {}),
+        }}
+      >
+        {/* Gold sweep line */}
+        <div
+          aria-hidden="true"
+          style={{
+            position: 'absolute',
+            top: 0, left: 0, right: 0,
+            height: 1,
+            background: 'linear-gradient(90deg, transparent 0%, #C8A96A 50%, transparent 100%)',
+            transformOrigin: 'left',
+            animation: 'goldSweep 380ms cubic-bezier(.2,.8,.2,1) 200ms both',
+          }}
+        />
+
+        {stage === 'locked' ? (
+          <div
+            style={{ animation: 'confirmFade 200ms cubic-bezier(.2,.8,.2,1) forwards' }}
+            className="flex items-center gap-2.5 py-1"
+          >
+            <span style={{ color: '#C8A96A', fontSize: 15, lineHeight: 1 }}>&#10003;</span>
+            <span className="font-serif text-white text-sm">Redirecting to payment…</span>
+          </div>
+        ) : (
+          <>
+            {/* Amount picker — fades up after card reveals */}
+            <div style={{ animation: 'fadeUp 380ms cubic-bezier(.2,.8,.2,1) 290ms both' }}>
+              <h4 className="font-serif text-sm text-white mb-3">
+                Send a tip to {creator.display_name}
+              </h4>
+              <div className="flex items-center gap-2 flex-wrap mb-4">
+                {['5', '10', '25', '50', '100'].map((amt) => (
+                  <button
+                    key={amt}
+                    onClick={() => setAmount(amt)}
+                    className={`px-4 py-2 rounded-lg text-sm font-sans transition-all ${
+                      amount === amt
+                        ? 'bg-gold text-bg-primary'
+                        : 'bg-bg-hover text-arc-secondary hover:text-white border border-white/10'
+                    }`}
+                  >
+                    ${amt}
+                  </button>
+                ))}
+                <input
+                  type="number"
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value)}
+                  className="input-dark w-28 text-sm"
+                  placeholder="Custom"
+                  min="1"
+                />
+              </div>
+            </div>
+
+            {/* Send button with ring overlay */}
+            <div
+              style={{
+                position: 'relative',
+                display: 'inline-block',
+                animation: 'fadeUp 380ms cubic-bezier(.2,.8,.2,1) 360ms both',
+              }}
+            >
+              <button
+                onClick={handleSend}
+                disabled={loading || stage !== 'reveal'}
+                style={{
+                  animation: stage === 'locking'
+                    ? 'btnCompress 300ms cubic-bezier(.2,.8,.2,1) forwards'
+                    : 'none',
+                }}
+                className="btn-gold text-sm"
+              >
+                <Send className="w-4 h-4" />
+                {loading ? 'Redirecting…' : `Send $${amount} tip`}
+              </button>
+
+              {/* Gold ring — tightens inward on lock */}
+              {stage === 'locking' && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    position: 'absolute',
+                    top: '50%', left: '50%',
+                    width: 80, height: 80,
+                    borderRadius: '50%',
+                    border: '1.5px solid #C8A96A',
+                    pointerEvents: 'none',
+                    animation: 'ringTighten 310ms cubic-bezier(.2,.8,.2,1) forwards',
+                  }}
+                />
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 
@@ -19,7 +185,6 @@ export default function CreatorProfilePage() {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('posts');
   const [tipping, setTipping] = useState(false);
-  const [tipAmount, setTipAmount] = useState('10');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [redirecting, setRedirecting] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
@@ -69,7 +234,7 @@ export default function CreatorProfilePage() {
       .finally(() => setLoading(false));
   }, [username]);
 
-  async function startCheckout(type: 'tip' | 'subscription') {
+  async function startCheckout(type: 'tip' | 'subscription', tipAmt?: number) {
     if (!isAuthenticated) { navigate('/login'); return; }
     if (!creator) return;
 
@@ -77,7 +242,7 @@ export default function CreatorProfilePage() {
     setCheckoutLoading(true);
 
     const body: Record<string, unknown> = { type, creator_id: creator.id };
-    if (type === 'tip') body.amount = Number(tipAmount);
+    if (type === 'tip') body.amount = tipAmt ?? 10;
 
     console.log(`[checkout] starting ${type} for creator:`, creator.username, body);
 
@@ -106,9 +271,8 @@ export default function CreatorProfilePage() {
     }
   }
 
-  function handleTip() {
-    setTipping(false);
-    startCheckout('tip');
+  function handleTip(amount: number) {
+    startCheckout('tip', amount);
   }
 
   if (loading) {
@@ -272,36 +436,11 @@ export default function CreatorProfilePage() {
 
           {/* Tip panel */}
           {tipping && (
-            <div className="mt-4 p-5 card-surface rounded-xl">
-              <h4 className="font-serif text-sm text-white mb-3">Send a Tip to {creator.display_name}</h4>
-              <div className="flex items-center gap-2 flex-wrap mb-4">
-                {['5', '10', '25', '50', '100'].map((amt) => (
-                  <button
-                    key={amt}
-                    onClick={() => setTipAmount(amt)}
-                    className={`px-4 py-2 rounded-lg text-sm font-sans transition-all ${
-                      tipAmount === amt
-                        ? 'bg-gold text-bg-primary'
-                        : 'bg-bg-hover text-arc-secondary hover:text-white border border-white/10'
-                    }`}
-                  >
-                    ${amt}
-                  </button>
-                ))}
-                <input
-                  type="number"
-                  value={tipAmount}
-                  onChange={(e) => setTipAmount(e.target.value)}
-                  className="input-dark w-28 text-sm"
-                  placeholder="Custom"
-                  min="1"
-                />
-              </div>
-              <button onClick={handleTip} disabled={checkoutLoading} className="btn-gold text-sm">
-                <Send className="w-4 h-4" />
-                {checkoutLoading ? 'Redirecting…' : `Send $${tipAmount} Tip →`}
-              </button>
-            </div>
+            <TipPanel
+              creator={creator}
+              onSubmit={handleTip}
+              loading={checkoutLoading}
+            />
           )}
         </div>
 
