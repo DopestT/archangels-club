@@ -82,7 +82,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     setErrors([]);
     setLoading(true);
     try {
-      const apiBase = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+      const apiBase = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
       const res = await fetch(`${apiBase}/api/access-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

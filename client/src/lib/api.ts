@@ -2,7 +2,7 @@
 
 // In dev the Vite proxy forwards /api → localhost:4000.
 // In production set VITE_API_URL=https://your-server-url (no trailing slash).
-export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 function getToken(): string | null {
   try {

@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { timeAgo } from '../lib/utils';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
