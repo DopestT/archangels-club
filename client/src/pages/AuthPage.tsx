@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Crown, Lock, Shield, Eye, EyeOff, Clock, Mail, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../lib/api';
@@ -10,6 +10,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const { login } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   // shared
   const [email, setEmail] = useState('');
@@ -28,7 +29,8 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signupComplete, setSignupComplete] = useState(false);
 
-  const from = (location.state as { from?: string })?.from ?? '/explore';
+  // ?redirect= takes priority over router state, then fallback to /explore
+  const from = searchParams.get('redirect') ?? (location.state as { from?: string })?.from ?? '/explore';
 
   function ageFromDOB(dob: string): number {
     const today = new Date();

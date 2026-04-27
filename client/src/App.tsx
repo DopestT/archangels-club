@@ -25,6 +25,7 @@ import StaticPage from './pages/StaticPage';
 import SetPasswordPage from './pages/SetPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 import PaymentResultPage from './pages/PaymentResultPage';
+import PaymentSuccessPage from './pages/PaymentSuccessPage';
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -84,6 +85,7 @@ function AppRoutes() {
         <Route path="signup" element={<AuthPage mode="signup" />} />
         <Route path="request-access" element={<AuthPage mode="signup" />} />
         <Route path="set-password" element={<SetPasswordPage />} />
+        <Route path="payment/success" element={<PaymentSuccessPage />} />
         <Route path="privacy" element={<StaticPage page="privacy" />} />
         <Route path="terms" element={<StaticPage page="terms" />} />
         <Route path="compliance" element={<StaticPage page="compliance" />} />

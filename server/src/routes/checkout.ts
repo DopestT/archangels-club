@@ -155,8 +155,8 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
           content_id,
           amount:          String(effectivePrice),
         },
-        success_url: `${FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url:  `${FRONTEND_URL}/cancel`,
+        success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&contentId=${content_id}`,
+        cancel_url:  `${FRONTEND_URL}/content/${content_id}?checkout=cancelled`,
       });
 
       console.log('Stripe session URL:', session.url);
@@ -226,8 +226,8 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
           creator_user_id: creator.user_id,
           amount:          String(tipAmount),
         },
-        success_url: `${FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url:  `${FRONTEND_URL}/cancel`,
+        success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url:  `${FRONTEND_URL}/explore`,
       });
 
       console.log('Stripe session URL:', session.url);
@@ -291,8 +291,8 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
           creator_user_id: creator.user_id,
           amount:          String(subscriptionPrice),
         },
-        success_url: `${FRONTEND_URL}/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url:  `${FRONTEND_URL}/cancel`,
+        success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url:  `${FRONTEND_URL}/explore`,
       });
 
       console.log('Stripe session URL:', session.url);

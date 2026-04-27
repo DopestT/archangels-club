@@ -10,6 +10,7 @@ interface AuthContextValue {
   user: User | null;
   token: string | null;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
   isCreator: boolean;
   isAdmin: boolean;
   userStatus: UserStatus | null;
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   // Restore session from localStorage on mount
   useEffect(() => {
@@ -36,6 +38,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
+    } finally {
+      setIsAuthLoading(false);
     }
   }, []);
 
@@ -78,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       token,
       isAuthenticated: !!user,
+      isAuthLoading,
       isCreator,
       isAdmin,
       userStatus,
