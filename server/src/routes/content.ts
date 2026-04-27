@@ -64,6 +64,27 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/content/saved — list saved content for authenticated user
+router.get('/saved', requireAuth, async (req, res) => {
+  try {
+    const rows = await query<any>(`
+      SELECT c.*, u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
+        cp.subscription_price as creator_subscription_price,
+        (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id)::int as unlock_count,
+        sc.saved_at
+      FROM saved_content sc
+      JOIN content c ON c.id = sc.content_id
+      JOIN creator_profiles cp ON cp.id = c.creator_id
+      JOIN users u ON u.id = cp.user_id
+      WHERE sc.user_id = $1
+      ORDER BY sc.saved_at DESC
+    `, [req.auth!.userId]);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch saved content.' });
+  }
+});
+
 // GET /api/content/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -255,6 +276,49 @@ router.post('/:id/unlock', requireAuth, requireApproved, async (req, res) => {
     }
   } catch (err) {
     res.status(500).json({ error: 'Failed to unlock content.' });
+  }
+});
+
+// POST /api/content/:id/save — save content
+router.post('/:id/save', requireAuth, async (req, res) => {
+  try {
+    const content = await queryOne<{ id: string }>('SELECT id FROM content WHERE id = $1', [req.params.id]);
+    if (!content) { res.status(404).json({ error: 'Content not found.' }); return; }
+
+    const id = crypto.randomUUID();
+    await execute(
+      'INSERT INTO saved_content (id, user_id, content_id) VALUES ($1, $2, $3) ON CONFLICT (user_id, content_id) DO NOTHING',
+      [id, req.auth!.userId, req.params.id]
+    );
+    res.json({ saved: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save content.' });
+  }
+});
+
+// DELETE /api/content/:id/save — unsave content
+router.delete('/:id/save', requireAuth, async (req, res) => {
+  try {
+    await execute(
+      'DELETE FROM saved_content WHERE user_id = $1 AND content_id = $2',
+      [req.auth!.userId, req.params.id]
+    );
+    res.json({ saved: false });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to unsave content.' });
+  }
+});
+
+// GET /api/content/:id/is-saved — check if current user saved this
+router.get('/:id/is-saved', requireAuth, async (req, res) => {
+  try {
+    const row = await queryOne(
+      'SELECT id FROM saved_content WHERE user_id = $1 AND content_id = $2',
+      [req.auth!.userId, req.params.id]
+    );
+    res.json({ saved: !!row });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check save status.' });
   }
 });
 

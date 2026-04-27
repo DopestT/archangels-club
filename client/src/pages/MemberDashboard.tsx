@@ -3,8 +3,11 @@ import { Link } from 'react-router-dom';
 import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Sparkles, Key } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
-import { formatCurrency } from '../lib/utils';
+import ContentCard from '../components/content/ContentCard';
+import Avatar from '../components/ui/Avatar';
+import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
+import type { Content } from '../types';
 
 
 interface VaultSummary {
@@ -12,16 +15,51 @@ interface VaultSummary {
   by_type: { standard: number; gold: number; black: number };
 }
 
+interface MemberStats {
+  unlocked_count: number;
+  subscription_count: number;
+  unread_messages: number;
+  total_spent: number;
+}
+
+interface Subscription {
+  id: string;
+  creator_id: string;
+  display_name: string;
+  username: string;
+  avatar_url: string | null;
+  subscription_price: number;
+  started_at: string;
+  expires_at: string;
+}
+
 export default function MemberDashboard() {
   const { user, isCreator, token } = useAuth();
   const [vault, setVault] = useState<VaultSummary | null>(null);
+  const [stats, setStats] = useState<MemberStats | null>(null);
+  const [unlocked, setUnlocked] = useState<Content[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API_BASE}/api/keys/vault`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((r) => r.json())
-      .then((data) => { if (data.summary) setVault(data.summary); })
-      .catch(() => {});
+
+    const headers = { Authorization: `Bearer ${token}` };
+
+    Promise.all([
+      fetch(`${API_BASE}/api/keys/vault`, { headers }).then(r => r.json()),
+      fetch(`${API_BASE}/api/members/my/stats`, { headers }).then(r => r.json()),
+      fetch(`${API_BASE}/api/members/my/unlocked?limit=4`, { headers }).then(r => r.json()),
+      fetch(`${API_BASE}/api/members/my/subscriptions`, { headers }).then(r => r.json()),
+    ])
+      .then(([vaultData, statsData, unlockedData, subsData]) => {
+        if (vaultData.summary) setVault(vaultData.summary);
+        if (!statsData.error) setStats(statsData);
+        if (Array.isArray(unlockedData)) setUnlocked(unlockedData);
+        if (Array.isArray(subsData)) setSubscriptions(subsData);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [token]);
 
   return (
@@ -29,39 +67,47 @@ export default function MemberDashboard() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
         {/* Header */}
-        <div className="mb-10">
-          <p className="section-eyebrow mb-2">Member Dashboard</p>
-          <h1 className="font-serif text-3xl text-white">
-            Welcome back, {user?.display_name ?? 'Member'}
-          </h1>
-          <p className="text-arc-secondary text-sm mt-1">
-            Your private access hub · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-          </p>
+        <div className="mb-10 flex items-start justify-between gap-4">
+          <div>
+            <p className="section-eyebrow mb-2">Member Dashboard</p>
+            <h1 className="font-serif text-3xl text-white">
+              Welcome back, {user?.display_name ?? 'Member'}
+            </h1>
+            <p className="text-arc-secondary text-sm mt-1">
+              Your private access hub · {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+            </p>
+          </div>
+          {isCreator && (
+            <Link to="/creator" className="btn-outline text-sm flex-shrink-0">
+              <Crown className="w-4 h-4" />
+              Creator Studio
+            </Link>
+          )}
         </div>
 
         {/* Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
           <StatCard
             label="Unlocked Content"
-            value={0}
+            value={stats?.unlocked_count ?? (loading ? '—' : 0)}
             sub="pieces in your library"
             icon={<Lock className="w-5 h-5" />}
           />
           <StatCard
             label="Active Subscriptions"
-            value={0}
+            value={stats?.subscription_count ?? (loading ? '—' : 0)}
             sub="creators subscribed"
             icon={<Crown className="w-5 h-5" />}
           />
           <StatCard
             label="Messages"
-            value={0}
+            value={stats?.unread_messages ?? (loading ? '—' : 0)}
             sub="unread"
             icon={<MessageCircle className="w-5 h-5" />}
           />
           <StatCard
             label="Total Spent"
-            value={formatCurrency(0)}
+            value={stats ? formatCurrency(stats.total_spent) : (loading ? '—' : formatCurrency(0))}
             sub="across all purchases"
             icon={<CreditCard className="w-5 h-5" />}
           />
@@ -79,11 +125,19 @@ export default function MemberDashboard() {
                   Browse More <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
-              <div className="card-surface p-10 text-center rounded-xl">
-                <Lock className="w-8 h-8 text-arc-muted mx-auto mb-3" />
-                <p className="text-arc-secondary text-sm">No unlocked content yet.</p>
-                <Link to="/explore" className="btn-gold mt-4 text-sm">Explore Creators</Link>
-              </div>
+              {unlocked.length > 0 ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {unlocked.map(item => (
+                    <ContentCard key={item.id} content={item} showCreator />
+                  ))}
+                </div>
+              ) : (
+                <div className="card-surface p-10 text-center rounded-xl">
+                  <Lock className="w-8 h-8 text-arc-muted mx-auto mb-3" />
+                  <p className="text-arc-secondary text-sm">No unlocked content yet.</p>
+                  <Link to="/explore" className="btn-gold mt-4 text-sm">Explore Creators</Link>
+                </div>
+              )}
             </div>
 
             {/* Subscriptions */}
@@ -91,11 +145,35 @@ export default function MemberDashboard() {
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-serif text-xl text-white">Active Subscriptions</h2>
               </div>
-              <div className="card-surface p-8 text-center rounded-xl">
-                <Crown className="w-8 h-8 text-arc-muted mx-auto mb-3" />
-                <p className="text-arc-secondary text-sm">No active subscriptions.</p>
-                <Link to="/explore" className="btn-outline mt-4 text-sm">Find Creators</Link>
-              </div>
+              {subscriptions.length > 0 ? (
+                <div className="space-y-3">
+                  {subscriptions.map(sub => (
+                    <Link
+                      key={sub.id}
+                      to={`/creator/${sub.username}`}
+                      className="flex items-center justify-between p-4 card-surface rounded-xl hover:border-gold-border/50 transition-all group"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Avatar src={sub.avatar_url ?? undefined} name={sub.display_name} size="sm" ring />
+                        <div>
+                          <p className="text-sm text-white group-hover:text-gold transition-colors">{sub.display_name}</p>
+                          <p className="text-xs text-arc-muted">@{sub.username} · {formatCurrency(sub.subscription_price)}/mo</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-arc-success">Active</p>
+                        <p className="text-xs text-arc-muted">Renews {timeAgo(sub.expires_at)}</p>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <div className="card-surface p-8 text-center rounded-xl">
+                  <Crown className="w-8 h-8 text-arc-muted mx-auto mb-3" />
+                  <p className="text-arc-secondary text-sm">No active subscriptions.</p>
+                  <Link to="/explore" className="btn-outline mt-4 text-sm">Find Creators</Link>
+                </div>
+              )}
             </div>
           </div>
 

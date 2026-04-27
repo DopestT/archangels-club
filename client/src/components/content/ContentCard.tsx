@@ -1,10 +1,12 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Image, Video, Music, FileText, Eye, Zap, Users, Flame, Sparkles } from 'lucide-react';
+import { Lock, Image, Video, Music, FileText, Eye, Zap, Users, Flame, Sparkles, Bookmark } from 'lucide-react';
 import type { Content } from '../../types';
 import Avatar from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../../lib/utils';
+import { useAuth } from '../../context/AuthContext';
+import { API_BASE } from '../../lib/api';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-3.5 h-3.5" />,
@@ -25,8 +27,30 @@ interface ContentCardProps {
 
 export default function ContentCard({ content, showCreator = true }: ContentCardProps) {
   const [hovered, setHovered] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [savePending, setSavePending] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { isAuthenticated, token } = useAuth();
+
+  async function toggleSave(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAuthenticated || savePending) return;
+    setSavePending(true);
+    const method = saved ? 'DELETE' : 'POST';
+    try {
+      const res = await fetch(`${API_BASE}/api/content/${content.id}/save`, {
+        method,
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) setSaved(!saved);
+    } catch {
+      // silent
+    } finally {
+      setSavePending(false);
+    }
+  }
 
   const isLocked = content.access_type === 'locked' || content.access_type === 'subscribers';
   const badgeType = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
@@ -238,7 +262,19 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
                 {viewers}
               </span>
             </div>
-            <span className="text-xs text-arc-muted">{timeAgo(content.created_at)}</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-arc-muted">{timeAgo(content.created_at)}</span>
+              {isAuthenticated && (
+                <button
+                  onClick={toggleSave}
+                  disabled={savePending}
+                  title={saved ? 'Unsave' : 'Save'}
+                  className={`p-1 rounded transition-colors ${saved ? 'text-gold' : 'text-arc-muted hover:text-arc-secondary'}`}
+                >
+                  <Bookmark className={`w-3.5 h-3.5 ${saved ? 'fill-current' : ''}`} />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

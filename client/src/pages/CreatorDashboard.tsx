@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap } from 'lucide-react';
+import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap, LayoutDashboard } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
@@ -103,10 +103,16 @@ export default function CreatorDashboard() {
             <h1 className="font-serif text-3xl text-white">{user?.display_name ?? 'Creator'}</h1>
             <p className="text-arc-secondary text-sm mt-1">@{user?.username}</p>
           </div>
-          <Link to="/upload" className="btn-gold text-sm">
-            <Upload className="w-4 h-4" />
-            Upload Content
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link to="/dashboard" className="btn-outline text-sm">
+              <LayoutDashboard className="w-4 h-4" />
+              Member View
+            </Link>
+            <Link to="/upload" className="btn-gold text-sm">
+              <Upload className="w-4 h-4" />
+              Upload Content
+            </Link>
+          </div>
         </div>
 
         {/* Creator application status */}

@@ -282,6 +282,16 @@ const DDL = `
       ALTER TABLE creator_profiles ADD CONSTRAINT uq_creator_profiles_user_id UNIQUE (user_id);
     END IF;
   END $$;
+
+  CREATE TABLE IF NOT EXISTS saved_content (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content_id TEXT NOT NULL REFERENCES content(id) ON DELETE CASCADE,
+    saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, content_id)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_saved_content_user ON saved_content(user_id, saved_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {

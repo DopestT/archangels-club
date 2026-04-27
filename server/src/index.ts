@@ -16,6 +16,7 @@ import stripeRoutes from './routes/stripe.js';
 import activityRoutes from './routes/activity.js';
 import bugReportRoutes from './routes/bugReport.js';
 import checkoutRoutes from './routes/checkout.js';
+import memberRoutes from './routes/members.js';
 
 const app = express();
 const PORT = Number(process.env.PORT);
@@ -54,6 +55,7 @@ app.use('/api/stripe', stripeRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/admin/bug-report', bugReportRoutes);
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/members', memberRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API' });
