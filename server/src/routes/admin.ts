@@ -127,10 +127,12 @@ router.post('/users/:id/approve', async (req, res) => {
       [crypto.randomUUID(), email, resetToken, expiresAt]
     );
 
-    await execute(
-      `UPDATE access_requests SET status = 'approved', reviewed_at = NOW(), reviewed_by = $2 WHERE id = $1`,
+    await execute(`UPDATE access_requests SET status = 'approved' WHERE id = $1`, [req.params.id]);
+    // reviewed_at / reviewed_by set separately — columns may not exist on first deploy
+    execute(
+      `UPDATE access_requests SET reviewed_at = NOW(), reviewed_by = $2 WHERE id = $1`,
       [req.params.id, req.auth!.userId]
-    );
+    ).catch(() => {});
 
     // Send set-password email and capture result for caller
     const emailResult = await sendSetPasswordEmail(email, displayName, resetToken);
@@ -206,10 +208,11 @@ router.post('/users/:id/reject', async (req, res) => {
       `SELECT email, name FROM access_requests WHERE id = $1`, [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Request not found.' }); return; }
-    await execute(
-      `UPDATE access_requests SET status = 'rejected', reviewed_at = NOW(), reviewed_by = $2 WHERE id = $1`,
+    await execute(`UPDATE access_requests SET status = 'rejected' WHERE id = $1`, [req.params.id]);
+    execute(
+      `UPDATE access_requests SET reviewed_at = NOW(), reviewed_by = $2 WHERE id = $1`,
       [req.params.id, req.auth!.userId]
-    );
+    ).catch(() => {});
     sendUserRejected(row.email, row.name).catch(console.error);
     res.json({ success: true });
   } catch (err) {
