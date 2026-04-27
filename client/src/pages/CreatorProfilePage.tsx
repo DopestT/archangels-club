@@ -133,6 +133,8 @@ export default function CreatorProfilePage() {
     ? content.reduce((a, b) => a.created_at > b.created_at ? a : b).created_at
     : null;
   const totalUnlocks = content.reduce((sum, c) => sum + Number(c.unlock_count ?? 0), 0);
+  const totalRecentUnlocks24h = content.reduce((sum, c) => sum + Number((c as any).recent_unlocks_24h ?? 0), 0);
+  const maxDiscountPct = drops.reduce((max, d) => Math.max(max, Number((d as any).subscriber_discount_pct ?? 0)), 0);
 
   const tabs: { id: Tab; label: string; count?: number }[] = [
     { id: 'posts', label: 'Posts', count: posts.length },
@@ -193,58 +195,45 @@ export default function CreatorProfilePage() {
             {/* Action buttons */}
             <div className="flex flex-col items-end gap-2 mb-2">
               <div className="flex items-center gap-2">
+                {/* Tip and Message — icon-only */}
                 <button
                   onClick={() => setTipping(!tipping)}
                   className="btn-outline text-sm px-3 py-2"
+                  title="Send a tip"
                 >
                   <Heart className="w-4 h-4" />
-                  Tip
                 </button>
-                <Link to="/messages" className="btn-outline text-sm px-3 py-2">
+                <Link to="/messages" className="btn-outline text-sm px-3 py-2" title="Send a message">
                   <MessageCircle className="w-4 h-4" />
-                  Message
                 </Link>
-                {firstDrop ? (
-                  <Link to={`/content/${firstDrop.id}`} className="btn-gold text-sm">
+                {/* Secondary: unlock a drop */}
+                {firstDrop && (
+                  <Link to={`/content/${firstDrop.id}`} className="btn-outline text-sm">
                     <Unlock className="w-4 h-4" />
-                    Unlock First Drop · {formatCurrency(firstDrop.price)}
+                    Unlock this drop · {formatCurrency(firstDrop.price)}
                   </Link>
-                ) : (
-                  <div className="flex flex-col items-center gap-0.5">
-                    <span className="text-[10px] font-sans font-medium text-gold bg-gold/10 border border-gold/30 px-2 py-0.5 rounded-full">
-                      Most Popular
-                    </span>
-                    <button
-                      onClick={() => startCheckout('subscription')}
-                      disabled={checkoutLoading}
-                      className="btn-gold text-sm"
-                    >
-                      <Crown className="w-4 h-4" />
-                      {checkoutLoading ? 'Loading…' : `Subscribe · ${formatCurrency(creator.subscription_price)}/mo`}
-                    </button>
-                  </div>
                 )}
-              </div>
-
-              {/* Subscribe secondary (shown when firstDrop is the primary) */}
-              {firstDrop && (
+                {/* Primary: Subscribe */}
                 <div className="flex flex-col items-end gap-0.5">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-sans font-medium text-gold bg-gold/10 border border-gold/30 px-2 py-0.5 rounded-full">
-                      Most Popular
-                    </span>
-                    <button
-                      onClick={() => startCheckout('subscription')}
-                      disabled={checkoutLoading}
-                      className="btn-outline text-sm"
-                    >
-                      <Crown className="w-4 h-4" />
-                      {checkoutLoading ? 'Loading…' : `Subscribe · ${formatCurrency(creator.subscription_price)}/mo`}
-                    </button>
-                  </div>
-                  <p className="text-[10px] text-arc-muted">All drops included · Cancel anytime</p>
+                  <span className="text-[10px] font-sans font-medium text-gold bg-gold/10 border border-gold/30 px-2 py-0.5 rounded-full">
+                    Most Popular
+                  </span>
+                  <button
+                    onClick={() => startCheckout('subscription')}
+                    disabled={checkoutLoading}
+                    className="btn-gold text-sm"
+                  >
+                    <Crown className="w-4 h-4" />
+                    {checkoutLoading ? 'Loading…' : `Subscribe · ${formatCurrency(creator.subscription_price)}/mo`}
+                  </button>
                 </div>
-              )}
+              </div>
+              <div className="flex items-center gap-3 text-[11px] text-arc-muted">
+                {totalRecentUnlocks24h > 0 && (
+                  <span>🔥 {totalRecentUnlocks24h} unlock{totalRecentUnlocks24h !== 1 ? 's' : ''} today</span>
+                )}
+                <span>All drops included · Cancel anytime</span>
+              </div>
             </div>
           </div>
 
@@ -437,7 +426,9 @@ export default function CreatorProfilePage() {
                 </div>
                 <ul className="space-y-2 mb-5">
                   {[
-                    'Exclusive subscriber-only posts + discounts on drops',
+                    maxDiscountPct > 0
+                      ? `Unlock all drops + save ${maxDiscountPct}% on every purchase`
+                      : 'Unlock all subscriber-only drops + discounts',
                     'Priority on custom content requests',
                     'Subscriber-exclusive content',
                     'Cancel anytime — no commitment',

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft,
-  Shield, CheckCircle, Star, Users, X as XIcon, AlertCircle, Eye,
+  Shield, CheckCircle, Star, X as XIcon, AlertCircle, Eye,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
@@ -94,7 +94,7 @@ function UnlockModal({
                 alt=""
                 className="w-full h-full object-cover locked-blur"
               />
-              <div className="absolute inset-0 bg-bg-primary/50" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
             </>
           ) : (
             <div className="w-full h-full flex items-center justify-center text-arc-muted">
@@ -121,13 +121,18 @@ function UnlockModal({
           {/* Title */}
           <h3 className="font-serif text-xl text-white mb-1 leading-snug">{content.title}</h3>
 
-          {/* Unlock count */}
-          {content.unlock_count > 0 && (
-            <p className="flex items-center gap-1.5 text-xs text-arc-muted mb-4">
-              <Users className="w-3.5 h-3.5" />
-              {Number(content.unlock_count).toLocaleString()} people unlocked this
-            </p>
-          )}
+          {/* Unlock count + posted time */}
+          <div className="flex items-center gap-2 text-xs text-arc-muted mb-4 flex-wrap">
+            {content.unlock_count > 0 && (
+              <span>🔥 {Number(content.unlock_count).toLocaleString()} people unlocked this</span>
+            )}
+            {content.unlock_count > 0 && timeAgo(content.created_at) && (
+              <span className="text-arc-muted/40">·</span>
+            )}
+            {timeAgo(content.created_at) && (
+              <span>Posted {timeAgo(content.created_at)}</span>
+            )}
+          </div>
 
           {/* Price block */}
           <div className="mb-5">
@@ -163,7 +168,7 @@ function UnlockModal({
             {paying ? (
               <><Spinner /> Preparing checkout…</>
             ) : (
-              `Unlock for ${formatCurrency(effectivePrice)}`
+              <>🔓 Unlock Now</>
             )}
           </button>
 
@@ -179,7 +184,7 @@ function UnlockModal({
           {/* Stripe note */}
           <div className="flex items-center justify-center gap-1.5 mt-3 pt-3 border-t border-white/5">
             <Shield className="w-3 h-3 text-arc-muted" />
-            <p className="text-[10px] text-arc-muted">Secure payment via Stripe · One-time unlock</p>
+            <p className="text-[10px] text-arc-muted">Instant access after payment · Secure checkout via Stripe</p>
           </div>
         </div>
       </div>
