@@ -1,81 +1,58 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { runAction, type ActionResult } from '../../lib/runAction';
 
-type Phase = 'idle' | 'loading' | 'success' | 'error';
-
-interface ActionButtonProps<T = unknown> {
+interface ActionButtonProps {
   label: React.ReactNode;
-  apiCall: () => Promise<Response>;
+  loadingLabel?: string;
   successLabel?: string;
+  errorLabel?: string;
+  onAction: () => Promise<unknown>;
+  onSuccess?: () => void;
   className?: string;
-  disabled?: boolean;
-  onSuccess?: (result: ActionResult<T>) => void;
 }
 
-export default function ActionButton<T = unknown>({
+export default function ActionButton({
   label,
-  apiCall,
-  successLabel,
-  className = '',
-  disabled = false,
+  loadingLabel = 'Processing…',
+  successLabel = 'Done',
+  errorLabel = 'Try again',
+  onAction,
   onSuccess,
-}: ActionButtonProps<T>) {
-  const [state, setState] = useState<Phase>('idle');
-  const [message, setMessage] = useState('');
-  const [nextAction, setNextAction] = useState<ActionResult['nextAction']>(undefined);
+  className = '',
+}: ActionButtonProps) {
+  const [state, setState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
 
   async function handleClick() {
-    if (state === 'loading' || disabled) return;
-    setState('loading');
-    setMessage('Processing…');
-
-    const result = await runAction<T>(apiCall);
-
-    setState(result.state);
-    setMessage(result.message || (result.state === 'success' ? (successLabel ?? '✔') : 'Something went wrong'));
-
-    if (result.nextAction) setNextAction(result.nextAction);
-    if (result.state === 'success' && onSuccess) onSuccess(result);
-
-    setTimeout(() => {
-      setState('idle');
-      setMessage('');
-      setNextAction(undefined);
-    }, 1400);
+    if (state === 'loading') return;
+    try {
+      setState('loading');
+      await onAction();
+      setState('success');
+      if (onSuccess) onSuccess();
+      setTimeout(() => setState('idle'), 1300);
+    } catch {
+      setState('error');
+      setTimeout(() => setState('idle'), 1300);
+    }
   }
 
   return (
-    <div style={{ display: 'contents' }}>
-      <button
-        onClick={handleClick}
-        disabled={disabled || state === 'loading'}
-        className={className}
-        style={{
-          transform: state === 'loading' ? 'scale(0.97)' : 'scale(1)',
-          transition: 'transform 0.2s cubic-bezier(.2,.8,.2,1)',
-        }}
-      >
-        {state === 'idle'    && label}
-        {state === 'loading' && 'Processing…'}
-        {state === 'success' && `✔ ${message}`}
-        {state === 'error'   && message}
-      </button>
-
-      {state === 'success' && nextAction && (
-        <span
-          style={{ animation: 'arcConfirmIn 200ms cubic-bezier(.2,.8,.2,1) both' }}
-          className="block text-xs text-gold mt-1.5 pl-0.5"
-        >
-          {nextAction.href ? (
-            <Link to={nextAction.href} className="hover:underline">
-              → {nextAction.label}
-            </Link>
-          ) : (
-            <span className="opacity-70">→ {nextAction.label}</span>
-          )}
+    <button
+      onClick={handleClick}
+      disabled={state === 'loading'}
+      className={`motion-action ${state} ${className}`}
+    >
+      {state === 'success' && (
+        <span className="lock-feedback">
+          <span className="lock-ring" />
+          <span className="lock-check">✓</span>
         </span>
       )}
-    </div>
+      <span className="action-label">
+        {state === 'idle'    && label}
+        {state === 'loading' && loadingLabel}
+        {state === 'success' && successLabel}
+        {state === 'error'   && errorLabel}
+      </span>
+    </button>
   );
 }

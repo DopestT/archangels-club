@@ -34,7 +34,7 @@ export default function UnlockCTA({
         <p className="text-xs text-arc-secondary">This content is exclusive to active subscribers.</p>
         {subscribeApiCall && subscriptionPrice && (
           <ActionButton
-            apiCall={subscribeApiCall}
+            onAction={async () => { const res = await subscribeApiCall!(); if (!res.ok) throw new Error(); }}
             label={<><Crown className="w-4 h-4" />Subscribe for {formatCurrency(subscriptionPrice)}/mo</>}
             successLabel="Access granted"
             className="btn-gold w-full"
@@ -55,7 +55,7 @@ export default function UnlockCTA({
       </div>
 
       <ActionButton
-        apiCall={unlockApiCall}
+        onAction={async () => { const res = await unlockApiCall(); if (!res.ok) throw new Error(); }}
         label={<><Zap className="w-4 h-4" />Unlock for {formatCurrency(price)}</>}
         successLabel="Unlocked"
         className="btn-gold w-full"
@@ -68,7 +68,7 @@ export default function UnlockCTA({
             Subscribers pay only <span className="text-gold font-medium">{formatCurrency(discountedPrice)}</span> — save {subscriberDiscount}%
           </p>
           <ActionButton
-            apiCall={subscribeApiCall}
+            onAction={async () => { const res = await subscribeApiCall!(); if (!res.ok) throw new Error(); }}
             label={<><Crown className="w-3.5 h-3.5" />Subscribe for {formatCurrency(subscriptionPrice)}/mo</>}
             successLabel="Access granted"
             className="btn-outline w-full text-sm py-2.5"

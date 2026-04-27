@@ -261,7 +261,10 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
               {isAuthenticated && (
                 <div onClick={(e) => e.stopPropagation()}>
                   <ActionButton
-                    apiCall={() => saved ? unsave(content.id) : save(content.id)}
+                    onAction={async () => {
+                      const res = await (saved ? unsave(content.id) : save(content.id));
+                      if (!res.ok) throw new Error();
+                    }}
                     label={<Bookmark className={`w-3.5 h-3.5 ${saved ? 'fill-current' : ''}`} />}
                     successLabel={saved ? 'Unsaved' : 'Saved'}
                     className={`arc-pressable p-1 rounded transition-colors ${saved ? 'text-gold' : 'text-arc-muted hover:text-arc-secondary'}`}

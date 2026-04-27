@@ -47,7 +47,7 @@ export default function PaymentPanel({
       <div className="p-5 space-y-3">
         {accessType === 'locked' && (
           <ActionButton
-            apiCall={unlockApiCall}
+            onAction={async () => { const res = await unlockApiCall(); if (!res.ok) throw new Error(); }}
             label={<><Zap className="w-4 h-4" />Unlock for {formatCurrency(price)}</>}
             successLabel="Unlocked"
             className="btn-gold w-full py-3.5"
@@ -56,7 +56,7 @@ export default function PaymentPanel({
 
         {subscriptionPrice && subscribeApiCall && (
           <ActionButton
-            apiCall={subscribeApiCall}
+            onAction={async () => { const res = await subscribeApiCall!(); if (!res.ok) throw new Error(); }}
             label={<><Crown className="w-4 h-4" />Subscribe — {formatCurrency(subscriptionPrice)}/mo</>}
             successLabel="Access granted"
             className="btn-outline w-full py-3"

@@ -612,10 +612,7 @@ export default function CreatorDashboard() {
                           {url}
                         </div>
                         <ActionButton
-                          apiCall={() => navigator.clipboard.writeText(url).then(
-                            () => new Response(JSON.stringify({ ok: true, message: 'Copied' }), { status: 200 }),
-                            () => new Response(JSON.stringify({ ok: false, message: 'Failed' }), { status: 400 })
-                          )}
+                          onAction={() => navigator.clipboard.writeText(url)}
                           label={<Copy className="w-4 h-4" />}
                           successLabel="Copied"
                           className="flex-shrink-0 p-2 rounded-lg bg-bg-hover border border-white/8 text-arc-secondary hover:text-gold hover:border-gold/30 transition-all text-xs"
@@ -697,10 +694,7 @@ export default function CreatorDashboard() {
                           <p className="text-xs text-arc-secondary leading-relaxed whitespace-pre-line">{text}</p>
                         </div>
                         <ActionButton
-                          apiCall={() => navigator.clipboard.writeText(text).then(
-                            () => new Response(JSON.stringify({ ok: true, message: 'Copied' }), { status: 200 }),
-                            () => new Response(JSON.stringify({ ok: false, message: 'Failed' }), { status: 400 })
-                          )}
+                          onAction={() => navigator.clipboard.writeText(text)}
                           label={<Copy className="w-4 h-4" />}
                           successLabel="Copied"
                           className="flex-shrink-0 p-2 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all text-xs"
@@ -755,10 +749,7 @@ export default function CreatorDashboard() {
                               {link.click_count}
                             </div>
                             <ActionButton
-                              apiCall={() => navigator.clipboard.writeText(inviteUrl).then(
-                                () => new Response(JSON.stringify({ ok: true, message: 'Copied' }), { status: 200 }),
-                                () => new Response(JSON.stringify({ ok: false, message: 'Failed' }), { status: 400 })
-                              )}
+                              onAction={() => navigator.clipboard.writeText(inviteUrl)}
                               label={<Copy className="w-3.5 h-3.5" />}
                               successLabel="Copied"
                               className="p-1.5 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all text-xs"
