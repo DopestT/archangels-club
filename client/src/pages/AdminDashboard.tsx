@@ -29,7 +29,7 @@ interface Report {
   creator_username: string | null;
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 import StatCard from '../components/ui/StatCard';
 import Logo from '../components/brand/Logo';
 import Avatar from '../components/ui/Avatar';

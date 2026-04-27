@@ -188,7 +188,6 @@ test.describe('Checkout flow — unlock paid content', () => {
     ).toBe(200);
 
     // 8c. Response body contains a Stripe checkout URL
-    // The server returns { url: session.url } — the frontend reads data.url.
     const checkoutUrl: string | undefined = capturedBody?.url;
 
     expect(

@@ -30,6 +30,11 @@ const corsOptions = {
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 
+app.use((req, _res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
 // Webhook must receive raw body for Stripe signature verification — mount before express.json()
 app.use('/api/webhooks', express.raw({ type: 'application/json' }), webhookRoutes);
 

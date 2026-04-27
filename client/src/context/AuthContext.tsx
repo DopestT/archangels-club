@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { User, UserStatus } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 const STORAGE_KEY = 'arc_auth';
 
 interface StoredAuth { token: string; user: User }
@@ -45,8 +45,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error ?? 'Login failed');
+
+    let data: any;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
+    }
+
+    if (!res.ok) throw new Error(data.error ?? 'Login failed. Please try again.');
+
     const stored: StoredAuth = { token: data.token, user: data.user };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     setUser(data.user);

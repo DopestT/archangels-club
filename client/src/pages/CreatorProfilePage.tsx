@@ -8,7 +8,7 @@ import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../lib/utils';
 import type { CreatorProfile, Content } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 
@@ -59,14 +59,14 @@ export default function CreatorProfilePage() {
     setCheckoutError('');
     setCheckoutLoading(true);
 
-    const body: Record<string, unknown> = { type, creatorId: creator.id };
+    const body: Record<string, unknown> = { type, creator_id: creator.id };
     if (type === 'tip') body.amount = Number(tipAmount);
 
     console.log(`[checkout] starting ${type} for creator:`, creator.username, body);
 
     try {
-      console.log('[checkout] POST /api/stripe/checkout');
-      const res = await fetch(`${API_BASE}/api/stripe/checkout`, {
+      console.log('[checkout] POST /api/checkout/create');
+      const res = await fetch(`${API_BASE}/api/checkout/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(body),

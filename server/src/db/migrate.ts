@@ -270,6 +270,9 @@ const DDL = `
   ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS stripe_onboarding_complete SMALLINT NOT NULL DEFAULT 0;
 
   ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_payment_intent_id TEXT;
+  ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_session_id TEXT;
+
+  CREATE INDEX IF NOT EXISTS idx_transactions_stripe_session ON transactions(stripe_session_id);
 
   ALTER TABLE content_unlocks ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW();
   UPDATE content_unlocks SET created_at = unlocked_at WHERE created_at IS NULL;

@@ -21,6 +21,25 @@ vi.mock('../services/triggers.js', () => ({
   triggerAccountApproved:     vi.fn().mockResolvedValue(undefined),
 }));
 
+// Stripe mock — covers checkout.ts and webhooks.ts
+vi.mock('stripe', () => {
+  const mockCreate = vi.fn().mockResolvedValue({
+    id:  'cs_test_mock_session_id',
+    url: 'https://checkout.stripe.com/pay/cs_test_mock',
+  });
+  class MockStripeError extends Error {
+    type = 'StripeError'; code = 'test_error';
+  }
+  // Expose .errors as a static property on the constructor so
+  // `err instanceof Stripe.errors.StripeError` works in the catch block.
+  const MockStripe: any = vi.fn().mockImplementation(() => ({
+    checkout: { sessions: { create: mockCreate, retrieve: vi.fn() } },
+    webhooks: { constructEvent: vi.fn() },
+  }));
+  MockStripe.errors = { StripeError: MockStripeError };
+  return { default: MockStripe };
+});
+
 vi.mock('../services/email.js', () => ({
   sendSetPasswordEmail:          vi.fn().mockResolvedValue(undefined),
   sendUserWelcome:               vi.fn().mockResolvedValue(undefined),
@@ -42,11 +61,12 @@ function makeToken(role = 'fan', userId = 'test-user-id') {
   return jwt.sign({ userId, role }, JWT_SECRET);
 }
 
-import { query, queryOne, execute } from '../db/schema.js';
+import { query, queryOne, execute, withTransaction } from '../db/schema.js';
 
-const mockQuery   = vi.mocked(query);
-const mockQueryOne = vi.mocked(queryOne);
-const mockExecute = vi.mocked(execute);
+const mockQuery        = vi.mocked(query);
+const mockQueryOne     = vi.mocked(queryOne);
+const mockExecute      = vi.mocked(execute);
+const mockWithTxn      = vi.mocked(withTransaction);
 
 const app = createTestApp();
 
@@ -241,5 +261,231 @@ describe('GET /api/access-request', () => {
     const res = await request(app).get('/api/access-request');
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
+  });
+});
+
+// ── POST /api/checkout/create — payment tests ─────────────────────────────────
+
+// Shared locked content fixture returned by queryOne for content lookups
+const LOCKED_CONTENT = {
+  id: 'content-id-1', title: 'Secret Drop', status: 'approved',
+  access_type: 'locked', price: '9.99',
+  creator_id: 'creator-profile-id', creator_user_id: 'creator-user-id',
+  subscriber_discount_pct: 0,
+  stripe_account_id: null, stripe_onboarding_complete: 0,
+};
+
+const CREATOR_PROFILE = {
+  id: 'creator-profile-id', user_id: 'creator-user-id',
+  display_name: 'Aria Luxe', subscription_price: '9.99',
+  stripe_account_id: null, stripe_onboarding_complete: 0,
+  is_approved: 1, application_status: 'approved',
+};
+
+describe('POST /api/checkout/create — unlock', () => {
+  it('1. creates a Stripe session and returns checkout_url', async () => {
+    const token = makeToken('fan', 'fan-user-id');
+    mockQueryOne
+      .mockResolvedValueOnce({ status: 'approved' })   // requireApproved
+      .mockResolvedValueOnce(LOCKED_CONTENT)            // content lookup
+      .mockResolvedValueOnce(null)                      // not already unlocked
+      .mockResolvedValueOnce(null);                     // no active subscription
+    const res = await request(app)
+      .post('/api/checkout/create')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'unlock', content_id: 'content-id-1' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('url');
+    expect(res.body.url).toMatch(/checkout\.stripe\.com/);
+  });
+
+  it('4. returns 401 without Authorization header', async () => {
+    const res = await request(app)
+      .post('/api/checkout/create')
+      .send({ type: 'unlock', content_id: 'content-id-1' });
+    expect(res.status).toBe(401);
+  });
+
+  it('5. creator cannot buy own content — returns 403', async () => {
+    // creator-user-id matches the content's creator_user_id
+    const token = makeToken('creator', 'creator-user-id');
+    mockQueryOne
+      .mockResolvedValueOnce({ status: 'approved' })   // requireApproved
+      .mockResolvedValueOnce(LOCKED_CONTENT);           // content lookup
+    const res = await request(app)
+      .post('/api/checkout/create')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'unlock', content_id: 'content-id-1' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/own content/i);
+  });
+
+  it('6. admin cannot make purchases — returns 403', async () => {
+    const token = makeToken('admin', 'admin-user-id');
+    // requireApproved passes for admin without DB call
+    const res = await request(app)
+      .post('/api/checkout/create')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'unlock', content_id: 'content-id-1' });
+    expect(res.status).toBe(403);
+    expect(res.body.error).toMatch(/admin/i);
+  });
+});
+
+describe('POST /api/checkout/create — tip', () => {
+  it('2. creates a Stripe session for tip and returns checkout_url', async () => {
+    const token = makeToken('fan', 'fan-user-id');
+    mockQueryOne
+      .mockResolvedValueOnce({ status: 'approved' })   // requireApproved
+      .mockResolvedValueOnce(CREATOR_PROFILE);          // creator lookup
+    const res = await request(app)
+      .post('/api/checkout/create')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'tip', creator_id: 'creator-profile-id', amount: 10 });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('url');
+    expect(res.body.url).toMatch(/checkout\.stripe\.com/);
+  });
+
+  it('returns 400 when tip amount is below $1', async () => {
+    const token = makeToken('fan', 'fan-user-id');
+    // amount check (< $1) fires before the creator DB lookup, so only requireApproved consumes a value
+    mockQueryOne.mockResolvedValueOnce({ status: 'approved' });
+    const res = await request(app)
+      .post('/api/checkout/create')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'tip', creator_id: 'creator-profile-id', amount: 0.5 });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/at least \$1/i);
+  });
+});
+
+describe('POST /api/checkout/create — subscription', () => {
+  it('3. creates a Stripe session for subscription and returns checkout_url', async () => {
+    const token = makeToken('fan', 'fan-user-id');
+    mockQueryOne
+      .mockResolvedValueOnce({ status: 'approved' })   // requireApproved
+      .mockResolvedValueOnce(CREATOR_PROFILE);          // creator lookup
+    const res = await request(app)
+      .post('/api/checkout/create')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ type: 'subscription', creator_id: 'creator-profile-id' });
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('url');
+    expect(res.body.url).toMatch(/checkout\.stripe\.com/);
+  });
+});
+
+// ── POST /api/webhooks/stripe — webhook processing ────────────────────────────
+
+function makeWebhookBody(overrides: Record<string, unknown> = {}) {
+  return {
+    type: 'checkout.session.completed',
+    data: {
+      object: {
+        id: 'cs_test_session_001',
+        payment_intent: 'pi_test_001',
+        amount_total: 999,
+        metadata: {
+          type: 'unlock',
+          user_id: 'fan-user-id',
+          creator_id: 'creator-profile-id',
+          creator_user_id: 'creator-user-id',
+          content_id: 'content-id-1',
+          amount: '9.99',
+        },
+        ...overrides,
+      },
+    },
+  };
+}
+
+describe('POST /api/webhooks/stripe — unlock', () => {
+  beforeEach(() => {
+    // withTransaction: invoke the callback with a mock pg client
+    (mockWithTxn.mockImplementation as any)(async (fn: (c: any) => Promise<void>) => {
+      const mockClient = { query: vi.fn().mockResolvedValue({ rows: [] }) } as any;
+      await fn(mockClient);
+    });
+    // queryOne for creator lookup (used in resolve branch when creator_user_id is in meta → skipped)
+    // queryOne for existing-session check → null (not duplicate)
+    // queryOne for existing-unlock check → null (not duplicate)
+    // queryOne for content title after unlock
+    mockQueryOne
+      .mockResolvedValueOnce(null)   // existing transaction by session_id → none
+      .mockResolvedValueOnce(null)   // existing unlock row → none
+      .mockResolvedValueOnce({ title: 'Secret Drop' }); // content title for trigger
+  });
+
+  it('7. webhook inserts content_unlock row', async () => {
+    const body = JSON.stringify(makeWebhookBody());
+    const res  = await request(app)
+      .post('/api/webhooks/stripe')
+      .set('Content-Type', 'application/json')
+      .send(body);
+    expect(res.status).toBe(200);
+    expect(mockWithTxn).toHaveBeenCalledOnce();
+    // The transaction callback calls client.query three times:
+    //   INSERT transactions, INSERT content_unlocks, UPDATE creator_profiles
+    const [[txnFn]] = mockWithTxn.mock.calls;
+    const mockClient = { query: vi.fn().mockResolvedValue({ rows: [] }) } as any;
+    await txnFn(mockClient);
+    expect(mockClient.query).toHaveBeenCalledTimes(3);
+    const insertUnlockCall = mockClient.query.mock.calls[1];
+    expect(insertUnlockCall[0]).toMatch(/INSERT INTO content_unlocks/i);
+  });
+
+  it('8. webhook creates transaction row', async () => {
+    const body = JSON.stringify(makeWebhookBody());
+    await request(app)
+      .post('/api/webhooks/stripe')
+      .set('Content-Type', 'application/json')
+      .send(body);
+    const [[txnFn]] = mockWithTxn.mock.calls;
+    const mockClient = { query: vi.fn().mockResolvedValue({ rows: [] }) } as any;
+    await txnFn(mockClient);
+    const insertTxnCall = mockClient.query.mock.calls[0];
+    expect(insertTxnCall[0]).toMatch(/INSERT INTO transactions/i);
+    // Verify stripe_session_id is included in the insert
+    expect(insertTxnCall[1]).toContain('cs_test_session_001');
+  });
+
+  it('9. duplicate webhook (same session_id) does not re-process', async () => {
+    // The describe beforeEach already queued [null, null, {title}] — reset to override cleanly.
+    mockQueryOne.mockReset();
+    mockWithTxn.mockReset();
+    (mockWithTxn.mockImplementation as any)(async (fn: (c: any) => Promise<void>) => {
+      const mockClient = { query: vi.fn().mockResolvedValue({ rows: [] }) } as any;
+      await fn(mockClient);
+    });
+    mockQueryOne.mockResolvedValueOnce({ id: 'existing-txn-id' }); // duplicate session found
+
+    const body = JSON.stringify(makeWebhookBody());
+    const res  = await request(app)
+      .post('/api/webhooks/stripe')
+      .set('Content-Type', 'application/json')
+      .send(body);
+    expect(res.status).toBe(200);
+    expect(mockWithTxn).not.toHaveBeenCalled();
+  });
+
+  it('10. creator earnings = 80% of gross amount', async () => {
+    const body = JSON.stringify(makeWebhookBody());
+    await request(app)
+      .post('/api/webhooks/stripe')
+      .set('Content-Type', 'application/json')
+      .send(body);
+    const [[txnFn]] = mockWithTxn.mock.calls;
+    const mockClient = { query: vi.fn().mockResolvedValue({ rows: [] }) } as any;
+    await txnFn(mockClient);
+    // INSERT transactions args: [..., grossAmount, platformFee, creatorEarnings, ...]
+    const txnArgs = mockClient.query.mock.calls[0][1] as number[];
+    // amount_total = 999 cents = $9.99
+    const grossAmount     = txnArgs[4]; // index 4 = amount
+    const platformFee     = txnArgs[5]; // index 5 = platform_fee
+    const creatorEarnings = txnArgs[6]; // index 6 = net_amount / creator_earnings
+    expect(grossAmount).toBeCloseTo(9.99, 2);
+    expect(platformFee).toBeCloseTo(2.00, 2);
+    expect(creatorEarnings).toBeCloseTo(7.99, 2);
   });
 });

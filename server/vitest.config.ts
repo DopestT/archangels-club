@@ -5,6 +5,9 @@ export default defineConfig({
     environment: 'node',
     globals: false,
     include: ['src/tests/**/*.test.ts'],
+    env: {
+      STRIPE_SECRET_KEY: 'sk_test_fake_for_unit_tests',
+    },
     // ESM + heavy deps (stripe, twilio, resend) are slow to transform on first run.
     // 30s gives headroom without masking real hangs.
     testTimeout: 30_000,

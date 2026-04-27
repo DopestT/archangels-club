@@ -48,26 +48,34 @@ router.post('/register', async (req, res) => {
 router.post('/login', async (req, res) => {
   try {
     const { email, password } = req.body;
+    if (!email || !password) {
+      res.status(400).json({ error: 'Email and password are required.' });
+      return;
+    }
+
     const user = await queryOne<any>(
       'SELECT * FROM users WHERE email = $1',
-      [email?.toLowerCase()]
+      [email.toLowerCase()]
     );
 
     if (!user) {
-      res.status(401).json({ error: 'Invalid email or password.' });
+      res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
     if (!user.password_hash) {
-      res.status(401).json({ error: 'Please set your password first. Check your email for the setup link.' });
+      res.status(403).json({ error: 'Please set your password first. Check your email for the setup link.' });
       return;
     }
     if (!(await bcrypt.compare(password, user.password_hash))) {
-      res.status(401).json({ error: 'Invalid email or password.' });
+      res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
-
+    if (user.status === 'pending') {
+      res.status(403).json({ error: 'Your membership is still pending approval.' });
+      return;
+    }
     if (user.status === 'rejected' || user.status === 'banned') {
-      res.status(403).json({ error: 'Access denied.', status: user.status });
+      res.status(403).json({ error: 'Access denied.' });
       return;
     }
 
@@ -75,6 +83,7 @@ router.post('/login', async (req, res) => {
     const { password_hash: _, ...safeUser } = user;
     res.json({ token, user: safeUser });
   } catch (err) {
+    console.error('[auth] login error:', err);
     res.status(500).json({ error: 'Login failed.' });
   }
 });

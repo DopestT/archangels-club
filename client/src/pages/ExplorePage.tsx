@@ -6,7 +6,7 @@ import FeedCard from '../components/content/FeedCard';
 import LiveActivity from '../components/explore/LiveActivity';
 import type { CreatorProfile, Content } from '../types';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? 'https://archangels-club-production.up.railway.app';
+const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 const FEED_PAGE_SIZE = 12;
 
 const ALL_TAGS = ['All', 'Lifestyle', 'Art', 'Fashion', 'Photography', 'Editorial', 'Cinematic', 'Dark Aesthetic', 'Visual Art', 'Wellness', 'Beauty', 'Fine Art', 'Music', 'Audio'];
