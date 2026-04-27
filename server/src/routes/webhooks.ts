@@ -256,6 +256,48 @@ router.post('/stripe', async (req, res) => {
     console.log('[webhook] payment_intent.succeeded:', intent.id);
   }
 
+  // ── Stripe Identity: age verification ────────────────────────────────────────
+
+  if (event.type === 'identity.verification_session.verified') {
+    const session = event.data.object as any;
+    const userId = session.metadata?.user_id;
+    if (userId) {
+      try {
+        await execute(
+          `UPDATE users
+             SET age_verification_status = 'verified',
+                 age_verified_at          = NOW()
+           WHERE id = $1`,
+          [userId]
+        );
+        console.log('[webhook] age verification: verified — user:', userId);
+      } catch (err) {
+        console.error('[webhook] age verification update failed:', err);
+      }
+    } else {
+      console.warn('[webhook] identity.verified: no user_id in metadata');
+    }
+  }
+
+  if (event.type === 'identity.verification_session.requires_input') {
+    const session = event.data.object as any;
+    const userId = session.metadata?.user_id;
+    if (userId) {
+      try {
+        // Only move to failed if currently pending — don't overwrite a verified status
+        await execute(
+          `UPDATE users
+             SET age_verification_status = 'failed'
+           WHERE id = $1 AND age_verification_status = 'pending'`,
+          [userId]
+        );
+        console.log('[webhook] age verification: requires_input (failed) — user:', userId);
+      } catch (err) {
+        console.error('[webhook] age verification failed-update error:', err);
+      }
+    }
+  }
+
   res.json({ received: true });
 });
 

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
-import { requireAuth, requireApproved } from '../middleware/auth.js';
+import { requireAuth, requireApproved, requireAgeVerified } from '../middleware/auth.js';
 import { queryOne } from '../db/schema.js';
 
 const router = Router();
@@ -43,7 +43,7 @@ router.get('/session/:sessionId', requireAuth, async (req, res) => {
 });
 
 // POST /api/checkout/create — unified checkout: unlock | tip | subscription
-router.post('/create', requireAuth, requireApproved, async (req, res) => {
+router.post('/create', requireAuth, requireApproved, requireAgeVerified, async (req, res) => {
   const { type, content_id, creator_id, amount } = req.body;
 
   console.log('[checkout/create] body:', JSON.stringify(req.body));
@@ -272,6 +272,14 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
       const unitAmount = Math.round(subscriptionPrice * 100);
 
+      // Optional return_path (relative, e.g. "/content/abc123") for post-payment redirect
+      const returnPath = typeof req.body.return_path === 'string' ? req.body.return_path : null;
+      const subSuccessUrl = `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}` +
+        (returnPath ? `&returnTo=${encodeURIComponent(returnPath)}` : '');
+      const subCancelUrl = returnPath
+        ? `${FRONTEND_URL}${returnPath}${returnPath.includes('?') ? '&' : '?'}checkout=cancelled`
+        : `${FRONTEND_URL}/explore`;
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         mode: 'subscription',
@@ -291,8 +299,8 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
           creator_user_id: creator.user_id,
           amount:          String(subscriptionPrice),
         },
-        success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url:  `${FRONTEND_URL}/explore`,
+        success_url: subSuccessUrl,
+        cancel_url:  subCancelUrl,
       });
 
       console.log('Stripe session URL:', session.url);

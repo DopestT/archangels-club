@@ -198,7 +198,7 @@ export default function LockedContentPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated, token, isApproved, isAdmin } = useAuth();
+  const { isAuthenticated, token, isApproved, isAdmin, isAgeVerified, ageVerificationStatus } = useAuth();
 
   const [content,       setContent]       = useState<Content | null>(null);
   const [unlocked,      setUnlocked]      = useState(false);
@@ -212,6 +212,10 @@ export default function LockedContentPage() {
   const [isAdminPreview,  setIsAdminPreview]  = useState(false);
   const [isCreatorPreview, setIsCreatorPreview] = useState(false);
   const [showModal,       setShowModal]       = useState(false);
+  const [subscribing,     setSubscribing]    = useState(false);
+  const [subscribeError,  setSubscribeError] = useState<string | null>(null);
+  const [verifying,       setVerifying]      = useState(false);
+  const [verifyError,     setVerifyError]    = useState<string | null>(null);
   const [moreContent,   setMoreContent]   = useState<GlobalContent[]>([]);
 
   const paymentSuccess  = searchParams.get('payment') === 'success';
@@ -289,6 +293,68 @@ export default function LockedContentPage() {
     }
     setError(null);
     setShowModal(true);
+  }
+
+  async function handleSubscribe() {
+    if (!isAuthenticated) {
+      navigate(`/login?next=${encodeURIComponent(`/content/${id}`)}`);
+      return;
+    }
+    if (!content) return;
+    setSubscribeError(null);
+    setSubscribing(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/checkout/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          type: 'subscription',
+          creator_id: content.creator_id,
+          return_path: `/content/${id}`,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.url) {
+        setSubscribing(false);
+        setSubscribeError(data.error ?? 'Failed to start checkout. Please try again.');
+        return;
+      }
+      setRedirecting(true);
+      window.location.href = data.url;
+    } catch {
+      setSubscribing(false);
+      setSubscribeError('Unable to reach the server. Please try again.');
+    }
+  }
+
+  async function handleVerifyAge() {
+    if (!isAuthenticated) {
+      navigate(`/login?next=${encodeURIComponent(`/content/${id}`)}`);
+      return;
+    }
+    setVerifyError(null);
+    setVerifying(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/verification/start`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (!res.ok || (!data.url && !data.already_verified)) {
+        setVerifying(false);
+        setVerifyError(data.error ?? 'Failed to start verification. Please try again.');
+        return;
+      }
+      if (data.already_verified) {
+        setVerifying(false);
+        return;
+      }
+      setRedirecting(true);
+      window.location.href = data.url;
+    } catch {
+      setVerifying(false);
+      setVerifyError('Unable to reach the server. Please try again.');
+    }
   }
 
   async function handleUnlock() {
@@ -375,8 +441,8 @@ export default function LockedContentPage() {
   const isLocked      = content.access_type !== 'free' && !unlocked;
   const badgeType     = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
   const previewMode   = isAdminPreview ? 'Admin Preview Mode' : isCreatorPreview ? 'Creator Preview Mode' : null;
-  const canPurchase   = isAuthenticated && (isApproved || isAdmin) && content.access_type === 'locked'
-                        && !isAdminPreview && !isCreatorPreview;
+  const canPurchase   = isAuthenticated && (isAdmin || (isApproved && isAgeVerified))
+                        && content.access_type === 'locked' && !isAdminPreview && !isCreatorPreview;
 
   // Effective price this user pays (discounted if subscribed)
   const effectivePrice = discountedPrice ?? Number(content.price);
@@ -500,20 +566,74 @@ export default function LockedContentPage() {
                   <Unlock className="w-4 h-4" />
                   Unlock for {formatCurrency(effectivePrice)}
                 </button>
-              ) : isAuthenticated ? (
-                <p className="text-sm text-arc-secondary">Your account is pending approval.</p>
-              ) : (
-                <div className="text-center">
-                  <Link to="/signup" className="btn-gold px-8 py-3.5 text-base mb-3 flex items-center gap-2 justify-center">
-                    <Crown className="w-4 h-4" />
-                    Request Access to Unlock
-                  </Link>
-                  <p className="text-xs text-arc-muted">
-                    Members only ·{' '}
-                    <Link to="/login" className="text-gold hover:underline">Already a member?</Link>
-                  </p>
+              ) : !isAuthenticated ? (
+                <div className="text-center px-4">
+                  <p className="text-sm text-arc-secondary mb-4">Sign in or request access to view this content.</p>
+                  <div className="flex flex-col items-center gap-2">
+                    <Link
+                      to={`/login?next=${encodeURIComponent(`/content/${id}`)}`}
+                      className="btn-gold px-8 py-3 text-sm flex items-center gap-2 justify-center"
+                    >
+                      <Lock className="w-4 h-4" />
+                      Sign In
+                    </Link>
+                    <Link to="/signup" className="btn-outline px-8 py-3 text-sm flex items-center gap-2 justify-center">
+                      <Crown className="w-4 h-4" />
+                      Request Access
+                    </Link>
+                  </div>
                 </div>
-              )}
+              ) : !isApproved && !isAdmin ? (
+                <p className="text-sm text-arc-secondary">Your account is pending approval.</p>
+              ) : isApproved && !isAgeVerified && !isAdmin ? (
+                <div className="text-center px-4">
+                  <p className="text-sm text-white mb-1">Age Verification Required</p>
+                  <p className="text-xs text-arc-secondary mb-4">
+                    Archangels Club requires age verification before restricted content can be viewed.
+                    Verification is handled securely by Stripe Identity.
+                  </p>
+                  <button
+                    onClick={handleVerifyAge}
+                    disabled={verifying}
+                    className="btn-gold px-8 py-3.5 text-base gap-2 flex items-center justify-center"
+                  >
+                    {verifying ? <Spinner /> : <Shield className="w-4 h-4" />}
+                    {verifying
+                      ? (ageVerificationStatus === 'pending' ? 'Verification pending…' : 'Starting…')
+                      : ageVerificationStatus === 'pending'
+                      ? 'Verification Pending — Check Status'
+                      : ageVerificationStatus === 'failed'
+                      ? 'Retry Age Verification'
+                      : 'Verify Age to Continue'}
+                  </button>
+                  {verifyError && (
+                    <p className="text-xs text-arc-error mt-2">{verifyError}</p>
+                  )}
+                  {ageVerificationStatus === 'failed' && (
+                    <p className="text-xs text-arc-secondary mt-2">
+                      Previous verification was unsuccessful. Please try again with a valid ID.
+                    </p>
+                  )}
+                </div>
+              ) : content.access_type === 'subscribers' && !isSubscribed ? (
+                <div className="text-center px-4">
+                  <p className="text-sm text-white mb-3">Subscribe to unlock this creator's private content.</p>
+                  <button
+                    onClick={handleSubscribe}
+                    disabled={subscribing}
+                    className="btn-gold px-8 py-3.5 text-base gap-2 flex items-center justify-center"
+                  >
+                    {subscribing ? <Spinner /> : <Crown className="w-4 h-4" />}
+                    {subscribing ? 'Loading…' : 'Subscribe Now'}
+                  </button>
+                  <p className="text-xs text-arc-secondary mt-3">
+                    Subscriber-only posts are available after joining this creator's inner circle.
+                  </p>
+                  {subscribeError && (
+                    <p className="text-xs text-arc-error mt-2">{subscribeError}</p>
+                  )}
+                </div>
+              ) : null}
             </div>
           )}
 
@@ -602,13 +722,17 @@ export default function LockedContentPage() {
               <p className="text-xs text-arc-secondary mb-3">
                 Get exclusive subscriber posts + discounts on locked drops for {formatCurrency(content.creator_subscription_price!)} / month — cancel anytime.
               </p>
-              <Link
-                to={`/creator/${content.creator_username}`}
+              <button
+                onClick={handleSubscribe}
+                disabled={subscribing}
                 className="inline-flex items-center gap-2 btn-gold text-sm px-5 py-2.5"
               >
-                <Crown className="w-4 h-4" />
-                Subscribe · {formatCurrency(content.creator_subscription_price!)} / mo
-              </Link>
+                {subscribing ? <Spinner /> : <Crown className="w-4 h-4" />}
+                {subscribing ? 'Loading…' : `Subscribe · ${formatCurrency(content.creator_subscription_price!)} / mo`}
+              </button>
+              {subscribeError && (
+                <p className="text-xs text-arc-error mt-2">{subscribeError}</p>
+              )}
             </div>
           </div>
         )}

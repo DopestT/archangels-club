@@ -79,3 +79,28 @@ export async function requireApproved(req: Request, res: Response, next: NextFun
     next(err);
   }
 }
+
+export async function requireAgeVerified(req: Request, res: Response, next: NextFunction) {
+  if (req.auth?.role === 'admin') { next(); return; }
+  try {
+    const user = await queryOne<{ status: string; age_verification_status: string }>(
+      'SELECT status, age_verification_status FROM users WHERE id = $1',
+      [req.auth!.userId]
+    );
+    if (!user || user.status !== 'approved') {
+      res.status(403).json({ error: 'Account not yet approved.', status: user?.status ?? 'unknown' });
+      return;
+    }
+    if (user.age_verification_status !== 'verified') {
+      res.status(403).json({
+        error: 'Age verification required before making purchases.',
+        age_verification_status: user.age_verification_status,
+        code: 'age_verification_required',
+      });
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
+  }
+}

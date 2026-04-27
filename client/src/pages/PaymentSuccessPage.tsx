@@ -12,6 +12,7 @@ export default function PaymentSuccessPage() {
 
   const sessionId = searchParams.get('session_id');
   const contentId = searchParams.get('contentId');
+  const returnTo  = searchParams.get('returnTo'); // relative path, e.g. /content/abc123
 
   useEffect(() => {
     // Wait until auth has hydrated from localStorage before acting.
@@ -21,25 +22,28 @@ export default function PaymentSuccessPage() {
     ran.current = true;
 
     if (!isAuthenticated) {
-      // User's session may have expired or they opened the link in a new tab.
-      // Send them to login with a redirect back to the content page.
-      const redirect = contentId ? `/content/${contentId}` : '/dashboard';
+      const redirect = returnTo ?? (contentId ? `/content/${contentId}` : '/dashboard');
       navigate(`/login?redirect=${encodeURIComponent(redirect)}`, { replace: true });
       return;
     }
 
     if (!sessionId) {
-      // No session to verify — fall back to dashboard.
       navigate('/dashboard', { replace: true });
       return;
     }
 
-    // Verify session with the backend, then navigate.
     fetch(`${API_BASE}/api/checkout/session/${sessionId}`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())
       .then(data => {
+        // Subscription flow: returnTo carries the content/creator path
+        if (returnTo) {
+          const sep = returnTo.includes('?') ? '&' : '?';
+          navigate(`${returnTo}${sep}payment=success`, { replace: true });
+          return;
+        }
+        // Unlock flow: content_id in URL or session metadata
         const resolvedContentId = contentId ?? data.content_id ?? null;
         if (resolvedContentId) {
           navigate(`/content/${resolvedContentId}?unlocked=true`, { replace: true });
@@ -48,11 +52,15 @@ export default function PaymentSuccessPage() {
         }
       })
       .catch(() => {
-        // If verification fails, still send to the content page if we have the id.
+        if (returnTo) {
+          const sep = returnTo.includes('?') ? '&' : '?';
+          navigate(`${returnTo}${sep}payment=success`, { replace: true });
+          return;
+        }
         const fallback = contentId ? `/content/${contentId}` : '/dashboard';
         navigate(fallback, { replace: true });
       });
-  }, [isAuthLoading, isAuthenticated, sessionId, contentId, token, navigate]);
+  }, [isAuthLoading, isAuthenticated, sessionId, contentId, returnTo, token, navigate]);
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4">
