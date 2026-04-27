@@ -107,7 +107,7 @@ router.get('/my/stats', requireAuth, requireCreator, async (req, res) => {
     );
     if (!profile) { res.status(404).json({ error: 'Creator profile not found.' }); return; }
 
-    const [subs, unlocks, tips] = await Promise.all([
+    const [subs, unlocks, tips, posts] = await Promise.all([
       queryOne<{ n: string }>(
         `SELECT COUNT(*) as n FROM subscriptions WHERE creator_id = $1 AND status = 'active'`,
         [profile.id]
@@ -122,6 +122,10 @@ router.get('/my/stats', requireAuth, requireCreator, async (req, res) => {
          FROM transactions WHERE payee_id = $1 AND ref_type = 'tip' AND status = 'completed'`,
         [req.auth!.userId]
       ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM content WHERE creator_id = $1`,
+        [profile.id]
+      ),
     ]);
 
     res.json({
@@ -129,6 +133,7 @@ router.get('/my/stats', requireAuth, requireCreator, async (req, res) => {
       subscriber_count: parseInt(subs?.n ?? '0', 10),
       content_unlocks: parseInt(unlocks?.n ?? '0', 10),
       tips_total: parseFloat(tips?.total ?? '0'),
+      content_count: parseInt(posts?.n ?? '0', 10),
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch stats.' });

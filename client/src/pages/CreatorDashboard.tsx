@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap, LayoutDashboard, Copy, Link2, Trash2, Plus, Eye, Share2, BarChart2 } from 'lucide-react';
+import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap, LayoutDashboard, Copy, Link2, Trash2, Plus, Eye, Share2, BarChart2, PlayCircle, Lock, ArrowRight } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
@@ -11,7 +11,7 @@ import ActionButton from '../components/ui/ActionButton';
 
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
-interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number }
+interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number; content_count: number }
 interface Transaction { id: string; ref_type: string; amount: number; net_amount: number; payer_name: string; content_title: string | null; created_at: string }
 interface CustomRequest { id: string; description: string; offered_price: number; status: string; fan_name: string; created_at: string }
 interface PromoStats { views: { total: number; last_7d: number; last_30d: number }; by_source: Record<string, number>; subscribers: number; unlocks: number; conversion_rate: number }
@@ -235,8 +235,70 @@ export default function CreatorDashboard() {
           </div>
         )}
 
+        {/* ── First-time creator screen ─────────────────────────────────── */}
+        {stats !== null && stats.content_count === 0 && (
+          <div className="mb-12">
+            {/* Hero CTA */}
+            <div
+              className="rounded-2xl p-8 sm:p-12 mb-8 text-center border border-gold/20 relative overflow-hidden"
+              style={{ background: 'linear-gradient(135deg, rgba(212,175,55,0.06) 0%, rgba(5,5,5,0.98) 60%)' }}
+            >
+              <div className="absolute inset-0 pointer-events-none" style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 0%, rgba(212,175,55,0.08) 0%, transparent 70%)' }} />
+              <div className="relative">
+                <span className="font-serif text-2xl text-gold leading-none block mb-6">✦</span>
+                <p className="text-xs tracking-widest uppercase text-gold font-bold mb-4">Your Studio Is Ready</p>
+                <h2 className="font-serif text-3xl sm:text-4xl text-white mb-4 leading-tight">
+                  Create your first locked post.
+                </h2>
+                <p className="text-arc-secondary text-sm leading-relaxed max-w-sm mx-auto mb-8">
+                  Upload content, set a price, and publish your first exclusive drop. Everything starts here.
+                </p>
+                <Link to="/upload" className="btn-gold inline-flex items-center gap-2 px-8 py-3 text-sm font-semibold">
+                  <Upload className="w-4 h-4" />
+                  Upload First Post
+                </Link>
+              </div>
+            </div>
+
+            {/* Steps */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+              {[
+                { step: '01', icon: <Upload className="w-5 h-5" />, label: 'Upload', desc: 'Photo, video, or audio. Set a preview and the full locked version.' },
+                { step: '02', icon: <Lock className="w-5 h-5" />, label: 'Set Access', desc: 'Locked (one-time price), subscribers only, or limited drop.' },
+                { step: '03', icon: <ArrowRight className="w-5 h-5" />, label: 'Publish', desc: 'Go live instantly. Members see it in the feed the moment you publish.' },
+              ].map(({ step, icon, label, desc }) => (
+                <div key={step} className="card-surface p-5 rounded-xl flex gap-4">
+                  <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center text-gold flex-shrink-0">
+                    {icon}
+                  </div>
+                  <div>
+                    <p className="text-[10px] tracking-widest text-arc-muted uppercase mb-0.5">{step}</p>
+                    <p className="text-sm font-medium text-white mb-1">{label}</p>
+                    <p className="text-xs text-arc-muted leading-relaxed">{desc}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Creator training card */}
+            <Link
+              to="/creator/onboarding"
+              className="flex items-center gap-5 p-5 rounded-xl border border-white/8 hover:border-gold/30 bg-bg-surface transition-all group"
+            >
+              <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center text-gold flex-shrink-0 group-hover:bg-gold/15 transition-colors">
+                <PlayCircle className="w-6 h-6" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-white mb-0.5">Watch the creator guide</p>
+                <p className="text-xs text-arc-muted">5-minute walkthrough — what to post, how to price, and how to promote.</p>
+              </div>
+              <ChevronRight className="w-4 h-4 text-arc-muted group-hover:text-gold transition-colors flex-shrink-0" />
+            </Link>
+          </div>
+        )}
+
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
           <StatCard
             label="Total Earnings"
             value={stats ? formatCurrency(stats.total_earnings) : '—'}
@@ -263,7 +325,7 @@ export default function CreatorDashboard() {
           />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
           {/* Left — transactions + requests */}
           <div className="lg:col-span-2 space-y-8">
 
@@ -340,7 +402,13 @@ export default function CreatorDashboard() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-arc-muted text-center py-6">No transactions yet.</p>
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="w-10 h-10 rounded-xl bg-gold/8 border border-gold/15 flex items-center justify-center mb-3">
+                    <DollarSign className="w-5 h-5 text-gold/50" />
+                  </div>
+                  <p className="text-sm text-arc-secondary mb-1">No earnings yet</p>
+                  <p className="text-xs text-arc-muted">Transactions appear here once members unlock or subscribe.</p>
+                </div>
               )}
             </div>
 
@@ -399,7 +467,13 @@ export default function CreatorDashboard() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-arc-muted text-center py-6">No custom requests yet.</p>
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="w-10 h-10 rounded-xl bg-white/4 border border-white/8 flex items-center justify-center mb-3">
+                    <MessageCircle className="w-5 h-5 text-arc-muted" />
+                  </div>
+                  <p className="text-sm text-arc-secondary mb-1">No requests yet</p>
+                  <p className="text-xs text-arc-muted">Custom requests from members will appear here.</p>
+                </div>
               )}
             </div>
           </div>
@@ -487,6 +561,7 @@ export default function CreatorDashboard() {
 
         {/* ── Promote Your Profile ───────────────────────────────────────── */}
         {(() => {
+          if (stats !== null && stats.content_count === 0) return null;
           const profileUrl = `${window.location.origin}/creator/${user?.username}`;
           const subscribeUrl = `${profileUrl}?src=invite`;
           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(profileUrl)}&size=150x150&color=D4AF37&bgcolor=09090B&margin=12`;
