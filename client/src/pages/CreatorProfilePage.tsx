@@ -7,8 +7,8 @@ import Avatar from '../components/ui/Avatar';
 import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../lib/utils';
 import type { CreatorProfile, Content } from '../types';
+import { API_BASE } from '../lib/api';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 type Tab = 'posts' | 'drops' | 'about' | 'reviews';
 

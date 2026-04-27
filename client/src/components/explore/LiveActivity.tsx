@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Lock, Users, Zap } from 'lucide-react';
 import type { Content } from '../../types';
+import { API_BASE } from '../../lib/api';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 interface RealEvent {
   ref_type: 'content' | 'subscription' | 'tip';

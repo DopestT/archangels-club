@@ -3,8 +3,8 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Crown, Clock, Check, AlertCircle, Image, Video, Music, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../lib/utils';
+import { API_BASE } from '../lib/api';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 const CONTENT_CATEGORIES = [
   { id: 'image', icon: <Image className="w-4 h-4" />, label: 'Images' },

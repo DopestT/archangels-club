@@ -6,8 +6,8 @@ import ImageEditor from '../components/editor/ImageEditor';
 import VideoProcessor from '../components/editor/VideoProcessor';
 import PricingPanel from '../components/pricing/PricingPanel';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../lib/api';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 const CONTENT_TYPES: { id: ContentType; icon: React.ReactNode; label: string }[] = [
   { id: 'image', icon: <Image className="w-5 h-5" />, label: 'Image' },

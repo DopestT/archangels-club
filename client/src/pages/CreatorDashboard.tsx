@@ -4,8 +4,8 @@ import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRig
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
+import { API_BASE } from '../lib/api';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
 interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number }

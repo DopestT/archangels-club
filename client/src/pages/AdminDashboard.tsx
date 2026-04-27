@@ -29,13 +29,13 @@ interface Report {
   creator_username: string | null;
 }
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 import StatCard from '../components/ui/StatCard';
 import Logo from '../components/brand/Logo';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import type { KeyType } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../lib/api';
 
 type Tab = 'overview' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'keys';
 

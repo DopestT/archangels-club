@@ -4,8 +4,8 @@ import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Sparkles, Key } f
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency } from '../lib/utils';
+import { API_BASE } from '../lib/api';
 
-const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? (import.meta.env.PROD ? 'https://archangels-club-production.up.railway.app' : '');
 
 interface VaultSummary {
   available: number;
