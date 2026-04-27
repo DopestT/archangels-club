@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-do
 import { Crown, Lock, Shield, Eye, EyeOff, Clock, Mail, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../lib/api';
+import { getViewMode, setViewMode } from '../lib/viewMode';
 
 type Mode = 'login' | 'signup';
 
@@ -69,8 +70,28 @@ export default function AuthPage({ mode }: { mode: Mode }) {
     setErrors([]);
     setLoading(true);
     try {
-      await login(email, password);
-      navigate(from, { replace: true });
+      const user = await login(email, password);
+
+      // If login was triggered by a redirect (e.g. payment flow), honour it
+      if (from !== '/explore' && from !== '/dashboard' && from !== '/creator') {
+        navigate(from, { replace: true });
+        return;
+      }
+
+      // Route by role
+      const role = user.role;
+      if (role === 'admin') {
+        navigate('/admin', { replace: true });
+      } else if (role === 'creator') {
+        setViewMode('creator');
+        navigate('/creator', { replace: true });
+      } else if (role === 'both') {
+        const mode = getViewMode();
+        navigate(mode === 'creator' ? '/creator' : '/dashboard', { replace: true });
+      } else {
+        setViewMode('member');
+        navigate('/dashboard', { replace: true });
+      }
     } catch (err: unknown) {
       setErrors([(err as Error).message ?? 'Login failed. Please try again.']);
     } finally {
@@ -223,7 +244,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
           </h1>
           <p className="text-arc-secondary text-sm mb-8">
             {mode === 'login'
-              ? 'Sign in to your approved member account.'
+              ? 'Sign in to your approved member or creator account.'
               : 'Complete this form to submit your access request for review.'}
           </p>
 
@@ -269,6 +290,11 @@ export default function AuthPage({ mode }: { mode: Mode }) {
                   ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
                   : 'Sign In'}
               </button>
+
+              <p className="text-xs text-arc-muted text-center mt-3 leading-relaxed">
+                Creator access is handled through approved accounts.{' '}
+                Sign in normally and we'll route you to your Creator workspace.
+              </p>
             </form>
           )}
 
