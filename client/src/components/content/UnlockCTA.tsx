@@ -1,18 +1,27 @@
 import React from 'react';
 import { Lock, Crown, Zap } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
+import ActionButton from '../ui/ActionButton';
 
 interface UnlockCTAProps {
   price: number;
   subscriptionPrice?: number;
   accessType: 'locked' | 'subscribers';
   subscriberDiscount?: number;
-  onUnlock: () => void;
-  onSubscribe?: () => void;
-  loading?: boolean;
+  unlockApiCall: () => Promise<Response>;
+  subscribeApiCall?: () => Promise<Response>;
+  disabled?: boolean;
 }
 
-export default function UnlockCTA({ price, subscriptionPrice, accessType, subscriberDiscount = 0, onUnlock, onSubscribe, loading }: UnlockCTAProps) {
+export default function UnlockCTA({
+  price,
+  subscriptionPrice,
+  accessType,
+  subscriberDiscount = 0,
+  unlockApiCall,
+  subscribeApiCall,
+  disabled,
+}: UnlockCTAProps) {
   const discountedPrice = subscriberDiscount > 0 ? price * (1 - subscriberDiscount / 100) : price;
 
   if (accessType === 'subscribers') {
@@ -23,11 +32,13 @@ export default function UnlockCTA({ price, subscriptionPrice, accessType, subscr
           <p className="text-sm font-medium text-white">Subscribers Only</p>
         </div>
         <p className="text-xs text-arc-secondary">This content is exclusive to active subscribers.</p>
-        {onSubscribe && subscriptionPrice && (
-          <button onClick={onSubscribe} className="btn-gold w-full">
-            <Crown className="w-4 h-4" />
-            Subscribe for {formatCurrency(subscriptionPrice)}/mo
-          </button>
+        {subscribeApiCall && subscriptionPrice && (
+          <ActionButton
+            apiCall={subscribeApiCall}
+            label={<><Crown className="w-4 h-4" />Subscribe for {formatCurrency(subscriptionPrice)}/mo</>}
+            successLabel="Access granted"
+            className="btn-gold w-full"
+          />
         )}
       </div>
     );
@@ -43,22 +54,25 @@ export default function UnlockCTA({ price, subscriptionPrice, accessType, subscr
         <p className="font-serif text-2xl text-gold">{formatCurrency(price)}</p>
       </div>
 
-      <button onClick={onUnlock} disabled={loading} className="btn-gold w-full arc-pressable">
-        {loading
-          ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-          : <Zap className="w-4 h-4" />}
-        Unlock for {formatCurrency(price)}
-      </button>
+      <ActionButton
+        apiCall={unlockApiCall}
+        label={<><Zap className="w-4 h-4" />Unlock for {formatCurrency(price)}</>}
+        successLabel="Unlocked"
+        className="btn-gold w-full"
+        disabled={disabled}
+      />
 
-      {subscriberDiscount > 0 && onSubscribe && subscriptionPrice && (
+      {subscriberDiscount > 0 && subscribeApiCall && subscriptionPrice && (
         <div className="pt-3 border-t border-white/8">
           <p className="text-xs text-arc-muted mb-2">
             Subscribers pay only <span className="text-gold font-medium">{formatCurrency(discountedPrice)}</span> — save {subscriberDiscount}%
           </p>
-          <button onClick={onSubscribe} className="btn-outline w-full text-sm py-2.5 arc-pressable">
-            <Crown className="w-3.5 h-3.5" />
-            Subscribe for {formatCurrency(subscriptionPrice)}/mo
-          </button>
+          <ActionButton
+            apiCall={subscribeApiCall}
+            label={<><Crown className="w-3.5 h-3.5" />Subscribe for {formatCurrency(subscriptionPrice)}/mo</>}
+            successLabel="Access granted"
+            className="btn-outline w-full text-sm py-2.5"
+          />
         </div>
       )}
     </div>

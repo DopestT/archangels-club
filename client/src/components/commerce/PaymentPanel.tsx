@@ -1,31 +1,26 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { CreditCard, Zap, Crown, Lock } from 'lucide-react';
 import { formatCurrency } from '../../lib/utils';
+import ActionButton from '../ui/ActionButton';
 
 interface PaymentPanelProps {
   price: number;
   subscriptionPrice?: number;
   accessType: 'locked' | 'subscribers';
   subscriberDiscountPct?: number;
-  onUnlock: () => Promise<void>;
-  onSubscribe?: () => Promise<void>;
+  unlockApiCall: () => Promise<Response>;
+  subscribeApiCall?: () => Promise<Response>;
 }
 
-export default function PaymentPanel({ price, subscriptionPrice, accessType, subscriberDiscountPct = 0, onUnlock, onSubscribe }: PaymentPanelProps) {
-  const [loading, setLoading] = useState<'unlock' | 'subscribe' | null>(null);
+export default function PaymentPanel({
+  price,
+  subscriptionPrice,
+  accessType,
+  subscriberDiscountPct = 0,
+  unlockApiCall,
+  subscribeApiCall,
+}: PaymentPanelProps) {
   const discountedPrice = subscriberDiscountPct > 0 ? price * (1 - subscriberDiscountPct / 100) : price;
-  const platformFee = price * 0.2;
-  const netToCreator = price * 0.8;
-
-  async function handleUnlock() {
-    setLoading('unlock');
-    try { await onUnlock(); } finally { setLoading(null); }
-  }
-  async function handleSubscribe() {
-    if (!onSubscribe) return;
-    setLoading('subscribe');
-    try { await onSubscribe(); } finally { setLoading(null); }
-  }
 
   return (
     <div className="card-surface rounded-2xl overflow-hidden">
@@ -43,7 +38,6 @@ export default function PaymentPanel({ price, subscriptionPrice, accessType, sub
         )}
       </div>
 
-      {/* Placeholder payment method */}
       <div className="px-5 py-3 border-b border-white/8 flex items-center gap-3">
         <CreditCard className="w-4 h-4 text-arc-muted" />
         <span className="text-sm text-arc-secondary">•••• •••• •••• 4242</span>
@@ -52,21 +46,21 @@ export default function PaymentPanel({ price, subscriptionPrice, accessType, sub
 
       <div className="p-5 space-y-3">
         {accessType === 'locked' && (
-          <button onClick={handleUnlock} disabled={loading !== null} className="btn-gold w-full py-3.5">
-            {loading === 'unlock'
-              ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-              : <Zap className="w-4 h-4" />}
-            Unlock for {formatCurrency(price)}
-          </button>
+          <ActionButton
+            apiCall={unlockApiCall}
+            label={<><Zap className="w-4 h-4" />Unlock for {formatCurrency(price)}</>}
+            successLabel="Unlocked"
+            className="btn-gold w-full py-3.5"
+          />
         )}
 
-        {subscriptionPrice && onSubscribe && (
-          <button onClick={handleSubscribe} disabled={loading !== null} className="btn-outline w-full py-3">
-            {loading === 'subscribe'
-              ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-              : <Crown className="w-4 h-4" />}
-            Subscribe — {formatCurrency(subscriptionPrice)}/mo
-          </button>
+        {subscriptionPrice && subscribeApiCall && (
+          <ActionButton
+            apiCall={subscribeApiCall}
+            label={<><Crown className="w-4 h-4" />Subscribe — {formatCurrency(subscriptionPrice)}/mo</>}
+            successLabel="Access granted"
+            className="btn-outline w-full py-3"
+          />
         )}
 
         <div className="flex items-center gap-1.5 text-xs text-arc-muted justify-center">

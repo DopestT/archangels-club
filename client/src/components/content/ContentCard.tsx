@@ -7,8 +7,7 @@ import { Badge } from '../ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSaved } from '../../context/SavedContext';
-import ConfirmBadge from '../ui/ConfirmBadge';
-import { useActionPress } from '../../lib/useActionPress';
+import ActionButton from '../ui/ActionButton';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-3.5 h-3.5" />,
@@ -33,7 +32,6 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { isAuthenticated } = useAuth();
   const { isSaved, save, unsave } = useSaved();
-  const { confirm, showConfirm } = useActionPress();
 
   const saved = isSaved(content.id);
 
@@ -261,16 +259,14 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
             <div className="flex items-center gap-2">
               <span className="text-xs text-arc-muted">{timeAgo(content.created_at)}</span>
               {isAuthenticated && (
-                <>
-                  <ConfirmBadge key={confirm?.key} label={confirm?.label ?? null} />
-                  <button
-                    onClick={(e) => { toggleSave(e); showConfirm(saved ? 'Unsaved' : 'Saved'); }}
-                    title={saved ? 'Unsave' : 'Save'}
+                <div onClick={(e) => e.stopPropagation()}>
+                  <ActionButton
+                    apiCall={() => saved ? unsave(content.id) : save(content.id)}
+                    label={<Bookmark className={`w-3.5 h-3.5 ${saved ? 'fill-current' : ''}`} />}
+                    successLabel={saved ? 'Unsaved' : 'Saved'}
                     className={`arc-pressable p-1 rounded transition-colors ${saved ? 'text-gold' : 'text-arc-muted hover:text-arc-secondary'}`}
-                  >
-                    <Bookmark className={`w-3.5 h-3.5 ${saved ? 'fill-current' : ''}`} />
-                  </button>
-                </>
+                  />
+                </div>
               )}
             </div>
           </div>

@@ -1,5 +1,19 @@
 export const API_BASE = 'https://archangels-club-production.up.railway.app';
 
+export interface NextAction {
+  label: string;
+  href?: string;
+  action?: string;
+}
+
+export interface ApiResponse<T = unknown> {
+  ok: boolean;
+  message: string;
+  code?: string;
+  data?: T;
+  nextAction?: NextAction;
+}
+
 function getToken(): string | null {
   try {
     const raw = localStorage.getItem('arc_auth');

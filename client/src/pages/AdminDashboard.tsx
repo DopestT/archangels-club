@@ -5,6 +5,7 @@ import {
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
   Image, Video, Music, FileText, MessageSquare, UserCheck, Send, Bug,
 } from 'lucide-react';
+import ActionButton from '../components/ui/ActionButton';
 
 interface AccessRequest {
   id: string;
@@ -549,12 +550,13 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                     </div>
 
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <button
-                        onClick={() => handleAccessAction(req.id, 'approved')}
+                      <ActionButton
+                        apiCall={() => adminFetch(`/api/admin/users/${req.id}/approve`, { method: 'POST' })}
+                        label={<><CheckCircle className="w-3.5 h-3.5" /> Approve</>}
+                        successLabel="Approved"
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" /> Approve
-                      </button>
+                        onSuccess={() => setAccessRequests(prev => prev.filter(r => r.id !== req.id))}
+                      />
                       <button
                         onClick={() => handleAccessAction(req.id, 'rejected')}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"

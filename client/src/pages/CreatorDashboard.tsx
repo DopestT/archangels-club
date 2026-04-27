@@ -7,6 +7,7 @@ import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
 import { setViewMode } from '../lib/viewMode';
 import ActivityTicker from '../components/explore/ActivityTicker';
+import ActionButton from '../components/ui/ActionButton';
 
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
@@ -29,7 +30,6 @@ export default function CreatorDashboard() {
   const [requests, setRequests] = useState<CustomRequest[]>([]);
   const [promoStats, setPromoStats] = useState<PromoStats | null>(null);
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [newInviteLabel, setNewInviteLabel] = useState('');
   const [creatingInvite, setCreatingInvite] = useState(false);
 
@@ -102,11 +102,8 @@ export default function CreatorDashboard() {
     } catch {}
   }
 
-  function copyToClipboard(text: string, key: string) {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 2000);
-    });
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).catch(() => {});
   }
 
   async function createInviteLink() {
@@ -543,13 +540,12 @@ export default function CreatorDashboard() {
                         <div className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-bg-hover border border-white/8 text-xs text-arc-secondary truncate">
                           {url}
                         </div>
-                        <button
-                          onClick={() => copyToClipboard(url, key)}
-                          className="arc-pressable flex-shrink-0 p-2 rounded-lg bg-bg-hover border border-white/8 text-arc-secondary hover:text-gold hover:border-gold/30 transition-all"
-                          title="Copy link"
-                        >
-                          {copiedKey === key ? <CheckCircle className="w-4 h-4 text-arc-success" /> : <Copy className="w-4 h-4" />}
-                        </button>
+                        <ActionButton
+                          onClick={() => copyToClipboard(url)}
+                          label={<Copy className="w-4 h-4" />}
+                          successLabel="Copied"
+                          className="flex-shrink-0 p-2 rounded-lg bg-bg-hover border border-white/8 text-arc-secondary hover:text-gold hover:border-gold/30 transition-all text-xs"
+                        />
                       </div>
                     </div>
                   ))}
@@ -626,13 +622,12 @@ export default function CreatorDashboard() {
                           <p className="text-[10px] font-bold tracking-wider uppercase text-arc-muted mb-1">{label}</p>
                           <p className="text-xs text-arc-secondary leading-relaxed whitespace-pre-line">{text}</p>
                         </div>
-                        <button
-                          onClick={() => copyToClipboard(text, key)}
-                          className="arc-pressable flex-shrink-0 p-2 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
-                          title="Copy caption"
-                        >
-                          {copiedKey === key ? <CheckCircle className="w-4 h-4 text-arc-success" /> : <Copy className="w-4 h-4" />}
-                        </button>
+                        <ActionButton
+                          onClick={() => copyToClipboard(text)}
+                          label={<Copy className="w-4 h-4" />}
+                          successLabel="Copied"
+                          className="flex-shrink-0 p-2 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all text-xs"
+                        />
                       </div>
                     </div>
                   ))}
@@ -682,13 +677,12 @@ export default function CreatorDashboard() {
                               <Eye className="w-3 h-3" />
                               {link.click_count}
                             </div>
-                            <button
-                              onClick={() => copyToClipboard(inviteUrl, `inv-${link.id}`)}
-                              className="arc-pressable p-1.5 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
-                              title="Copy invite link"
-                            >
-                              {copiedKey === `inv-${link.id}` ? <CheckCircle className="w-3.5 h-3.5 text-arc-success" /> : <Copy className="w-3.5 h-3.5" />}
-                            </button>
+                            <ActionButton
+                              onClick={() => copyToClipboard(inviteUrl)}
+                              label={<Copy className="w-3.5 h-3.5" />}
+                              successLabel="Copied"
+                              className="p-1.5 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all text-xs"
+                            />
                             <button
                               onClick={() => deleteInviteLink(link.id)}
                               className="p-1.5 rounded-lg text-arc-muted hover:text-arc-error hover:bg-arc-error/8 transition-all"

@@ -4,18 +4,21 @@ import { useAuth } from './AuthContext';
 
 interface SavedContextValue {
   savedIds: Set<string>;
-  save: (contentId: string) => Promise<void>;
-  unsave: (contentId: string) => Promise<void>;
+  save: (contentId: string) => Promise<Response>;
+  unsave: (contentId: string) => Promise<Response>;
   isSaved: (contentId: string) => boolean;
 }
 
 const SavedContext = createContext<SavedContextValue | null>(null);
 
+function synth(ok: boolean, message: string): Response {
+  return new Response(JSON.stringify({ ok, message }), { status: ok ? 200 : 400 });
+}
+
 export function SavedProvider({ children }: { children: React.ReactNode }) {
   const { token, isAuthenticated } = useAuth();
   const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
-  // Load all saved content IDs once after login
   useEffect(() => {
     if (!isAuthenticated || !token) {
       setSavedIds(new Set());
@@ -33,29 +36,41 @@ export function SavedProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {});
   }, [isAuthenticated, token]);
 
-  const save = useCallback(async (contentId: string) => {
-    if (!token) return;
+  const save = useCallback(async (contentId: string): Promise<Response> => {
+    if (!token) return synth(false, 'Sign in to save');
     setSavedIds(prev => new Set([...prev, contentId]));
     try {
-      await fetch(`${API_BASE}/api/content/${contentId}/save`, {
+      const res = await fetch(`${API_BASE}/api/content/${contentId}/save`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        setSavedIds(prev => { const n = new Set(prev); n.delete(contentId); return n; });
+        return synth(false, 'Failed to save');
+      }
+      return synth(true, 'Saved');
     } catch {
-      setSavedIds(prev => { const next = new Set(prev); next.delete(contentId); return next; });
+      setSavedIds(prev => { const n = new Set(prev); n.delete(contentId); return n; });
+      return synth(false, 'Failed to save');
     }
   }, [token]);
 
-  const unsave = useCallback(async (contentId: string) => {
-    if (!token) return;
-    setSavedIds(prev => { const next = new Set(prev); next.delete(contentId); return next; });
+  const unsave = useCallback(async (contentId: string): Promise<Response> => {
+    if (!token) return synth(false, 'Sign in to save');
+    setSavedIds(prev => { const n = new Set(prev); n.delete(contentId); return n; });
     try {
-      await fetch(`${API_BASE}/api/content/${contentId}/save`, {
+      const res = await fetch(`${API_BASE}/api/content/${contentId}/save`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
+      if (!res.ok) {
+        setSavedIds(prev => new Set([...prev, contentId]));
+        return synth(false, 'Failed');
+      }
+      return synth(true, 'Unsaved');
     } catch {
       setSavedIds(prev => new Set([...prev, contentId]));
+      return synth(false, 'Failed');
     }
   }, [token]);
 
