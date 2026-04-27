@@ -26,6 +26,7 @@ export default function CreatorProfilePage() {
 
   const [creator, setCreator] = useState<CreatorProfile | null>(null);
   const [content, setContent] = useState<Content[]>([]);
+  const [similarCreators, setSimilarCreators] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -44,6 +45,22 @@ export default function CreatorProfilePage() {
         } else {
           setCreator(creatorData);
           setContent(Array.isArray(contentData) ? contentData : []);
+
+          // Attribution tracking — fire and forget
+          const params = new URLSearchParams(window.location.search);
+          const src = params.get('src') ?? params.get('source');
+          const ref = params.get('ref');
+          fetch(`${API_BASE}/api/promo/track`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ creator_id: creatorData.id, source: src ?? 'direct', ref_code: ref }),
+          }).catch(() => {});
+
+          // Similar creators
+          fetch(`${API_BASE}/api/creators/${username}/similar`)
+            .then((r) => r.json())
+            .then((d) => { if (Array.isArray(d)) setSimilarCreators(d); })
+            .catch(() => {});
         }
       })
       .catch(() => {
@@ -357,7 +374,7 @@ export default function CreatorProfilePage() {
         </div>
 
         {/* Tab content */}
-        <div className="pb-20">
+        <div className="pb-6">
           {(activeTab === 'posts' || activeTab === 'drops') && (
             <div>
               {(activeTab === 'posts' ? posts : drops).length > 0 ? (
@@ -463,6 +480,32 @@ export default function CreatorProfilePage() {
             </div>
           )}
         </div>
+        {/* Similar Creators */}
+        {similarCreators.length > 0 && (
+          <div className="py-12 border-t border-white/5">
+            <p className="section-eyebrow mb-2">Discover More</p>
+            <h3 className="font-serif text-xl text-white mb-6">You Might Also Like</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {similarCreators.map((sc) => (
+                <Link
+                  key={sc.id}
+                  to={`/creator/${sc.username}`}
+                  className="card-surface rounded-xl p-4 flex flex-col items-center text-center hover:border-gold/30 transition-all group border border-white/5"
+                >
+                  <Avatar
+                    src={sc.avatar_url ?? undefined}
+                    name={sc.display_name ?? sc.username ?? ''}
+                    size="lg"
+                    ring
+                  />
+                  <p className="text-sm font-serif text-white mt-3 mb-0.5 group-hover:text-gold transition-colors line-clamp-1">{sc.display_name}</p>
+                  <p className="text-[10px] text-arc-muted mb-2">@{sc.username}</p>
+                  <p className="text-[10px] text-gold">{formatCurrency(sc.subscription_price)}/mo</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

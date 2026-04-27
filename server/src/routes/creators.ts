@@ -236,6 +236,34 @@ router.get('/:username/content', async (req, res) => {
   }
 });
 
+// GET /api/creators/:username/similar — other approved creators ordered by subscribers
+router.get('/:username/similar', async (req, res) => {
+  try {
+    const slug = req.params.username.toLowerCase();
+    const creator = await queryOne<{ id: string }>(
+      `SELECT cp.id FROM creator_profiles cp JOIN users u ON u.id = cp.user_id
+       WHERE LOWER(u.username) = $1 OR LOWER(REPLACE(u.display_name, ' ', '')) = $1`,
+      [slug]
+    );
+    if (!creator) { res.json([]); return; }
+
+    const rows = await query<any>(`
+      SELECT cp.id, cp.subscription_price, cp.starting_price, cp.tags,
+             u.display_name, u.username, u.avatar_url, u.is_verified_creator,
+             (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active') as subscriber_count
+      FROM creator_profiles cp
+      JOIN users u ON u.id = cp.user_id
+      WHERE cp.is_approved = 1 AND cp.id != $1
+      ORDER BY subscriber_count DESC
+      LIMIT 4
+    `, [creator.id]);
+
+    res.json(rows.map((r: any) => ({ ...r, tags: JSON.parse(r.tags ?? '[]') })));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch similar creators.' });
+  }
+});
+
 // PATCH /api/creators/profile — update own profile
 router.patch('/profile', requireAuth, requireCreator, async (req, res) => {
   try {

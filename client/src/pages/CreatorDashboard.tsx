@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap, LayoutDashboard } from 'lucide-react';
+import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap, LayoutDashboard, Copy, Link2, Trash2, Plus, Eye, Share2, BarChart2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
@@ -13,6 +13,8 @@ interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: s
 interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number }
 interface Transaction { id: string; ref_type: string; amount: number; net_amount: number; payer_name: string; content_title: string | null; created_at: string }
 interface CustomRequest { id: string; description: string; offered_price: number; status: string; fan_name: string; created_at: string }
+interface PromoStats { views: { total: number; last_7d: number; last_30d: number }; by_source: Record<string, number>; subscribers: number; unlocks: number; conversion_rate: number }
+interface InviteLink { id: string; invite_code: string; label: string; click_count: number; created_at: string }
 
 export default function CreatorDashboard() {
   const { user, token } = useAuth();
@@ -25,6 +27,11 @@ export default function CreatorDashboard() {
   const [stats, setStats] = useState<CreatorStats | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [requests, setRequests] = useState<CustomRequest[]>([]);
+  const [promoStats, setPromoStats] = useState<PromoStats | null>(null);
+  const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [newInviteLabel, setNewInviteLabel] = useState('');
+  const [creatingInvite, setCreatingInvite] = useState(false);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -45,6 +52,14 @@ export default function CreatorDashboard() {
     fetch(`${API_BASE}/api/creators/my/requests`, { headers: authHeaders })
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d)) setRequests(d); })
+      .catch(() => {});
+    fetch(`${API_BASE}/api/promo/my/stats`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then((d) => { if (!d.error) setPromoStats(d); })
+      .catch(() => {});
+    fetch(`${API_BASE}/api/promo/my/invites`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then((d) => { if (Array.isArray(d)) setInviteLinks(d); })
       .catch(() => {});
   }, [token]);
 
@@ -85,6 +100,38 @@ export default function CreatorDashboard() {
       if (!res.ok) return;
       setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
     } catch {}
+  }
+
+  function copyToClipboard(text: string, key: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedKey(key);
+      setTimeout(() => setCopiedKey(null), 2000);
+    });
+  }
+
+  async function createInviteLink() {
+    if (!token) return;
+    setCreatingInvite(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/promo/my/invites`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: newInviteLabel.trim() || 'Invite Link' }),
+      });
+      const data = await res.json();
+      if (!data.error) {
+        setInviteLinks((prev) => [data, ...prev]);
+        setNewInviteLabel('');
+      }
+    } finally {
+      setCreatingInvite(false);
+    }
+  }
+
+  async function deleteInviteLink(id: string) {
+    if (!token) return;
+    await fetch(`${API_BASE}/api/promo/my/invites/${id}`, { method: 'DELETE', headers: authHeaders });
+    setInviteLinks((prev) => prev.filter((l) => l.id !== id));
   }
 
   async function openStripeDashboard() {
@@ -444,6 +491,226 @@ export default function CreatorDashboard() {
             </div>
           </div>
         </div>
+
+        {/* ── Promote Your Profile ───────────────────────────────────────── */}
+        {(() => {
+          const profileUrl = `${window.location.origin}/creator/${user?.username}`;
+          const subscribeUrl = `${profileUrl}?src=invite`;
+          const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(profileUrl)}&size=150x150&color=D4AF37&bgcolor=09090B&margin=12`;
+
+          const captions = [
+            { key: 'cap-profile', label: 'Profile Drop', text: `My exclusive content is now live on Archangels Club — link in bio.\n${profileUrl}` },
+            { key: 'cap-sub', label: 'Subscriber CTA', text: `Subscribers get full access to every private drop I post — cancel anytime.\n${subscribeUrl}` },
+            { key: 'cap-drop', label: 'Drop Alert', text: `New drop just went live. Limited unlocks only — first come, first served.\n${profileUrl}` },
+            { key: 'cap-fomo', label: 'FOMO Push', text: `This is only available for a limited time. Once the spots are gone, it's gone.\n${profileUrl}` },
+            { key: 'cap-general', label: 'General', text: `Exclusive content you won't find anywhere else. Everything posted on Archangels Club.\n${profileUrl}` },
+          ];
+
+          const sourceLabels: Record<string, string> = {
+            invite: 'Invite Links',
+            social: 'Social',
+            explore: 'Explore Page',
+            recommendation: 'Recommendations',
+            drop: 'Drop Links',
+            direct: 'Direct',
+            profile: 'Profile Link',
+          };
+
+          return (
+            <div className="mt-12 space-y-6">
+              <div>
+                <p className="section-eyebrow mb-1">Growth Tools</p>
+                <h2 className="font-serif text-2xl text-white">Promote Your Profile</h2>
+              </div>
+
+              {/* Share links + stats */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                {/* Share Links + QR */}
+                <div className="card-surface p-6 rounded-xl space-y-5">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Link2 className="w-4 h-4 text-gold" />
+                    <h3 className="font-serif text-lg text-white">Share Links</h3>
+                  </div>
+
+                  {[
+                    { key: 'link-profile', label: 'Creator Profile', url: profileUrl },
+                    { key: 'link-sub', label: 'Subscribe Page', url: subscribeUrl },
+                  ].map(({ key, label, url }) => (
+                    <div key={key}>
+                      <p className="text-xs text-arc-muted mb-1.5">{label}</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-bg-hover border border-white/8 text-xs text-arc-secondary truncate">
+                          {url}
+                        </div>
+                        <button
+                          onClick={() => copyToClipboard(url, key)}
+                          className="flex-shrink-0 p-2 rounded-lg bg-bg-hover border border-white/8 text-arc-secondary hover:text-gold hover:border-gold/30 transition-all"
+                          title="Copy link"
+                        >
+                          {copiedKey === key ? <CheckCircle className="w-4 h-4 text-arc-success" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* QR Code */}
+                  <div className="flex items-center gap-5 pt-2 border-t border-white/5">
+                    <img
+                      src={qrUrl}
+                      alt="Profile QR code"
+                      className="w-[72px] h-[72px] rounded-lg border border-gold/20 flex-shrink-0"
+                    />
+                    <div>
+                      <p className="text-sm font-sans text-white mb-0.5">QR Code</p>
+                      <p className="text-xs text-arc-secondary mb-2">Links directly to your creator profile.</p>
+                      <a href={qrUrl} download="archangels-qr.png" className="text-xs text-gold hover:underline flex items-center gap-1">
+                        <Share2 className="w-3 h-3" /> Download
+                      </a>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Promo Stats */}
+                <div className="card-surface p-6 rounded-xl">
+                  <div className="flex items-center gap-2 mb-5">
+                    <BarChart2 className="w-4 h-4 text-gold" />
+                    <h3 className="font-serif text-lg text-white">Your Reach</h3>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-5">
+                    {[
+                      { label: 'Profile Views', value: promoStats?.views.total ?? '—', sub: 'all time' },
+                      { label: 'Last 7 Days', value: promoStats?.views.last_7d ?? '—', sub: 'profile views' },
+                      { label: 'Subscribers', value: promoStats?.subscribers ?? stats?.subscriber_count ?? '—', sub: 'active' },
+                      { label: 'Content Unlocks', value: promoStats?.unlocks ?? '—', sub: 'total purchases' },
+                    ].map(({ label, value, sub }) => (
+                      <div key={label} className="p-3 rounded-xl bg-bg-hover border border-white/5">
+                        <p className="text-xs text-arc-muted mb-0.5">{label}</p>
+                        <p className="font-serif text-xl text-gold">{value}</p>
+                        <p className="text-[10px] text-arc-muted">{sub}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="pt-4 border-t border-white/5">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-arc-muted">Conversion Rate</p>
+                      <p className="text-sm font-serif text-gold">{promoStats ? `${promoStats.conversion_rate}%` : '—'}</p>
+                    </div>
+                    {promoStats && Object.keys(promoStats.by_source).length > 0 && (
+                      <div className="space-y-1.5 mt-3">
+                        <p className="text-xs text-arc-muted mb-2">Traffic by Source</p>
+                        {Object.entries(promoStats.by_source)
+                          .sort(([, a], [, b]) => b - a)
+                          .map(([src, n]) => (
+                            <div key={src} className="flex items-center justify-between text-xs">
+                              <span className="text-arc-secondary">{sourceLabels[src] ?? src}</span>
+                              <span className="text-white font-mono">{n}</span>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Social Captions */}
+              <div className="card-surface p-6 rounded-xl">
+                <h3 className="font-serif text-lg text-white mb-4">Ready-to-Copy Captions</h3>
+                <div className="space-y-3">
+                  {captions.map(({ key, label, text }) => (
+                    <div key={key} className="p-4 rounded-xl bg-bg-hover border border-white/5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[10px] font-bold tracking-wider uppercase text-arc-muted mb-1">{label}</p>
+                          <p className="text-xs text-arc-secondary leading-relaxed whitespace-pre-line">{text}</p>
+                        </div>
+                        <button
+                          onClick={() => copyToClipboard(text, key)}
+                          className="flex-shrink-0 p-2 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
+                          title="Copy caption"
+                        >
+                          {copiedKey === key ? <CheckCircle className="w-4 h-4 text-arc-success" /> : <Copy className="w-4 h-4" />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Invite Links */}
+              <div className="card-surface p-6 rounded-xl">
+                <div className="flex items-center justify-between mb-5">
+                  <div>
+                    <h3 className="font-serif text-lg text-white">Private Invite Links</h3>
+                    <p className="text-xs text-arc-muted mt-0.5">Track which links drive the most traffic. Max 10 links.</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={newInviteLabel}
+                      onChange={(e) => setNewInviteLabel(e.target.value)}
+                      placeholder="Label (e.g. Instagram)"
+                      className="input-dark text-xs py-1.5 px-3 w-36"
+                      maxLength={60}
+                      onKeyDown={(e) => { if (e.key === 'Enter') createInviteLink(); }}
+                    />
+                    <button
+                      onClick={createInviteLink}
+                      disabled={creatingInvite || inviteLinks.length >= 10}
+                      className="btn-gold text-xs px-3 py-1.5 flex items-center gap-1.5 disabled:opacity-40"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      {creatingInvite ? 'Creating…' : 'New Link'}
+                    </button>
+                  </div>
+                </div>
+
+                {inviteLinks.length > 0 ? (
+                  <div className="space-y-2">
+                    {inviteLinks.map((link) => {
+                      const inviteUrl = `${profileUrl}?ref=${link.invite_code}&src=invite`;
+                      return (
+                        <div key={link.id} className="flex items-center gap-3 p-3 rounded-xl bg-bg-hover border border-white/5">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-white mb-0.5">{link.label}</p>
+                            <p className="text-[10px] text-arc-muted truncate">{inviteUrl}</p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <div className="flex items-center gap-1 text-xs text-arc-muted">
+                              <Eye className="w-3 h-3" />
+                              {link.click_count}
+                            </div>
+                            <button
+                              onClick={() => copyToClipboard(inviteUrl, `inv-${link.id}`)}
+                              className="p-1.5 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
+                              title="Copy invite link"
+                            >
+                              {copiedKey === `inv-${link.id}` ? <CheckCircle className="w-3.5 h-3.5 text-arc-success" /> : <Copy className="w-3.5 h-3.5" />}
+                            </button>
+                            <button
+                              onClick={() => deleteInviteLink(link.id)}
+                              className="p-1.5 rounded-lg text-arc-muted hover:text-arc-error hover:bg-arc-error/8 transition-all"
+                              title="Delete link"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-arc-muted text-center py-6">
+                    No invite links yet. Create one to track traffic from a specific source.
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+
       </div>
     </div>
   );

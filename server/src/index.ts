@@ -6,7 +6,7 @@ import creatorRoutes from './routes/creators.js';
 import contentRoutes from './routes/content.js';
 import messageRoutes from './routes/messages.js';
 import adminRoutes from './routes/admin.js';
-import keyRoutes from './routes/keys.js';
+
 import videoRoutes from './routes/video.js';
 import notificationRoutes from './routes/notifications.js';
 import accessRequestRoutes from './routes/accessRequests.js';
@@ -17,6 +17,8 @@ import activityRoutes from './routes/activity.js';
 import bugReportRoutes from './routes/bugReport.js';
 import checkoutRoutes from './routes/checkout.js';
 import memberRoutes from './routes/members.js';
+import verificationRoutes from './routes/verification.js';
+import promoRoutes from './routes/promo.js';
 
 const app = express();
 const PORT = Number(process.env.PORT);
@@ -46,7 +48,7 @@ app.use('/api/creators', creatorRoutes);
 app.use('/api/content', contentRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/keys', keyRoutes);
+
 app.use('/api/video', videoRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/access-request', accessRequestRoutes);
@@ -56,6 +58,8 @@ app.use('/api/activity', activityRoutes);
 app.use('/api/admin/bug-report', bugReportRoutes);
 app.use('/api/checkout', checkoutRoutes);
 app.use('/api/members', memberRoutes);
+app.use('/api/verification', verificationRoutes);
+app.use('/api/promo', promoRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API' });

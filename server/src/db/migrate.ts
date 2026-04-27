@@ -118,59 +118,6 @@ const DDL = `
     UNIQUE(user_id, content_id)
   );
 
-  CREATE TABLE IF NOT EXISTS access_keys (
-    id TEXT PRIMARY KEY,
-    key_type TEXT NOT NULL CHECK(key_type IN ('standard','gold','black')),
-    status TEXT NOT NULL DEFAULT 'unused' CHECK(status IN ('unused','used','expired','transferred')),
-    inviter_id TEXT NOT NULL REFERENCES users(id),
-    assigned_to_user_id TEXT REFERENCES users(id),
-    invite_code TEXT UNIQUE NOT NULL,
-    expires_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
-  CREATE TABLE IF NOT EXISTS key_drops (
-    id TEXT PRIMARY KEY,
-    drop_name TEXT NOT NULL,
-    drop_description TEXT NOT NULL DEFAULT '',
-    key_type TEXT NOT NULL CHECK(key_type IN ('standard','gold','black')),
-    quantity INTEGER NOT NULL,
-    claimed INTEGER NOT NULL DEFAULT 0,
-    eligible_tiers TEXT NOT NULL DEFAULT '["connector","inner_circle","gatekeeper"]',
-    start_time TIMESTAMPTZ NOT NULL,
-    end_time TIMESTAMPTZ NOT NULL,
-    is_active SMALLINT NOT NULL DEFAULT 1,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
-  CREATE TABLE IF NOT EXISTS key_drop_claims (
-    id TEXT PRIMARY KEY,
-    drop_id TEXT NOT NULL REFERENCES key_drops(id),
-    user_id TEXT NOT NULL REFERENCES users(id),
-    key_id TEXT NOT NULL REFERENCES access_keys(id),
-    claimed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(drop_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS referrals (
-    id TEXT PRIMARY KEY,
-    key_id TEXT NOT NULL REFERENCES access_keys(id),
-    inviter_id TEXT NOT NULL REFERENCES users(id),
-    invitee_id TEXT REFERENCES users(id),
-    invite_code TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
-    earnings NUMERIC(12,2) NOT NULL DEFAULT 0,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
-  CREATE TABLE IF NOT EXISTS key_listings (
-    id TEXT PRIMARY KEY,
-    key_id TEXT NOT NULL REFERENCES access_keys(id),
-    lister_id TEXT NOT NULL REFERENCES users(id),
-    status TEXT NOT NULL DEFAULT 'available' CHECK(status IN ('available','claimed','cancelled')),
-    listed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-  );
-
   CREATE TABLE IF NOT EXISTS notifications (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -247,8 +194,6 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
   CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
   CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id, status, created_at);
-  CREATE INDEX IF NOT EXISTS idx_access_keys_inviter ON access_keys(inviter_id);
-  CREATE INDEX IF NOT EXISTS idx_referrals_inviter ON referrals(inviter_id);
   CREATE INDEX IF NOT EXISTS idx_bundles_creator ON bundles(creator_id);
 
   ALTER TABLE content_unlocks ADD COLUMN IF NOT EXISTS transaction_id TEXT REFERENCES transactions(id);
@@ -292,6 +237,65 @@ const DDL = `
   );
 
   CREATE INDEX IF NOT EXISTS idx_saved_content_user ON saved_content(user_id, saved_at DESC);
+
+  ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS requested_role TEXT NOT NULL DEFAULT 'fan';
+
+  -- Age verification on users
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS age_verification_status TEXT NOT NULL DEFAULT 'not_started';
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS age_verified_at TIMESTAMPTZ;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_provider TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_session_id TEXT;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires_at TIMESTAMPTZ;
+
+  DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'users_age_verification_status_check'
+    ) THEN
+      ALTER TABLE users ADD CONSTRAINT users_age_verification_status_check
+        CHECK(age_verification_status IN ('not_started','pending','verified','failed','expired'));
+    END IF;
+  END $$;
+
+  -- Creator KYC
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS creator_kyc_status TEXT NOT NULL DEFAULT 'not_started';
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS creator_kyc_session_id TEXT;
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS creator_kyc_verified_at TIMESTAMPTZ;
+
+  DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint
+      WHERE conname = 'creator_profiles_creator_kyc_status_check'
+    ) THEN
+      ALTER TABLE creator_profiles ADD CONSTRAINT creator_profiles_creator_kyc_status_check
+        CHECK(creator_kyc_status IN ('not_started','pending','approved','rejected'));
+    END IF;
+  END $$;
+
+  CREATE INDEX IF NOT EXISTS idx_users_age_verification ON users(age_verification_status);
+  CREATE INDEX IF NOT EXISTS idx_creator_kyc ON creator_profiles(creator_kyc_status);
+
+  CREATE TABLE IF NOT EXISTS creator_page_views (
+    id TEXT PRIMARY KEY,
+    creator_id TEXT NOT NULL REFERENCES creator_profiles(id),
+    source TEXT NOT NULL DEFAULT 'direct',
+    ref_code TEXT,
+    viewer_id TEXT REFERENCES users(id),
+    viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS creator_invite_links (
+    id TEXT PRIMARY KEY,
+    creator_id TEXT NOT NULL REFERENCES creator_profiles(id),
+    invite_code TEXT UNIQUE NOT NULL,
+    label TEXT NOT NULL DEFAULT 'Invite Link',
+    click_count INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_page_views_creator ON creator_page_views(creator_id, viewed_at);
+  CREATE INDEX IF NOT EXISTS idx_invite_links_creator ON creator_invite_links(creator_id);
+  CREATE INDEX IF NOT EXISTS idx_invite_links_code ON creator_invite_links(invite_code);
 `;
 
 export async function runMigrations(): Promise<void> {

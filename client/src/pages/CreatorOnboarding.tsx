@@ -4,6 +4,7 @@ import {
   ArrowRight, ArrowLeft, Check, X, Zap, TrendingUp, Diamond,
   Camera, Video, Package, Lock, Eye, Upload, Sparkles,
   Crown, ChevronRight, User, DollarSign, Play, Clock, Image,
+  Mic, FileText, Layers,
 } from 'lucide-react';
 
 // ─── Step: Welcome ────────────────────────────────────────────────────────────
@@ -36,6 +37,79 @@ function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => voi
           className="w-full py-2.5 text-sm text-arc-muted hover:text-white transition-colors"
         >
           Skip — take me to Creator Studio
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ─── Step: Content Category ───────────────────────────────────────────────────
+
+function StepContentCategory({ onNext }: { onNext: () => void }) {
+  const [selected, setSelected] = useState<string | null>(null);
+
+  const categories = [
+    { id: 'photos', label: 'Photos', sub: 'Photo sets and galleries', icon: <Camera className="w-6 h-6" />, color: 'text-gold', ring: 'border-gold/30 bg-gold/8' },
+    { id: 'video', label: 'Video', sub: 'Short clips and scenes', icon: <Video className="w-6 h-6" />, color: 'text-violet-400', ring: 'border-violet-400/30 bg-violet-400/8' },
+    { id: 'audio', label: 'Audio', sub: 'Spoken word and sound', icon: <Mic className="w-6 h-6" />, color: 'text-blue-400', ring: 'border-blue-400/30 bg-blue-400/8' },
+    { id: 'editorial', label: 'Editorial', sub: 'Written pieces and stories', icon: <FileText className="w-6 h-6" />, color: 'text-rose-400', ring: 'border-rose-400/30 bg-rose-400/8' },
+    { id: 'mixed', label: 'Mixed', sub: 'A bit of everything', icon: <Layers className="w-6 h-6" />, color: 'text-arc-secondary', ring: 'border-white/15 bg-white/4' },
+  ];
+
+  return (
+    <div
+      className="min-h-screen flex flex-col items-center justify-center px-6"
+      style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.1) 0%, transparent 60%)' }}
+    >
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <p className="section-eyebrow mb-3">Creator Setup</p>
+          <h2 className="font-serif text-3xl sm:text-4xl text-white mb-3">What will you create?</h2>
+          <p className="text-arc-secondary text-sm">We'll tailor your training to what you're making.</p>
+        </div>
+
+        <div className="space-y-2.5 mb-8">
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelected(cat.id)}
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left transition-all duration-200 ${
+                selected === cat.id
+                  ? `${cat.ring} ${cat.color.replace('text-', 'border-').replace('text-arc-secondary', 'border-white/15')}`
+                  : 'border-white/8 hover:border-white/18 hover:bg-bg-surface/50'
+              }`}
+            >
+              <div className={`w-12 h-12 rounded-xl border flex items-center justify-center flex-shrink-0 transition-all ${
+                selected === cat.id ? `${cat.ring} ${cat.color}` : 'border-white/8 text-arc-muted bg-white/3'
+              }`}>
+                {cat.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`font-serif text-lg transition-colors ${selected === cat.id ? 'text-white' : 'text-arc-secondary'}`}>{cat.label}</p>
+                <p className="text-xs text-arc-muted">{cat.sub}</p>
+              </div>
+              {selected === cat.id && (
+                <div className="w-5 h-5 rounded-full bg-gold flex items-center justify-center flex-shrink-0">
+                  <Check className="w-3 h-3 text-bg-primary" />
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={onNext}
+          disabled={!selected}
+          className="btn-gold w-full py-3.5 text-base disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Continue
+          <ArrowRight className="w-5 h-5" />
+        </button>
+        <button
+          onClick={onNext}
+          className="w-full py-2.5 text-sm text-arc-muted hover:text-white transition-colors mt-2"
+        >
+          Skip this step
         </button>
       </div>
     </div>
@@ -574,6 +648,7 @@ function StepComplete({ onNavigate }: { onNavigate: (to: string) => void }) {
 
 const STEPS = [
   'welcome',
+  'content-category',
   'what-works',
   'content-types',
   'pricing',
@@ -619,9 +694,10 @@ export default function CreatorOnboarding() {
 
       {/* Step content */}
       <div className="flex-1 overflow-y-auto">
-        {current === 'welcome'       && <StepWelcome onNext={next} onSkip={() => navigate('/creator')} />}
-        {current === 'what-works'    && <StepWhatWorks />}
-        {current === 'content-types' && <StepContentTypes />}
+        {current === 'welcome'           && <StepWelcome onNext={next} onSkip={() => navigate('/creator')} />}
+        {current === 'content-category'  && <StepContentCategory onNext={next} />}
+        {current === 'what-works'        && <StepWhatWorks />}
+        {current === 'content-types'     && <StepContentTypes />}
         {current === 'pricing'       && <StepPricing />}
         {current === 'walkthrough'   && <StepWalkthrough />}
         {current === 'first-action'  && <StepFirstAction onNavigate={navigate} />}
