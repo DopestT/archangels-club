@@ -545,7 +545,7 @@ export default function CreatorDashboard() {
                         </div>
                         <button
                           onClick={() => copyToClipboard(url, key)}
-                          className="flex-shrink-0 p-2 rounded-lg bg-bg-hover border border-white/8 text-arc-secondary hover:text-gold hover:border-gold/30 transition-all"
+                          className="arc-pressable flex-shrink-0 p-2 rounded-lg bg-bg-hover border border-white/8 text-arc-secondary hover:text-gold hover:border-gold/30 transition-all"
                           title="Copy link"
                         >
                           {copiedKey === key ? <CheckCircle className="w-4 h-4 text-arc-success" /> : <Copy className="w-4 h-4" />}
@@ -628,7 +628,7 @@ export default function CreatorDashboard() {
                         </div>
                         <button
                           onClick={() => copyToClipboard(text, key)}
-                          className="flex-shrink-0 p-2 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
+                          className="arc-pressable flex-shrink-0 p-2 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
                           title="Copy caption"
                         >
                           {copiedKey === key ? <CheckCircle className="w-4 h-4 text-arc-success" /> : <Copy className="w-4 h-4" />}
@@ -684,7 +684,7 @@ export default function CreatorDashboard() {
                             </div>
                             <button
                               onClick={() => copyToClipboard(inviteUrl, `inv-${link.id}`)}
-                              className="p-1.5 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
+                              className="arc-pressable p-1.5 rounded-lg text-arc-muted hover:text-gold hover:bg-gold/8 transition-all"
                               title="Copy invite link"
                             >
                               {copiedKey === `inv-${link.id}` ? <CheckCircle className="w-3.5 h-3.5 text-arc-success" /> : <Copy className="w-3.5 h-3.5" />}

@@ -6,6 +6,8 @@ import Avatar from '../ui/Avatar';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSaved } from '../../context/SavedContext';
+import { useActionPress } from '../../lib/useActionPress';
+import ConfirmBadge from '../ui/ConfirmBadge';
 
 interface FeedCardProps {
   content: Content;
@@ -22,6 +24,7 @@ export default function FeedCard({ content }: FeedCardProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { isAuthenticated } = useAuth();
   const { isSaved, save, unsave } = useSaved();
+  const { confirm, showConfirm } = useActionPress();
 
   const saved = isSaved(content.id);
 
@@ -207,13 +210,16 @@ export default function FeedCard({ content }: FeedCardProps) {
             </div>
             {/* Save button */}
             {isAuthenticated && (
-              <button
-                onClick={toggleSave}
-                title={saved ? 'Unsave' : 'Save'}
-                className={`w-6 h-6 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-sm transition-colors ${saved ? 'text-gold' : 'text-white/60 hover:text-white'}`}
-              >
-                <Bookmark className={`w-3 h-3 ${saved ? 'fill-current' : ''}`} />
-              </button>
+              <div className="flex items-center gap-1.5">
+                <ConfirmBadge key={confirm?.key} label={confirm?.label ?? null} />
+                <button
+                  onClick={(e) => { toggleSave(e); showConfirm(saved ? 'Unsaved' : 'Saved'); }}
+                  title={saved ? 'Unsave' : 'Save'}
+                  className={`arc-pressable w-6 h-6 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-sm transition-colors ${saved ? 'text-gold' : 'text-white/60 hover:text-white'}`}
+                >
+                  <Bookmark className={`w-3 h-3 ${saved ? 'fill-current' : ''}`} />
+                </button>
+              </div>
             )}
           </div>
         </div>

@@ -43,7 +43,7 @@ export default function UnlockCTA({ price, subscriptionPrice, accessType, subscr
         <p className="font-serif text-2xl text-gold">{formatCurrency(price)}</p>
       </div>
 
-      <button onClick={onUnlock} disabled={loading} className="btn-gold w-full">
+      <button onClick={onUnlock} disabled={loading} className="btn-gold w-full arc-pressable">
         {loading
           ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
           : <Zap className="w-4 h-4" />}
@@ -55,7 +55,7 @@ export default function UnlockCTA({ price, subscriptionPrice, accessType, subscr
           <p className="text-xs text-arc-muted mb-2">
             Subscribers pay only <span className="text-gold font-medium">{formatCurrency(discountedPrice)}</span> — save {subscriberDiscount}%
           </p>
-          <button onClick={onSubscribe} className="btn-outline w-full text-sm py-2.5">
+          <button onClick={onSubscribe} className="btn-outline w-full text-sm py-2.5 arc-pressable">
             <Crown className="w-3.5 h-3.5" />
             Subscribe for {formatCurrency(subscriptionPrice)}/mo
           </button>

@@ -48,6 +48,12 @@
     transform: translateY(-1px);
   }
 
+  .btn-gold:active {
+    transform: scale(0.96);
+    box-shadow: 0 0 12px rgba(212, 175, 55, 0.2);
+    transition: transform 80ms cubic-bezier(.2,.8,.2,1), box-shadow 80ms cubic-bezier(.2,.8,.2,1);
+  }
+
   .btn-outline {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-sans font-medium text-sm tracking-wide text-gold border border-gold-border rounded transition-all duration-200;
     background: rgba(212, 175, 55, 0.04);
@@ -57,6 +63,11 @@
     @apply border-gold;
     background: rgba(212, 175, 55, 0.1);
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.15);
+  }
+
+  .btn-outline:active {
+    transform: scale(0.96);
+    transition: transform 80ms cubic-bezier(.2,.8,.2,1);
   }
 
   .btn-ghost {
@@ -143,5 +154,32 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  /* ── Pressable: icon/custom buttons that don't use btn-gold / btn-outline ── */
+  .arc-pressable {
+    transition: transform 80ms cubic-bezier(.2,.8,.2,1);
+  }
+  .arc-pressable:active {
+    transform: scale(0.92);
+  }
+}
+
+/* ── Action confirmation badge animation ─────────────────────────────────── */
+@keyframes arcConfirmIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Reduce motion: strip all action animations ──────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .btn-gold:active,
+  .btn-outline:active,
+  .arc-pressable:active {
+    transform: none;
+    transition: none;
+  }
+  @keyframes arcConfirmIn {
+    from {} to {}
   }
 }
