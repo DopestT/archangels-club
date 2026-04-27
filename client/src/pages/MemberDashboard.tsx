@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Sparkles, Key } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
@@ -7,6 +7,7 @@ import ContentCard from '../components/content/ContentCard';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
+import { getViewMode, setViewMode } from '../lib/viewMode';
 import type { Content } from '../types';
 
 
@@ -35,11 +36,21 @@ interface Subscription {
 
 export default function MemberDashboard() {
   const { user, isCreator, token } = useAuth();
+  const navigate = useNavigate();
   const [vault, setVault] = useState<VaultSummary | null>(null);
   const [stats, setStats] = useState<MemberStats | null>(null);
   const [unlocked, setUnlocked] = useState<Content[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Restore last mode: creators who had creator mode active get auto-redirected
+  useEffect(() => {
+    if (isCreator && getViewMode() === 'creator') {
+      navigate('/creator', { replace: true });
+      return;
+    }
+    setViewMode('member');
+  }, [isCreator, navigate]);
 
   useEffect(() => {
     if (!token) return;
@@ -78,7 +89,11 @@ export default function MemberDashboard() {
             </p>
           </div>
           {isCreator && (
-            <Link to="/creator" className="btn-outline text-sm flex-shrink-0">
+            <Link
+              to="/creator"
+              onClick={() => setViewMode('creator')}
+              className="btn-outline text-sm flex-shrink-0"
+            >
               <Crown className="w-4 h-4" />
               Creator Studio
             </Link>

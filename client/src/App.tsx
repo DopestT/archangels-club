@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { SavedProvider } from './context/SavedContext';
 import { ToastProvider } from './components/ui/Toast';
 import AppShell from './components/layout/AppShell';
 import LandingPage from './pages/LandingPage';
@@ -224,9 +225,11 @@ export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <ToastProvider>
-          <AppRoutes />
-        </ToastProvider>
+        <SavedProvider>
+          <ToastProvider>
+            <AppRoutes />
+          </ToastProvider>
+        </SavedProvider>
       </AuthProvider>
     </BrowserRouter>
   );

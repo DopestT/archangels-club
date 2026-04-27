@@ -6,7 +6,7 @@ import Avatar from '../ui/Avatar';
 import { Badge } from '../ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
-import { API_BASE } from '../../lib/api';
+import { useSaved } from '../../context/SavedContext';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-3.5 h-3.5" />,
@@ -27,28 +27,21 @@ interface ContentCardProps {
 
 export default function ContentCard({ content, showCreator = true }: ContentCardProps) {
   const [hovered, setHovered] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [savePending, setSavePending] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const { isAuthenticated, token } = useAuth();
+  const { isAuthenticated } = useAuth();
+  const { isSaved, save, unsave } = useSaved();
+
+  const saved = isSaved(content.id);
 
   async function toggleSave(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (!isAuthenticated || savePending) return;
-    setSavePending(true);
-    const method = saved ? 'DELETE' : 'POST';
-    try {
-      const res = await fetch(`${API_BASE}/api/content/${content.id}/save`, {
-        method,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) setSaved(!saved);
-    } catch {
-      // silent
-    } finally {
-      setSavePending(false);
+    if (!isAuthenticated) return;
+    if (saved) {
+      await unsave(content.id);
+    } else {
+      await save(content.id);
     }
   }
 
@@ -267,7 +260,6 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
               {isAuthenticated && (
                 <button
                   onClick={toggleSave}
-                  disabled={savePending}
                   title={saved ? 'Unsave' : 'Save'}
                   className={`p-1 rounded transition-colors ${saved ? 'text-gold' : 'text-arc-muted hover:text-arc-secondary'}`}
                 >

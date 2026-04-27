@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
+import { setViewMode } from '../lib/viewMode';
 
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
@@ -15,6 +16,9 @@ interface CustomRequest { id: string; description: string; offered_price: number
 export default function CreatorDashboard() {
   const { user, token } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+
+  // Persist mode on mount
+  useEffect(() => { setViewMode('creator'); }, []);
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
   const [stats, setStats] = useState<CreatorStats | null>(null);
@@ -104,7 +108,11 @@ export default function CreatorDashboard() {
             <p className="text-arc-secondary text-sm mt-1">@{user?.username}</p>
           </div>
           <div className="flex items-center gap-2">
-            <Link to="/dashboard" className="btn-outline text-sm">
+            <Link
+              to="/dashboard"
+              onClick={() => setViewMode('member')}
+              className="btn-outline text-sm"
+            >
               <LayoutDashboard className="w-4 h-4" />
               Member View
             </Link>

@@ -1,9 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Lock, Zap, Image, Video, Music, FileText, Play, Flame, Sparkles, Eye } from 'lucide-react';
+import { Lock, Zap, Image, Video, Music, FileText, Play, Flame, Sparkles, Eye, Bookmark } from 'lucide-react';
 import type { Content } from '../../types';
 import Avatar from '../ui/Avatar';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../../lib/utils';
+import { useAuth } from '../../context/AuthContext';
+import { useSaved } from '../../context/SavedContext';
 
 interface FeedCardProps {
   content: Content;
@@ -18,6 +20,18 @@ export default function FeedCard({ content }: FeedCardProps) {
   const [hovered, setHovered] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { isAuthenticated } = useAuth();
+  const { isSaved, save, unsave } = useSaved();
+
+  const saved = isSaved(content.id);
+
+  async function toggleSave(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isAuthenticated) return;
+    if (saved) await unsave(content.id);
+    else await save(content.id);
+  }
 
   const isLocked = content.access_type !== 'free';
   const unlockCount = Number(content.unlock_count ?? 0);
@@ -183,12 +197,24 @@ export default function FeedCard({ content }: FeedCardProps) {
             )}
           </div>
 
-          {/* Content type badge */}
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-arc-muted text-[10px]">
-            {content.content_type === 'video' && <><Video className="w-2.5 h-2.5" /><span>Video</span></>}
-            {content.content_type === 'audio' && <><Music className="w-2.5 h-2.5" /><span>Audio</span></>}
-            {content.content_type === 'text'  && <><FileText className="w-2.5 h-2.5" /><span>Text</span></>}
-            {content.content_type === 'image' && <><Image className="w-2.5 h-2.5" /><span>Photo</span></>}
+          <div className="flex items-center gap-1.5">
+            {/* Content type badge */}
+            <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-arc-muted text-[10px]">
+              {content.content_type === 'video' && <><Video className="w-2.5 h-2.5" /><span>Video</span></>}
+              {content.content_type === 'audio' && <><Music className="w-2.5 h-2.5" /><span>Audio</span></>}
+              {content.content_type === 'text'  && <><FileText className="w-2.5 h-2.5" /><span>Text</span></>}
+              {content.content_type === 'image' && <><Image className="w-2.5 h-2.5" /><span>Photo</span></>}
+            </div>
+            {/* Save button */}
+            {isAuthenticated && (
+              <button
+                onClick={toggleSave}
+                title={saved ? 'Unsave' : 'Save'}
+                className={`w-6 h-6 rounded-full flex items-center justify-center bg-black/60 backdrop-blur-sm transition-colors ${saved ? 'text-gold' : 'text-white/60 hover:text-white'}`}
+              >
+                <Bookmark className={`w-3 h-3 ${saved ? 'fill-current' : ''}`} />
+              </button>
+            )}
           </div>
         </div>
 
