@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Sparkles, Key } from 'lucide-react';
+import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import ContentCard from '../components/content/ContentCard';
@@ -11,11 +11,6 @@ import { getViewMode, setViewMode } from '../lib/viewMode';
 import ActivityTicker from '../components/explore/ActivityTicker';
 import type { Content } from '../types';
 
-
-interface VaultSummary {
-  available: number;
-  by_type: { standard: number; gold: number; black: number };
-}
 
 interface MemberStats {
   unlocked_count: number;
@@ -38,7 +33,6 @@ interface Subscription {
 export default function MemberDashboard() {
   const { user, isCreator, token } = useAuth();
   const navigate = useNavigate();
-  const [vault, setVault] = useState<VaultSummary | null>(null);
   const [stats, setStats] = useState<MemberStats | null>(null);
   const [unlocked, setUnlocked] = useState<Content[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
@@ -59,13 +53,11 @@ export default function MemberDashboard() {
     const headers = { Authorization: `Bearer ${token}` };
 
     Promise.all([
-      fetch(`${API_BASE}/api/keys/vault`, { headers }).then(r => r.json()),
       fetch(`${API_BASE}/api/members/my/stats`, { headers }).then(r => r.json()),
       fetch(`${API_BASE}/api/members/my/unlocked?limit=4`, { headers }).then(r => r.json()),
       fetch(`${API_BASE}/api/members/my/subscriptions`, { headers }).then(r => r.json()),
     ])
-      .then(([vaultData, statsData, unlockedData, subsData]) => {
-        if (vaultData.summary) setVault(vaultData.summary);
+      .then(([statsData, unlockedData, subsData]) => {
         if (!statsData.error) setStats(statsData);
         if (Array.isArray(unlockedData)) setUnlocked(unlockedData);
         if (Array.isArray(subsData)) setSubscriptions(subsData);
@@ -226,35 +218,6 @@ export default function MemberDashboard() {
             <div className="card-surface p-5 rounded-xl">
               <h3 className="font-serif text-base text-white mb-4">Recent Transactions</h3>
               <p className="text-xs text-arc-muted text-center py-4">No transactions yet.</p>
-            </div>
-
-            {/* Access Key vault */}
-            <div className="rounded-xl border border-gold-border/60 bg-bg-surface p-5">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <Key className="w-4 h-4 text-gold" />
-                  <h3 className="font-serif text-base text-white">Access Vault</h3>
-                </div>
-                <Link to="/keys" className="text-xs text-gold hover:underline flex items-center gap-1">
-                  Manage <ChevronRight className="w-3 h-3" />
-                </Link>
-              </div>
-              <div className="grid grid-cols-3 gap-2 mb-4 text-center">
-                {[
-                  { label: 'Available', value: vault?.available ?? '—', color: 'text-gold' },
-                  { label: 'Black', value: vault?.by_type.black ?? '—', color: 'text-yellow-400' },
-                  { label: 'Gold', value: vault?.by_type.gold ?? '—', color: 'text-amber-400' },
-                ].map(({ label, value, color }) => (
-                  <div key={label} className="bg-bg-hover rounded-lg py-2">
-                    <p className={`font-serif text-lg ${color}`}>{value}</p>
-                    <p className="text-[10px] text-arc-muted">{label}</p>
-                  </div>
-                ))}
-              </div>
-              <Link to="/keys" className="flex items-center justify-center gap-2 text-xs text-arc-secondary hover:text-gold border border-white/10 hover:border-gold/30 rounded-lg py-2 transition-all">
-                <Sparkles className="w-3.5 h-3.5" />
-                Extend Access · Grant Entry
-              </Link>
             </div>
 
             {/* Creator CTA — only for non-creators */}

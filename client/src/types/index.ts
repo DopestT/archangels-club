@@ -1,5 +1,6 @@
 export type UserRole = 'fan' | 'creator' | 'both' | 'admin';
 export type UserStatus = 'pending' | 'approved' | 'rejected' | 'suspended' | 'banned';
+export type AgeVerificationStatus = 'not_started' | 'pending' | 'verified' | 'failed' | 'expired';
 export type CreatorApplicationStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
 export type ContentType = 'image' | 'video' | 'audio' | 'text';
 export type AccessType = 'free' | 'locked' | 'subscribers';
@@ -20,6 +21,9 @@ export interface User {
   is_verified_creator: boolean;
   created_at: string;
   reason_for_joining?: string;
+  age_verification_status?: AgeVerificationStatus;
+  age_verified_at?: string;
+  verification_provider?: string;
 }
 
 export interface CreatorProfile {
@@ -159,68 +163,4 @@ export interface Conversation {
   last_message: string;
   last_message_at: string;
   unread_count: number;
-}
-
-// ─── Access Key System ────────────────────────────────────────────────────────
-
-export type KeyType = 'standard' | 'gold' | 'black';
-export type KeyStatus = 'unused' | 'used' | 'expired' | 'transferred';
-export type UserTierStatus = 'connector' | 'inner_circle' | 'gatekeeper';
-
-export interface AccessKey {
-  id: string;
-  key_type: KeyType;
-  status: KeyStatus;
-  inviter_id: string;
-  assigned_to_user_id?: string;
-  invite_code: string;
-  expires_at?: string;
-  created_at: string;
-  invitee_name?: string;
-  invitee_avatar?: string;
-}
-
-export interface KeyDrop {
-  id: string;
-  drop_name: string;
-  drop_description: string;
-  key_type: KeyType;
-  quantity: number;
-  claimed: number;
-  start_time: string;
-  end_time: string;
-  eligible_tiers: UserTierStatus[];
-}
-
-export interface KeyListing {
-  id: string;
-  key_type: KeyType;
-  lister_id: string;
-  lister_name: string;
-  lister_avatar?: string;
-  lister_tier: UserTierStatus;
-  listed_at: string;
-  status: 'available' | 'claimed' | 'cancelled';
-}
-
-export interface ReferralRecord {
-  id: string;
-  key_id: string;
-  invite_code: string;
-  key_type: KeyType;
-  invitee_name?: string;
-  invitee_avatar?: string;
-  status: 'pending' | 'approved' | 'rejected';
-  earnings: number;
-  invited_at: string;
-}
-
-export interface KeyVaultSummary {
-  total: number;
-  available: number;
-  used: number;
-  by_type: Record<KeyType, number>;
-  tier_status: UserTierStatus;
-  referral_earnings_total: number;
-  successful_invites: number;
 }
