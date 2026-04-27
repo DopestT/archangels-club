@@ -8,6 +8,7 @@ import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
 import { getViewMode, setViewMode } from '../lib/viewMode';
+import ActivityTicker from '../components/explore/ActivityTicker';
 import type { Content } from '../types';
 
 
@@ -98,6 +99,11 @@ export default function MemberDashboard() {
               Creator Studio
             </Link>
           )}
+        </div>
+
+        {/* Activity ticker */}
+        <div className="mb-8 -mx-4 sm:-mx-6 lg:-mx-8">
+          <ActivityTicker mode="member" />
         </div>
 
         {/* Stats */}

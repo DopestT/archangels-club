@@ -6,6 +6,7 @@ import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
 import { setViewMode } from '../lib/viewMode';
+import ActivityTicker from '../components/explore/ActivityTicker';
 
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
@@ -121,6 +122,11 @@ export default function CreatorDashboard() {
               Upload Content
             </Link>
           </div>
+        </div>
+
+        {/* Activity ticker */}
+        <div className="mb-8 -mx-4 sm:-mx-6 lg:-mx-8">
+          <ActivityTicker mode="creator" />
         </div>
 
         {/* Creator application status */}
