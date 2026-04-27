@@ -33,6 +33,8 @@ router.get('/stats', async (req, res) => {
       [totalUsers], [pendingAccessRequests], [approvedUsers],
       [totalCreators], [pendingCreators], [pendingContent],
       [openReports], [activeSubscriptions], revenueRow,
+      [pendingAgeVerifications], [verifiedUsers], [failedVerifications],
+      [pendingCreatorKyc],
     ] = await Promise.all([
       query<{ n: string }>(`SELECT COUNT(*) as n FROM users`),
       query<{ n: string }>(`SELECT COUNT(*) as n FROM access_requests WHERE status = 'pending'`),
@@ -45,6 +47,10 @@ router.get('/stats', async (req, res) => {
       queryOne<{ total_fee: string; total_volume: string }>(
         `SELECT SUM(platform_fee) as total_fee, SUM(amount) as total_volume FROM transactions WHERE status = 'completed'`
       ),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE status = 'approved' AND age_verification_status = 'pending'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE age_verification_status = 'verified'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE age_verification_status = 'failed'`),
+      query<{ n: string }>(`SELECT COUNT(*) as n FROM creator_profiles WHERE creator_kyc_status = 'pending'`),
     ]);
 
     res.json({
@@ -58,6 +64,10 @@ router.get('/stats', async (req, res) => {
       activeSubscriptions: parseInt(activeSubscriptions?.n ?? '0', 10),
       totalRevenue: parseFloat(revenueRow?.total_fee ?? '0'),
       totalVolume: parseFloat(revenueRow?.total_volume ?? '0'),
+      pendingAgeVerifications: parseInt(pendingAgeVerifications?.n ?? '0', 10),
+      verifiedUsers: parseInt(verifiedUsers?.n ?? '0', 10),
+      failedVerifications: parseInt(failedVerifications?.n ?? '0', 10),
+      pendingCreatorKyc: parseInt(pendingCreatorKyc?.n ?? '0', 10),
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch stats.' });
@@ -69,7 +79,7 @@ router.get('/stats', async (req, res) => {
 router.get('/access-requests', async (req, res) => {
   try {
     const rows = await query(
-      `SELECT id, email, name, reason, status, created_at
+      `SELECT id, email, name, reason, requested_role, status, created_at
        FROM access_requests ORDER BY created_at DESC`
     );
     console.log(`[admin] access-requests: ${rows.length} rows`);
@@ -81,34 +91,37 @@ router.get('/access-requests', async (req, res) => {
 
 router.post('/users/:id/approve', async (req, res) => {
   try {
-    const row = await queryOne<{ email: string; name: string }>(
-      `SELECT email, name FROM access_requests WHERE id = $1`,
+    const row = await queryOne<{ email: string; name: string; requested_role: string }>(
+      `SELECT email, name, requested_role FROM access_requests WHERE id = $1`,
       [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Request not found.' }); return; }
 
     const email = row.email.toLowerCase();
     const displayName = row.name || email.split('@')[0];
+    const userRole = row.requested_role && ['fan', 'creator', 'both'].includes(row.requested_role)
+      ? row.requested_role
+      : 'fan';
 
     const existing = await queryOne<{ id: string }>(
       'SELECT id FROM users WHERE email = $1', [email]
     );
 
     if (existing) {
-      await execute(`UPDATE users SET status = 'approved' WHERE id = $1`, [existing.id]);
+      await execute(`UPDATE users SET status = 'approved', role = $2 WHERE id = $1`, [existing.id, userRole]);
     } else {
       const userId = crypto.randomUUID();
       const username = await generateUniqueUsername(email.split('@')[0]);
       await execute(
         `INSERT INTO users (id, email, username, password_hash, display_name, role, status)
-         VALUES ($1, $2, $3, NULL, $4, 'fan', 'approved')`,
-        [userId, email, username, displayName]
+         VALUES ($1, $2, $3, NULL, $4, $5, 'approved')`,
+        [userId, email, username, displayName, userRole]
       );
     }
 
-    // Generate one-time set-password token (expires in 1 hour)
+    // Generate one-time set-password token (expires in 24 hours)
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     await execute(
       `INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)`,
       [crypto.randomUUID(), email, resetToken, expiresAt]
@@ -116,10 +129,16 @@ router.post('/users/:id/approve', async (req, res) => {
 
     await execute(`UPDATE access_requests SET status = 'approved' WHERE id = $1`, [req.params.id]);
 
-    // Send set-password email (not welcome email — they set password first)
-    sendSetPasswordEmail(email, displayName, resetToken).catch(console.error);
+    // Send set-password email and capture result for caller
+    const emailResult = await sendSetPasswordEmail(email, displayName, resetToken);
+    console.log(`[admin] approve — email result for ${email}:`, JSON.stringify(emailResult));
 
-    res.json({ success: true });
+    res.json({
+      success: true,
+      email_sent: emailResult.ok,
+      email_message_id: emailResult.messageId ?? null,
+      email_error: emailResult.error ?? null,
+    });
   } catch (err) {
     console.error('[admin] approve error:', err);
     res.status(500).json({ error: 'Failed to approve request.' });
@@ -543,6 +562,102 @@ router.get('/users', async (req, res) => {
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch users.' });
+  }
+});
+
+// ── Age Verification (Admin) ──────────────────────────────────────────────────
+
+// GET /api/admin/verifications — list users by age_verification_status
+router.get('/verifications', async (req, res) => {
+  try {
+    const { status } = req.query;
+    const params: unknown[] = [];
+    let whereClause = '';
+    if (status && typeof status === 'string') {
+      whereClause = 'AND u.age_verification_status = $1';
+      params.push(status);
+    }
+    const rows = await query(
+      `SELECT u.id, u.email, u.username, u.display_name, u.role, u.status,
+              u.age_verification_status, u.age_verified_at, u.verification_provider, u.created_at
+       FROM users u
+       WHERE 1=1 ${whereClause}
+       ORDER BY u.created_at DESC
+       LIMIT 200`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch verifications.' });
+  }
+});
+
+// GET /api/admin/creator-verifications — creators by KYC status
+router.get('/creator-verifications', async (req, res) => {
+  try {
+    const { status } = req.query;
+    const params: unknown[] = [];
+    let whereClause = '';
+    if (status && typeof status === 'string') {
+      whereClause = 'AND cp.creator_kyc_status = $1';
+      params.push(status);
+    }
+    const rows = await query(
+      `SELECT cp.id, cp.user_id, cp.creator_kyc_status, cp.creator_kyc_verified_at,
+              cp.application_status, cp.created_at,
+              u.email, u.username, u.display_name, u.avatar_url
+       FROM creator_profiles cp
+       JOIN users u ON u.id = cp.user_id
+       WHERE 1=1 ${whereClause}
+       ORDER BY cp.created_at DESC
+       LIMIT 200`,
+      params
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch creator verifications.' });
+  }
+});
+
+// POST /api/admin/users/:userId/verify-age — admin manual override
+router.post('/users/:userId/verify-age', async (req, res) => {
+  try {
+    const changed = await execute(
+      `UPDATE users
+         SET age_verification_status = 'verified',
+             age_verified_at          = NOW(),
+             verification_provider    = 'admin_override'
+       WHERE id = $1`,
+      [req.params.userId]
+    );
+    if (changed === 0) { res.status(404).json({ error: 'User not found.' }); return; }
+    console.log('[admin] manual age verification for user:', req.params.userId);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update age verification.' });
+  }
+});
+
+// POST /api/admin/creators/:id/update-kyc — update creator KYC status
+router.post('/creators/:id/update-kyc', async (req, res) => {
+  try {
+    const { kyc_status } = req.body;
+    const allowed = ['not_started', 'pending', 'approved', 'rejected'];
+    if (!allowed.includes(kyc_status)) {
+      res.status(400).json({ error: `kyc_status must be one of: ${allowed.join(', ')}` });
+      return;
+    }
+    const changed = await execute(
+      `UPDATE creator_profiles
+         SET creator_kyc_status    = $1,
+             creator_kyc_verified_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE creator_kyc_verified_at END
+       WHERE id = $2`,
+      [kyc_status, req.params.id]
+    );
+    if (changed === 0) { res.status(404).json({ error: 'Creator not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to update KYC status.' });
   }
 });
 

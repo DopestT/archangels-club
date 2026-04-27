@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { query, queryOne, execute } from '../db/schema.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
+import { sendSetPasswordEmail } from '../services/email.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -129,11 +130,52 @@ router.post('/set-password', async (req, res) => {
   }
 });
 
+router.post('/resend-setup', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'Email is required.' });
+      return;
+    }
+
+    const user = await queryOne<{ id: string; display_name: string; password_hash: string | null; status: string }>(
+      'SELECT id, display_name, password_hash, status FROM users WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    // Always respond success to avoid email enumeration
+    if (!user || user.password_hash !== null || user.status !== 'approved') {
+      res.json({ success: true });
+      return;
+    }
+
+    // Expire any existing unused tokens for this email
+    await execute(
+      `UPDATE password_resets SET used = true WHERE email = $1 AND used = false`,
+      [email.toLowerCase().trim()]
+    );
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await execute(
+      'INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)',
+      [crypto.randomUUID(), email.toLowerCase().trim(), resetToken, expiresAt]
+    );
+
+    sendSetPasswordEmail(email.toLowerCase().trim(), user.display_name, resetToken).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth] resend-setup error:', err);
+    res.status(500).json({ error: 'Failed to resend setup email.' });
+  }
+});
+
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const user = await queryOne(
       `SELECT id, email, username, display_name, avatar_url, role, status, is_verified_creator,
-              date_of_birth, reason_for_joining, created_at
+              date_of_birth, reason_for_joining, created_at,
+              age_verification_status, age_verified_at, verification_provider
        FROM users WHERE id = $1`,
       [req.auth!.userId]
     );

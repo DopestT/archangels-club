@@ -26,9 +26,15 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [reason, setReason] = useState('');
+  const [requestedRole, setRequestedRole] = useState<'fan' | 'creator' | 'both'>('fan');
   const [ageConfirmed, setAgeConfirmed] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [signupComplete, setSignupComplete] = useState(false);
+
+  // login — resend setup email
+  const [showResendSetup, setShowResendSetup] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendSent, setResendSent] = useState(false);
 
   // ?redirect= takes priority over router state, then fallback to /explore
   const from = searchParams.get('redirect') ?? (location.state as { from?: string })?.from ?? '/explore';
@@ -93,9 +99,30 @@ export default function AuthPage({ mode }: { mode: Mode }) {
         navigate('/dashboard', { replace: true });
       }
     } catch (err: unknown) {
-      setErrors([(err as Error).message ?? 'Login failed. Please try again.']);
+      const msg = (err as Error).message ?? 'Login failed. Please try again.';
+      setErrors([msg]);
+      if (msg.toLowerCase().includes('set your password')) {
+        setShowResendSetup(true);
+      }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResendSetup() {
+    if (!email) { setErrors(['Enter your email address above, then click Resend.']); return; }
+    setResendLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/auth/resend-setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      setResendSent(true);
+    } catch {
+      setErrors(['Unable to send email. Please try again.']);
+    } finally {
+      setResendLoading(false);
     }
   }
 
@@ -109,7 +136,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
       const res = await fetch(`${API_BASE}/api/access-request`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, name, reason }),
+        body: JSON.stringify({ email, name, reason, requested_role: requestedRole }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -152,7 +179,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
               {[
                 'Our team reviews your application within 24–48 hours.',
                 `An email will be sent to ${email} with our decision.`,
-                'If approved, you can sign in immediately.',
+                'If approved, you\'ll receive a link to set your password and activate your account.',
                 'If we need more information, we\'ll reach out.',
               ].map((step, i) => (
                 <div key={i} className="flex items-start gap-3 text-xs text-arc-secondary">
@@ -267,6 +294,30 @@ export default function AuthPage({ mode }: { mode: Mode }) {
             </div>
           )}
 
+          {mode === 'login' && showResendSetup && (
+            <div className="p-4 rounded-xl bg-amber-500/8 border border-amber-500/25 mb-5">
+              {resendSent ? (
+                <p className="text-xs text-amber-300 leading-relaxed">
+                  Setup email sent. Check your inbox (and spam folder) for the password setup link.
+                </p>
+              ) : (
+                <>
+                  <p className="text-xs text-amber-300 leading-relaxed mb-3">
+                    Your account is approved but you haven't set your password yet. Check your email for the setup link, or request a new one.
+                  </p>
+                  <button
+                    type="button"
+                    disabled={resendLoading}
+                    onClick={handleResendSetup}
+                    className="text-xs font-medium text-amber-400 hover:text-amber-300 underline underline-offset-2 transition-colors"
+                  >
+                    {resendLoading ? 'Sending…' : 'Resend setup email'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           {/* ── LOGIN FORM ──────────────────────────────────────── */}
           {mode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-4">
@@ -333,6 +384,31 @@ export default function AuthPage({ mode }: { mode: Mode }) {
                   {confirmPassword && confirmPassword !== password && (
                     <p className="text-xs text-arc-error mt-1">Passwords don't match</p>
                   )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs text-arc-secondary mb-2">I'm joining as *</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {([
+                    { value: 'fan', label: 'Member', sub: 'Discover & unlock content' },
+                    { value: 'creator', label: 'Creator', sub: 'Publish & monetize' },
+                    { value: 'both', label: 'Both', sub: 'Member + Creator access' },
+                  ] as const).map(({ value, label, sub }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRequestedRole(value)}
+                      className={`p-3 rounded-xl border text-left transition-all ${
+                        requestedRole === value
+                          ? 'border-gold/60 bg-gold/8'
+                          : 'border-white/8 bg-white/2 hover:border-white/15'
+                      }`}
+                    >
+                      <p className={`text-xs font-medium mb-0.5 ${requestedRole === value ? 'text-gold' : 'text-white'}`}>{label}</p>
+                      <p className="text-[10px] text-arc-muted leading-tight">{sub}</p>
+                    </button>
+                  ))}
                 </div>
               </div>
 

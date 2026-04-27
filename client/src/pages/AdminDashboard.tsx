@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   Users, DollarSign, Crown, Shield, Flag, TrendingUp,
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
-  Image, Video, Music, FileText, MessageSquare, UserCheck, Key, Gift, Send, Plus, Bug,
+  Image, Video, Music, FileText, MessageSquare, UserCheck, Send, Bug,
 } from 'lucide-react';
 
 interface AccessRequest {
@@ -11,6 +11,7 @@ interface AccessRequest {
   email: string;
   name: string;
   reason: string;
+  requested_role: string;
   status: string;
   created_at: string;
 }
@@ -33,11 +34,10 @@ import StatCard from '../components/ui/StatCard';
 import Logo from '../components/brand/Logo';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
-import type { KeyType } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../lib/api';
 
-type Tab = 'overview' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'keys';
+type Tab = 'overview' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'verifications';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-3.5 h-3.5" />,
@@ -69,6 +69,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [accessLoading, setAccessLoading] = useState(false);
   const [accessError, setAccessError] = useState('');
+  const [emailNotice, setEmailNotice] = useState<{ name: string; sent: boolean; error?: string } | null>(null);
 
   // Creator applications
   const [creatorApps, setCreatorApps] = useState<any[]>([]);
@@ -90,6 +91,12 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [stats, setStats] = useState<any | null>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
+
+  // Verifications
+  const [verifications, setVerifications] = useState<any[]>([]);
+  const [creatorKyc, setCreatorKyc] = useState<any[]>([]);
+  const [verificationsLoading, setVerificationsLoading] = useState(false);
+  const [verificationFilter, setVerificationFilter] = useState<string>('all');
 
   const pendingAccessCount = accessRequests.filter((r) => r.status === 'pending').length;
   const pendingContentCount = contentQueue.filter((r) => !contentActions[r.id]).length;
@@ -117,6 +124,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     if (activeTab === 'content-approvals') loadContentQueue();
     if (activeTab === 'flagged') loadFlaggedContent();
     if (activeTab === 'transactions') loadTransactions();
+    if (activeTab === 'verifications') loadVerifications();
   }, [activeTab]);
 
   async function loadStats() {
@@ -180,6 +188,43 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     }
   }
 
+  async function loadVerifications() {
+    setVerificationsLoading(true);
+    try {
+      const [verRes, kycRes] = await Promise.all([
+        adminFetch('/api/admin/verifications'),
+        adminFetch('/api/admin/creator-verifications'),
+      ]);
+      const verData = await verRes.json();
+      const kycData = await kycRes.json();
+      setVerifications(Array.isArray(verData) ? verData : []);
+      setCreatorKyc(Array.isArray(kycData) ? kycData : []);
+    } catch {} finally {
+      setVerificationsLoading(false);
+    }
+  }
+
+  async function handleAdminVerifyAge(userId: string) {
+    try {
+      await adminFetch(`/api/admin/users/${userId}/verify-age`, { method: 'POST' });
+      setVerifications(prev => prev.map(v =>
+        v.id === userId ? { ...v, age_verification_status: 'verified', age_verified_at: new Date().toISOString() } : v
+      ));
+    } catch {}
+  }
+
+  async function handleCreatorKycUpdate(creatorId: string, status: string) {
+    try {
+      await adminFetch(`/api/admin/creators/${creatorId}/update-kyc`, {
+        method: 'POST',
+        body: JSON.stringify({ kyc_status: status }),
+      });
+      setCreatorKyc(prev => prev.map(c =>
+        c.id === creatorId ? { ...c, creator_kyc_status: status } : c
+      ));
+    } catch {}
+  }
+
   async function loadFlaggedContent() {
     setFlaggedLoading(true);
     try {
@@ -212,10 +257,21 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
   async function handleAccessAction(id: string, action: 'approved' | 'rejected') {
     const endpoint = action === 'approved' ? 'approve' : 'reject';
+    const req = accessRequests.find(r => r.id === id);
     try {
       const res = await adminFetch(`/api/admin/users/${id}/${endpoint}`, { method: 'POST' });
       if (!res.ok) throw new Error();
+      const data = await res.json().catch(() => ({}));
       setAccessRequests((prev) => prev.filter((r) => r.id !== id));
+      if (action === 'approved') {
+        const notice = {
+          name: req?.name ?? 'User',
+          sent: data.email_sent === true,
+          error: data.email_error ?? undefined,
+        };
+        setEmailNotice(notice);
+        setTimeout(() => setEmailNotice(null), 8000);
+      }
     } catch {}
   }
 
@@ -268,7 +324,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     { id: 'content-approvals', label: 'Content Approvals', badge: pendingContentCount },
     { id: 'flagged', label: 'Flagged Content', badge: stats?.openReports ?? flaggedContent.length },
     { id: 'transactions', label: 'Transactions' },
-    { id: 'keys', label: 'Access Keys' },
+    { id: 'verifications', label: 'Verifications', badge: (stats?.pendingAgeVerifications ?? 0) + (stats?.failedVerifications ?? 0) + (stats?.pendingCreatorKyc ?? 0) },
   ];
 
   return (
@@ -441,6 +497,32 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
               </div>
             </div>
 
+            {emailNotice && (
+              <div className={`flex items-start gap-3 p-4 rounded-xl border text-xs mb-4 ${
+                emailNotice.sent
+                  ? 'bg-arc-success/10 border-arc-success/30 text-arc-success'
+                  : 'bg-arc-error/10 border-arc-error/30 text-arc-error'
+              }`}>
+                {emailNotice.sent
+                  ? <CheckCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  : <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />}
+                <div>
+                  <p className="font-medium">
+                    {emailNotice.sent
+                      ? `Setup email sent to ${emailNotice.name}`
+                      : `Setup email failed for ${emailNotice.name}`}
+                  </p>
+                  {!emailNotice.sent && emailNotice.error && (
+                    <p className="mt-0.5 opacity-80">{emailNotice.error}</p>
+                  )}
+                  {!emailNotice.sent && (
+                    <p className="mt-0.5 opacity-70">The user was approved but did not receive the setup link. Resend manually if needed.</p>
+                  )}
+                </div>
+                <button onClick={() => setEmailNotice(null)} className="ml-auto opacity-50 hover:opacity-100 flex-shrink-0">✕</button>
+              </div>
+            )}
+
             {accessLoading && (
               <div className="flex items-center justify-center py-16 text-arc-muted text-sm">Loading…</div>
             )}
@@ -462,7 +544,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                           <UserStatusBadge status={req.status} />
                         </div>
                         <p className="text-xs text-arc-muted mt-0.5">{req.email}</p>
-                        <p className="text-xs text-arc-muted mt-0.5">Applied {timeAgo(req.created_at)}</p>
+                        <p className="text-xs text-arc-muted mt-0.5">Applied {timeAgo(req.created_at)} · Role requested: <span className="capitalize">{req.requested_role ?? 'fan'}</span></p>
                       </div>
                     </div>
 
@@ -851,288 +933,186 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
           </div>
         )}
 
-        {/* ── ACCESS KEYS ─────────────────────────────────────────────────── */}
-        {activeTab === 'keys' && <AdminKeysTab token={token} />}
-      </div>
-    </div>
-  );
-}
-
-// ─── Admin Keys Tab ───────────────────────────────────────────────────────────
-
-const KEY_TYPE_STYLES: Record<KeyType, { badge: string; bg: string; border: string }> = {
-  black: { badge: 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30', bg: 'from-zinc-900/60 to-black', border: 'border-yellow-500/30' },
-  gold: { badge: 'text-amber-400 bg-amber-400/10 border-amber-400/30', bg: 'from-amber-950/20 to-bg-surface', border: 'border-amber-400/40' },
-  standard: { badge: 'text-arc-secondary bg-white/5 border-white/15', bg: 'from-bg-surface to-bg-surface', border: 'border-white/10' },
-};
-
-interface KeyDrop {
-  id: string;
-  drop_name: string;
-  key_type: KeyType;
-  quantity: number;
-  claimed: number;
-  start_time: string;
-  end_time: string;
-  is_active: number;
-}
-
-function AdminKeysTab({ token }: { token: string | null }) {
-  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
-
-  // Issue Keys form
-  const [issueType, setIssueType] = useState<KeyType>('standard');
-  const [issueQty, setIssueQty] = useState('5');
-  const [issueTarget, setIssueTarget] = useState('');
-  const [issueLoading, setIssueLoading] = useState(false);
-  const [issueResult, setIssueResult] = useState<{ ok: boolean; msg: string } | null>(null);
-
-  // Create Drop form
-  const [dropName, setDropName] = useState('');
-  const [dropType, setDropType] = useState<KeyType>('gold');
-  const [dropQty, setDropQty] = useState('25');
-  const [dropDuration, setDropDuration] = useState('24');
-  const [dropLoading, setDropLoading] = useState(false);
-  const [dropResult, setDropResult] = useState<{ ok: boolean; msg: string } | null>(null);
-
-  // Active drops
-  const [drops, setDrops] = useState<KeyDrop[]>([]);
-  const [dropsLoading, setDropsLoading] = useState(true);
-
-  function adminFetch(path: string, opts?: RequestInit) {
-    return fetch(`${API_BASE}${path}`, {
-      ...opts,
-      headers: { 'Content-Type': 'application/json', ...authHeaders, ...(opts?.headers ?? {}) },
-    });
-  }
-
-  useEffect(() => {
-    setDropsLoading(true);
-    adminFetch('/api/keys/drops')
-      .then((r) => r.json())
-      .then((d) => { if (Array.isArray(d)) setDrops(d); })
-      .catch(() => {})
-      .finally(() => setDropsLoading(false));
-  }, []);
-
-  async function handleIssue() {
-    if (!token) return;
-    setIssueLoading(true);
-    setIssueResult(null);
-    try {
-      const res = await adminFetch('/api/keys/admin/issue', {
-        method: 'POST',
-        body: JSON.stringify({
-          key_type: issueType,
-          quantity: parseInt(issueQty) || 1,
-          assign_to_username: issueTarget.replace('@', '').trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setIssueResult({ ok: true, msg: `${data.issued} ${issueType} key${data.issued !== 1 ? 's' : ''} issued.` });
-        setIssueTarget('');
-      } else {
-        setIssueResult({ ok: false, msg: data.error ?? 'Failed to issue keys.' });
-      }
-    } catch {
-      setIssueResult({ ok: false, msg: 'Unable to reach server.' });
-    } finally {
-      setIssueLoading(false);
-    }
-  }
-
-  async function handleCreateDrop() {
-    if (!dropName.trim() || !token) return;
-    setDropLoading(true);
-    setDropResult(null);
-    try {
-      const res = await adminFetch('/api/keys/admin/drops', {
-        method: 'POST',
-        body: JSON.stringify({
-          drop_name: dropName.trim(),
-          key_type: dropType,
-          quantity: parseInt(dropQty) || 25,
-          duration_hours: parseInt(dropDuration) || 24,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setDropResult({ ok: true, msg: `Drop "${dropName}" created.` });
-        setDropName('');
-        // Reload drops
-        adminFetch('/api/keys/drops').then((r) => r.json()).then((d) => { if (Array.isArray(d)) setDrops(d); }).catch(() => {});
-      } else {
-        setDropResult({ ok: false, msg: data.error ?? 'Failed to create drop.' });
-      }
-    } catch {
-      setDropResult({ ok: false, msg: 'Unable to reach server.' });
-    } finally {
-      setDropLoading(false);
-    }
-  }
-
-  async function handleRevokeDrop(dropId: string) {
-    try {
-      const res = await adminFetch(`/api/keys/admin/drops/${dropId}/revoke`, { method: 'PATCH' });
-      if (res.ok) setDrops((prev) => prev.filter((d) => d.id !== dropId));
-    } catch {}
-  }
-
-  const totalClaimed = drops.reduce((sum, d) => sum + Number(d.claimed), 0);
-  const totalCapacity = drops.reduce((sum, d) => sum + Number(d.quantity), 0);
-
-  return (
-    <div className="space-y-8">
-      {/* Stats from active drops */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {[
-          { label: 'Active Drops', value: drops.length, icon: <Gift className="w-4 h-4" />, color: 'text-gold' },
-          { label: 'Total Capacity', value: totalCapacity, icon: <Key className="w-4 h-4" />, color: 'text-gold' },
-          { label: 'Claimed', value: totalClaimed, icon: <CheckCircle className="w-4 h-4" />, color: 'text-arc-success' },
-          { label: 'Remaining', value: totalCapacity - totalClaimed, icon: <Key className="w-4 h-4" />, color: 'text-blue-400' },
-        ].map(({ label, value, icon, color }) => (
-          <div key={label} className="card-surface p-4 rounded-xl text-center">
-            <div className={`flex justify-center mb-1 ${color}`}>{icon}</div>
-            <p className={`font-serif text-xl ${color}`}>{value}</p>
-            <p className="text-xs text-arc-muted mt-0.5">{label}</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Issue Keys */}
-        <div className="card-surface p-6 rounded-xl">
-          <div className="flex items-center gap-2 mb-5">
-            <Key className="w-4 h-4 text-gold" />
-            <h3 className="font-serif text-lg text-white">Issue Keys</h3>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs text-arc-secondary mb-2">Key Type</label>
-              <div className="grid grid-cols-3 gap-2">
-                {(['standard', 'gold', 'black'] as KeyType[]).map((t) => {
-                  const s = KEY_TYPE_STYLES[t];
-                  return (
-                    <button key={t} onClick={() => setIssueType(t)}
-                      className={`py-2 rounded-lg border text-xs font-bold tracking-wider capitalize transition-all ${
-                        issueType === t ? `${s.badge} ${s.border}` : 'border-white/10 text-arc-muted hover:border-white/20'
-                      }`}
-                    >{t}</button>
-                  );
-                })}
-              </div>
+        {/* ── VERIFICATIONS ───────────────────────────────────────────────── */}
+        {activeTab === 'verifications' && (
+          <div className="space-y-8">
+            {/* Stats row */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              {[
+                { label: 'Pending Verification', value: stats?.pendingAgeVerifications ?? '—', color: 'text-amber-400' },
+                { label: 'Verified Users', value: stats?.verifiedUsers ?? '—', color: 'text-arc-success' },
+                { label: 'Failed Verifications', value: stats?.failedVerifications ?? '—', color: 'text-arc-error' },
+                { label: 'Pending Creator KYC', value: stats?.pendingCreatorKyc ?? '—', color: 'text-gold' },
+              ].map(({ label, value, color }) => (
+                <div key={label} className="card-surface p-4 rounded-xl text-center">
+                  <p className={`font-serif text-2xl ${color}`}>{value}</p>
+                  <p className="text-xs text-arc-muted mt-1">{label}</p>
+                </div>
+              ))}
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-arc-secondary mb-1.5">Quantity</label>
-                <input type="number" value={issueQty} onChange={(e) => setIssueQty(e.target.value)} min="1" max="500" className="input-dark" />
-              </div>
-              <div>
-                <label className="block text-xs text-arc-secondary mb-1.5">Assign to user <span className="text-arc-muted">(optional)</span></label>
-                <input type="text" value={issueTarget} onChange={(e) => setIssueTarget(e.target.value)} placeholder="@username" className="input-dark" />
-              </div>
+
+            {/* Filter */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {['all', 'not_started', 'pending', 'verified', 'failed'].map(f => (
+                <button
+                  key={f}
+                  onClick={() => setVerificationFilter(f)}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors capitalize ${
+                    verificationFilter === f
+                      ? 'border-gold text-gold bg-gold/10'
+                      : 'border-white/10 text-arc-muted hover:text-white'
+                  }`}
+                >
+                  {f === 'all' ? 'All Users' : f.replace('_', ' ')}
+                </button>
+              ))}
             </div>
-            {issueResult && (
-              <p className={`text-xs ${issueResult.ok ? 'text-arc-success' : 'text-arc-error'}`}>{issueResult.msg}</p>
+
+            {verificationsLoading && (
+              <div className="flex items-center justify-center py-12 text-arc-muted text-sm">Loading…</div>
             )}
-            <button onClick={handleIssue} disabled={issueLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all btn-gold disabled:opacity-50"
-            >
-              {issueLoading ? 'Issuing…' : <><Plus className="w-4 h-4" />Issue {issueQty} {issueType} key{parseInt(issueQty) !== 1 ? 's' : ''}</>}
-            </button>
-          </div>
-        </div>
 
-        {/* Create Drop */}
-        <div className="card-surface p-6 rounded-xl">
-          <div className="flex items-center gap-2 mb-5">
-            <Gift className="w-4 h-4 text-gold" />
-            <h3 className="font-serif text-lg text-white">Create Key Drop</h3>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-xs text-arc-secondary mb-1.5">Drop Name</label>
-              <input type="text" value={dropName} onChange={(e) => setDropName(e.target.value)} placeholder="e.g. Summer Access Event" className="input-dark" maxLength={60} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-arc-secondary mb-1.5">Key Type</label>
-                <div className="flex flex-col gap-1">
-                  {(['standard', 'gold', 'black'] as KeyType[]).map((t) => (
-                    <button key={t} onClick={() => setDropType(t)}
-                      className={`py-1.5 rounded-lg border text-xs font-medium capitalize transition-all ${
-                        dropType === t ? KEY_TYPE_STYLES[t].badge + ' ' + KEY_TYPE_STYLES[t].border : 'border-white/10 text-arc-muted hover:border-white/20'
-                      }`}
-                    >{t}</button>
-                  ))}
+            {/* User age verifications table */}
+            {!verificationsLoading && (
+              <div className="card-surface rounded-xl overflow-hidden">
+                <div className="px-5 py-3 border-b border-white/5">
+                  <h3 className="font-serif text-base text-white">User Age Verifications</h3>
+                  <p className="text-xs text-arc-muted mt-0.5">
+                    Verification handled by Stripe Identity · Only status and timestamps are stored — no ID images or sensitive data.
+                  </p>
                 </div>
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gold-border/40">
+                      {['User', 'Status', 'Provider', 'Verified At', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-arc-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {verifications
+                      .filter(v => verificationFilter === 'all' || v.age_verification_status === verificationFilter)
+                      .map((v, i, arr) => {
+                        const statusColors: Record<string, string> = {
+                          verified:    'text-arc-success bg-arc-success/10 border-arc-success/25',
+                          pending:     'text-amber-400 bg-amber-400/10 border-amber-400/25',
+                          failed:      'text-arc-error bg-arc-error/10 border-arc-error/25',
+                          not_started: 'text-arc-muted bg-white/5 border-white/10',
+                          expired:     'text-orange-400 bg-orange-400/10 border-orange-400/25',
+                        };
+                        return (
+                          <tr key={v.id} className={i < arr.length - 1 ? 'border-b border-white/5' : ''}>
+                            <td className="px-4 py-3">
+                              <p className="text-sm text-white">{v.display_name}</p>
+                              <p className="text-xs text-arc-muted">{v.email}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${statusColors[v.age_verification_status] ?? statusColors.not_started}`}>
+                                {(v.age_verification_status ?? 'not_started').replace('_', ' ')}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-xs text-arc-muted capitalize">
+                              {v.verification_provider?.replace('_', ' ') ?? '—'}
+                            </td>
+                            <td className="px-4 py-3 text-xs text-arc-muted whitespace-nowrap">
+                              {v.age_verified_at ? timeAgo(v.age_verified_at) : '—'}
+                            </td>
+                            <td className="px-4 py-3">
+                              {v.age_verification_status !== 'verified' && (
+                                <button
+                                  onClick={() => handleAdminVerifyAge(v.id)}
+                                  className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                                >
+                                  <CheckCircle className="w-3 h-3" /> Override
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    {verifications.filter(v => verificationFilter === 'all' || v.age_verification_status === verificationFilter).length === 0 && (
+                      <tr><td colSpan={5} className="px-4 py-8 text-center text-arc-muted text-sm">No users found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs text-arc-secondary mb-1.5">Quantity</label>
-                  <input type="number" value={dropQty} onChange={(e) => setDropQty(e.target.value)} min="1" max="1000" className="input-dark" />
-                </div>
-                <div>
-                  <label className="block text-xs text-arc-secondary mb-1.5">Duration (hours)</label>
-                  <input type="number" value={dropDuration} onChange={(e) => setDropDuration(e.target.value)} min="1" max="168" className="input-dark" />
-                </div>
-              </div>
-            </div>
-            {dropResult && (
-              <p className={`text-xs ${dropResult.ok ? 'text-arc-success' : 'text-arc-error'}`}>{dropResult.msg}</p>
             )}
-            <button onClick={handleCreateDrop} disabled={!dropName.trim() || dropLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-medium transition-all btn-outline disabled:opacity-50"
-            >
-              {dropLoading ? 'Creating…' : <><Gift className="w-4 h-4" />Schedule Drop</>}
-            </button>
-          </div>
-        </div>
-      </div>
 
-      {/* Active drops */}
-      <div className="card-surface rounded-xl overflow-hidden">
-        <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between">
-          <h3 className="font-serif text-base text-white">Active &amp; Upcoming Drops</h3>
-          <span className="text-xs text-arc-muted">{drops.length} drops</span>
-        </div>
-        {dropsLoading ? (
-          <div className="px-5 py-8 text-center text-arc-muted text-sm">Loading…</div>
-        ) : drops.length === 0 ? (
-          <div className="px-5 py-8 text-center text-arc-muted text-sm">No active drops.</div>
-        ) : (
-          <div className="divide-y divide-white/5">
-            {drops.map((drop) => {
-              const s = KEY_TYPE_STYLES[drop.key_type] ?? KEY_TYPE_STYLES.standard;
-              const pct = Math.round((Number(drop.claimed) / Number(drop.quantity)) * 100);
-              const isLive = new Date(drop.start_time) <= new Date() && new Date(drop.end_time) > new Date();
-              return (
-                <div key={drop.id} className="px-5 py-4 flex items-center gap-5">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${s.badge} ${s.border}`}>{drop.key_type.toUpperCase()}</span>
-                      {isLive ? <span className="text-[10px] text-arc-success font-medium">LIVE</span> : <span className="text-[10px] text-arc-muted font-medium">UPCOMING</span>}
-                    </div>
-                    <p className="text-sm text-white">{drop.drop_name}</p>
-                    <div className="flex items-center gap-3 mt-1.5">
-                      <div className="flex-1 h-1 bg-white/5 rounded-full">
-                        <div className="h-full rounded-full bg-gold transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <span className="text-xs text-arc-muted flex-shrink-0">{drop.claimed}/{drop.quantity}</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleRevokeDrop(drop.id)}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-arc-error/25 text-arc-error hover:bg-arc-error/10 transition-all flex-shrink-0"
-                  >
-                    Revoke
-                  </button>
+            {/* Creator KYC */}
+            {!verificationsLoading && (
+              <div className="card-surface rounded-xl overflow-hidden">
+                <div className="px-5 py-3 border-b border-white/5">
+                  <h3 className="font-serif text-base text-white">Creator KYC Status</h3>
+                  <p className="text-xs text-arc-muted mt-0.5">Creators must be KYC-approved before publishing paid content.</p>
                 </div>
-              );
-            })}
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gold-border/40">
+                      {['Creator', 'KYC Status', 'App Status', 'Verified At', 'Actions'].map(h => (
+                        <th key={h} className="text-left px-4 py-3 text-xs font-medium text-arc-muted uppercase tracking-wider whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {creatorKyc.map((c, i) => {
+                      const statusColors: Record<string, string> = {
+                        approved:    'text-arc-success bg-arc-success/10 border-arc-success/25',
+                        pending:     'text-amber-400 bg-amber-400/10 border-amber-400/25',
+                        rejected:    'text-arc-error bg-arc-error/10 border-arc-error/25',
+                        not_started: 'text-arc-muted bg-white/5 border-white/10',
+                      };
+                      return (
+                        <tr key={c.id} className={i < creatorKyc.length - 1 ? 'border-b border-white/5' : ''}>
+                          <td className="px-4 py-3">
+                            <p className="text-sm text-white">{c.display_name}</p>
+                            <p className="text-xs text-arc-muted">@{c.username}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${statusColors[c.creator_kyc_status] ?? statusColors.not_started}`}>
+                              {(c.creator_kyc_status ?? 'not_started').replace('_', ' ')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`text-xs px-2 py-0.5 rounded-full border capitalize ${statusColors[c.application_status] ?? statusColors.not_started}`}>
+                              {c.application_status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-arc-muted whitespace-nowrap">
+                            {c.creator_kyc_verified_at ? timeAgo(c.creator_kyc_verified_at) : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              {c.creator_kyc_status !== 'approved' && (
+                                <button
+                                  onClick={() => handleCreatorKycUpdate(c.id, 'approved')}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                                >
+                                  <CheckCircle className="w-3 h-3" /> Approve
+                                </button>
+                              )}
+                              {c.creator_kyc_status !== 'rejected' && (
+                                <button
+                                  onClick={() => handleCreatorKycUpdate(c.id, 'rejected')}
+                                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
+                                >
+                                  <XCircle className="w-3 h-3" /> Reject
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {creatorKyc.length === 0 && (
+                      <tr><td colSpan={5} className="px-4 py-8 text-center text-arc-muted text-sm">No creators found.</td></tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
+
       </div>
     </div>
   );

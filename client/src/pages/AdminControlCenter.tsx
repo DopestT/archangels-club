@@ -28,7 +28,7 @@ interface Stats {
   totalVolume: number;
 }
 
-interface AccessRequest { id: string; email: string; name: string; reason: string; status: string; created_at: string; }
+interface AccessRequest { id: string; email: string; name: string; reason: string; requested_role: string; status: string; created_at: string; }
 interface CreatorApplication { id: string; user_id: string; bio: string; pitch: string; tags: string[]; application_status: string; created_at: string; display_name: string; username: string; avatar_url: string; email: string; }
 interface ContentItem { id: string; title: string; description: string; content_type: string; access_type: string; price: number; status: string; created_at: string; creator_name: string; creator_username: string; creator_avatar: string; }
 interface Report { id: string; subject_type: string; subject_id: string; reason: string; details: string; status: string; created_at: string; reporter_username: string; reporter_name: string; }
@@ -45,7 +45,7 @@ const NAV = [
   { to: '/admin/content-approvals', label: 'Content Approvals', icon: Image },
   { to: '/admin/flagged', label: 'Reports', icon: Flag },
   { to: '/admin/transactions', label: 'Transactions', icon: DollarSign },
-  { to: '/admin/keys', label: 'Access Keys', icon: Star },
+  { to: '/admin/verifications', label: 'Verifications', icon: Shield },
   { to: '/admin/bug-control', label: 'Bug Control', icon: Bug },
   { to: '/admin', label: 'Overview', icon: Users },
 ];
@@ -211,6 +211,25 @@ export default function AdminControlCenter() {
     }
   }
 
+  async function approveUser(req: AccessRequest) {
+    try {
+      const data = await adminFetch(`/api/admin/users/${req.id}/approve`, { method: 'POST' });
+      if (data.email_sent) {
+        toast.success(`${req.name} approved`, 'Setup email sent via Resend');
+      } else {
+        toast.success(
+          `${req.name} approved`,
+          data.email_error
+            ? `Setup email failed: ${data.email_error}`
+            : 'Setup email could not be sent — check Resend configuration'
+        );
+      }
+      setAccessRequests(p => p.filter(r => r.id !== req.id));
+    } catch (e: any) {
+      toast.error('Approval failed', e.message);
+    }
+  }
+
   // ── Queue counts ──────────────────────────────────────────────────────────
 
   const QUEUE_TABS: { id: QueueTab; label: string; count: number }[] = [
@@ -301,13 +320,12 @@ export default function AdminControlCenter() {
                             <p className="text-sm font-medium text-white">{req.name}</p>
                             <StatusBadge status={req.status} />
                           </div>
-                          <p className="text-xs text-arc-muted mt-0.5">{req.email} · {timeAgo(req.created_at)}</p>
+                          <p className="text-xs text-arc-muted mt-0.5">{req.email} · {timeAgo(req.created_at)} · Role: <span className="capitalize">{req.requested_role ?? 'fan'}</span></p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 flex-wrap justify-end">
                         <ActionBtn label="Approve" variant="green" icon={<CheckCircle className="w-3.5 h-3.5" />}
-                          onClick={() => action(`/api/admin/users/${req.id}/approve`, `${req.name} approved — "You're in" email sent`,
-                            () => setAccessRequests((p) => p.filter((r) => r.id !== req.id)))} />
+                          onClick={() => approveUser(req)} />
                         <ActionBtn label="Reject" variant="red" icon={<XCircle className="w-3.5 h-3.5" />}
                           onClick={() => action(`/api/admin/users/${req.id}/reject`, `${req.name} rejected`,
                             () => setAccessRequests((p) => p.filter((r) => r.id !== req.id)))} />

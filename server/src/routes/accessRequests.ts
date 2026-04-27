@@ -11,7 +11,7 @@ router.get('/', (_req, res) => {
 
 // POST /api/access-request
 router.post('/', async (req, res) => {
-  const { email, name, reason } = req.body;
+  const { email, name, reason, requested_role } = req.body;
 
   if (!email || !name) {
     res.status(400).json({ error: 'email and name are required.' });
@@ -23,6 +23,9 @@ router.post('/', async (req, res) => {
     res.status(400).json({ error: 'Invalid email address.' });
     return;
   }
+
+  const validRoles = ['fan', 'creator', 'both'];
+  const role = validRoles.includes(requested_role) ? requested_role : 'fan';
 
   try {
     const existing = await queryOne(
@@ -36,8 +39,8 @@ router.post('/', async (req, res) => {
 
     const id = crypto.randomUUID();
     const changed = await execute(
-      `INSERT INTO access_requests (id, email, name, reason) VALUES ($1, $2, $3, $4)`,
-      [id, email.toLowerCase().trim(), name.trim(), reason?.trim() ?? '']
+      `INSERT INTO access_requests (id, email, name, reason, requested_role) VALUES ($1, $2, $3, $4, $5)`,
+      [id, email.toLowerCase().trim(), name.trim(), reason?.trim() ?? '', role]
     );
 
     if (changed === 0) {

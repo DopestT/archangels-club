@@ -1,6 +1,6 @@
 import { Resend } from 'resend';
 
-const FROM = process.env.EMAIL_FROM ?? 'Archangels Club <noreply@archangels.club>';
+const FROM = process.env.EMAIL_FROM ?? 'Archangels Club <access@archangelsclub.com>';
 const BASE_URL = process.env.CLIENT_URL ?? 'http://localhost:3000';
 
 // ─── Base HTML template ───────────────────────────────────────────────────────
@@ -61,18 +61,30 @@ function buildHtml(opts: {
 
 // ─── Send helper ──────────────────────────────────────────────────────────────
 
-async function send(to: string, subject: string, html: string): Promise<boolean> {
+export interface SendResult {
+  ok: boolean;
+  messageId?: string;
+  error?: string;
+}
+
+async function send(to: string, subject: string, html: string): Promise<SendResult> {
   if (!process.env.RESEND_API_KEY) {
-    console.log(`[email:dev] To: ${to} | Subject: ${subject}`);
-    return true;
+    console.log(`[email:dev] RESEND_API_KEY not set — skipping send. To: ${to} | Subject: ${subject}`);
+    return { ok: true, messageId: 'dev-no-key' };
   }
   const resend = new Resend(process.env.RESEND_API_KEY);
   try {
-    await resend.emails.send({ from: FROM, to, subject, html });
-    return true;
+    const { data, error } = await resend.emails.send({ from: FROM, to, subject, html });
+    if (error) {
+      console.error(`[email] Resend error — to: ${to} | subject: ${subject} | error:`, JSON.stringify(error));
+      return { ok: false, error: error.message ?? JSON.stringify(error) };
+    }
+    console.log(`[email] sent — to: ${to} | subject: ${subject} | messageId: ${data?.id}`);
+    return { ok: true, messageId: data?.id };
   } catch (err) {
-    console.error('[email] send failed:', err);
-    return false;
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[email] send threw — to: ${to} | subject: ${subject} | err:`, err);
+    return { ok: false, error: message };
   }
 }
 
@@ -185,13 +197,13 @@ export async function sendCreatorDropLive(to: string, name: string, dropName: st
 // ─── User templates ───────────────────────────────────────────────────────────
 
 export async function sendSetPasswordEmail(to: string, name: string, token: string) {
-  return send(to, "You've been approved — set your password", buildHtml({
+  return send(to, 'Your access has been approved.', buildHtml({
     eyebrow: 'Access Granted',
     heading: "You're in. Set your password to get started.",
     lines: [
       `Welcome, ${name || 'there'}.`,
       "Your access to Archangels Club has been approved. Click below to set your password and activate your account.",
-      "<strong style=\"color:#D4AF37;\">This link expires in 1 hour.</strong>",
+      "<strong style=\"color:#D4AF37;\">This link expires in 24 hours.</strong>",
     ],
     ctaLabel: 'Set Your Password →',
     ctaUrl: `${BASE_URL}/set-password?token=${token}`,
