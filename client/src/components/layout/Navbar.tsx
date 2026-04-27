@@ -36,9 +36,10 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 lg:h-18">
 
-          {/* Logo — wordmark */}
+          {/* Logo — icon on mobile, wordmark on desktop */}
           <Link to="/" className="flex-shrink-0 opacity-90 hover:opacity-100 transition-opacity">
-            <Logo variant="wordmark" size="sm" />
+            <span className="md:hidden"><Logo variant="icon" size="sm" /></span>
+            <span className="hidden md:block"><Logo variant="wordmark" size="sm" /></span>
           </Link>
 
           {/* Desktop nav */}

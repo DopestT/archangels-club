@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SavedProvider } from './context/SavedContext';
@@ -19,7 +19,6 @@ import MessagesPage from './pages/MessagesPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AdminControlCenter from './pages/AdminControlCenter';
 import BugControlPage from './pages/BugControlPage';
-import AccessKeysPage from './pages/AccessKeysPage';
 import CreatorOnboarding from './pages/CreatorOnboarding';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
@@ -27,6 +26,8 @@ import SetPasswordPage from './pages/SetPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 import PaymentResultPage from './pages/PaymentResultPage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
+import AgeVerificationReturnPage from './pages/AgeVerificationReturnPage';
+import SplashScreen from './components/brand/SplashScreen';
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -87,6 +88,7 @@ function AppRoutes() {
         <Route path="request-access" element={<AuthPage mode="signup" />} />
         <Route path="set-password" element={<SetPasswordPage />} />
         <Route path="payment/success" element={<PaymentSuccessPage />} />
+        <Route path="verify-age/return" element={<AgeVerificationReturnPage />} />
         <Route path="privacy" element={<StaticPage page="privacy" />} />
         <Route path="terms" element={<StaticPage page="terms" />} />
         <Route path="compliance" element={<StaticPage page="compliance" />} />
@@ -122,11 +124,6 @@ function AppRoutes() {
         <Route path="apply-creator" element={
           <ProtectedRoute>
             <CreatorApplicationPage />
-          </ProtectedRoute>
-        } />
-        <Route path="keys" element={
-          <ProtectedRoute>
-            <AccessKeysPage />
           </ProtectedRoute>
         } />
         <Route path="notifications" element={
@@ -198,9 +195,9 @@ function AppRoutes() {
             <AdminDashboard initialTab="transactions" />
           </ProtectedRoute>
         } />
-        <Route path="admin/keys" element={
+        <Route path="admin/verifications" element={
           <ProtectedRoute requireAdmin>
-            <AdminDashboard initialTab="keys" />
+            <AdminDashboard initialTab="verifications" />
           </ProtectedRoute>
         } />
         <Route path="admin/control-center" element={
@@ -221,13 +218,27 @@ function AppRoutes() {
   );
 }
 
+// Shows splash while auth is restoring from storage; min 2.2s so animation completes
+function AppWithSplash() {
+  const { isAuthLoading } = useAuth();
+  const [minReady, setMinReady] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setMinReady(true), 2200);
+    return () => clearTimeout(t);
+  }, []);
+
+  if (isAuthLoading || !minReady) return <SplashScreen />;
+  return <AppRoutes />;
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
         <SavedProvider>
           <ToastProvider>
-            <AppRoutes />
+            <AppWithSplash />
           </ToastProvider>
         </SavedProvider>
       </AuthProvider>

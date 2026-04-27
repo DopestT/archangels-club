@@ -13,7 +13,7 @@ const POSITIONS = {
   'center':       'top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2',
 };
 
-export default function ContentWatermark({ opacity = 0.25, position = 'bottom-right', className = '' }: ContentWatermarkProps) {
+export default function ContentWatermark({ opacity = 0.10, position = 'bottom-right', className = '' }: ContentWatermarkProps) {
   return (
     <div className={`absolute ${POSITIONS[position]} pointer-events-none select-none ${className}`}>
       <img

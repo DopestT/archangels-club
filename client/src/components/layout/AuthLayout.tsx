@@ -14,9 +14,9 @@ export default function AuthLayout({ children, eyebrow, title, subtitle }: AuthL
     <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10 bg-bg-primary"
       style={{ background: 'radial-gradient(ellipse at 50% -10%, rgba(212,175,55,0.08) 0%, transparent 55%)' }}>
 
-      {/* Logo */}
+      {/* Logo — full logo (icon + wordmark) */}
       <Link to="/" className="mb-10 opacity-90 hover:opacity-100 transition-opacity">
-        <Logo variant="wordmark" size="md" />
+        <Logo variant="primary" size="md" />
       </Link>
 
       {/* Header */}
