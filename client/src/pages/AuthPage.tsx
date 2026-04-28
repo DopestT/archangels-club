@@ -36,6 +36,12 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendSent, setResendSent] = useState(false);
 
+  // login — forgot password
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
   // ?redirect= takes priority over router state, then fallback to /explore
   const from = searchParams.get('redirect') ?? (location.state as { from?: string })?.from ?? '/explore';
 
@@ -106,6 +112,27 @@ export default function AuthPage({ mode }: { mode: Mode }) {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleForgotPassword() {
+    const addr = forgotEmail.trim() || email.trim();
+    if (!addr || !addr.includes('@')) {
+      setErrors(['Enter your email address to receive a reset link.']);
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: addr }),
+      });
+      setForgotSent(true);
+    } catch {
+      setErrors(['Unable to send reset email. Please try again.']);
+    } finally {
+      setForgotLoading(false);
     }
   }
 
@@ -326,7 +353,16 @@ export default function AuthPage({ mode }: { mode: Mode }) {
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="your@email.com" className="input-dark" required />
               </div>
               <div>
-                <label className="block text-xs text-arc-secondary mb-1.5">Password</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs text-arc-secondary">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => { setShowForgot(!showForgot); setForgotSent(false); setForgotEmail(email); }}
+                    className="text-xs text-arc-muted hover:text-gold transition-colors"
+                  >
+                    Forgot your password?
+                  </button>
+                </div>
                 <div className="relative">
                   <input type={showPw ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" className="input-dark pr-11" required />
                   <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-arc-muted hover:text-white">
@@ -335,6 +371,36 @@ export default function AuthPage({ mode }: { mode: Mode }) {
                 </div>
               </div>
 
+              {showForgot && (
+                <div className="p-4 rounded-xl bg-bg-surface border border-gold-border/40">
+                  {forgotSent ? (
+                    <p className="text-xs text-arc-success leading-relaxed">
+                      If that email is in our system, you'll receive a password reset link shortly. Check your inbox and spam folder.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-xs text-arc-secondary mb-3">Enter your email and we'll send you a link to reset your password.</p>
+                      <div className="flex gap-2">
+                        <input
+                          type="email"
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          placeholder="your@email.com"
+                          className="input-dark flex-1 text-sm py-2"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleForgotPassword}
+                          disabled={forgotLoading}
+                          className="btn-gold px-4 py-2 text-xs flex-shrink-0"
+                        >
+                          {forgotLoading ? '…' : 'Send link'}
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
 
               <button type="submit" disabled={loading} className="btn-gold w-full py-3.5 text-sm mt-2">
                 {loading

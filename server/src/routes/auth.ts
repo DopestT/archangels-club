@@ -170,6 +170,46 @@ router.post('/resend-setup', async (req, res) => {
   }
 });
 
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      res.status(400).json({ error: 'Email is required.' });
+      return;
+    }
+
+    const user = await queryOne<{ id: string; display_name: string; status: string }>(
+      'SELECT id, display_name, status FROM users WHERE email = $1',
+      [email.toLowerCase().trim()]
+    );
+
+    // Always respond success to prevent email enumeration
+    if (!user || user.status !== 'approved') {
+      res.json({ success: true });
+      return;
+    }
+
+    // Expire any existing unused tokens
+    await execute(
+      `UPDATE password_resets SET used = true WHERE email = $1 AND used = false`,
+      [email.toLowerCase().trim()]
+    );
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    await execute(
+      'INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)',
+      [crypto.randomUUID(), email.toLowerCase().trim(), resetToken, expiresAt]
+    );
+
+    sendSetPasswordEmail(email.toLowerCase().trim(), user.display_name, resetToken).catch(console.error);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth] forgot-password error:', err);
+    res.status(500).json({ error: 'Failed to send reset email.' });
+  }
+});
+
 router.get('/me', requireAuth, async (req, res) => {
   try {
     const user = await queryOne(
