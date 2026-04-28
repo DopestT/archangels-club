@@ -90,18 +90,6 @@ export default function CreatorDashboard() {
     }
   }
 
-  async function handleCustomRequest(id: string, status: 'accepted' | 'rejected') {
-    try {
-      const res = await fetch(`${API_BASE}/api/messages/custom-request/${id}`, {
-        method: 'PATCH',
-        headers: { ...authHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) return;
-      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
-    } catch {}
-  }
-
   async function createInviteLink() {
     if (!token) return;
     setCreatingInvite(true);
@@ -446,20 +434,36 @@ export default function CreatorDashboard() {
                         </div>
                         {req.status === 'pending' && (
                           <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => handleCustomRequest(req.id, 'accepted')}
-                              title="Accept"
+                            <ActionButton
+                              onAction={async () => {
+                                const res = await fetch(`${API_BASE}/api/messages/custom-request/${req.id}`, {
+                                  method: 'PATCH',
+                                  headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: 'accepted' }),
+                                });
+                                if (!res.ok) throw new Error();
+                              }}
+                              onSuccess={() => setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'accepted' } : r))}
+                              label={<CheckCircle className="w-4 h-4" />}
+                              loadingLabel="…"
+                              successLabel="✓"
                               className="p-1.5 rounded-lg bg-arc-success/10 text-arc-success hover:bg-arc-success/20 transition-colors"
-                            >
-                              <CheckCircle className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleCustomRequest(req.id, 'rejected')}
-                              title="Reject"
+                            />
+                            <ActionButton
+                              onAction={async () => {
+                                const res = await fetch(`${API_BASE}/api/messages/custom-request/${req.id}`, {
+                                  method: 'PATCH',
+                                  headers: { ...authHeaders, 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: 'rejected' }),
+                                });
+                                if (!res.ok) throw new Error();
+                              }}
+                              onSuccess={() => setRequests(prev => prev.map(r => r.id === req.id ? { ...r, status: 'rejected' } : r))}
+                              label={<XCircle className="w-4 h-4" />}
+                              loadingLabel="…"
+                              successLabel="✓"
                               className="p-1.5 rounded-lg bg-arc-error/10 text-arc-error hover:bg-arc-error/20 transition-colors"
-                            >
-                              <XCircle className="w-4 h-4" />
-                            </button>
+                            />
                           </div>
                         )}
                       </div>

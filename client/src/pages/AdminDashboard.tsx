@@ -205,27 +205,6 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     }
   }
 
-  async function handleAdminVerifyAge(userId: string) {
-    try {
-      await adminFetch(`/api/admin/users/${userId}/verify-age`, { method: 'POST' });
-      setVerifications(prev => prev.map(v =>
-        v.id === userId ? { ...v, age_verification_status: 'verified', age_verified_at: new Date().toISOString() } : v
-      ));
-    } catch {}
-  }
-
-  async function handleCreatorKycUpdate(creatorId: string, status: string) {
-    try {
-      await adminFetch(`/api/admin/creators/${creatorId}/update-kyc`, {
-        method: 'POST',
-        body: JSON.stringify({ kyc_status: status }),
-      });
-      setCreatorKyc(prev => prev.map(c =>
-        c.id === creatorId ? { ...c, creator_kyc_status: status } : c
-      ));
-    } catch {}
-  }
-
   async function loadFlaggedContent() {
     setFlaggedLoading(true);
     try {
@@ -237,23 +216,6 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     } finally {
       setFlaggedLoading(false);
     }
-  }
-
-  async function handleReportDismiss(reportId: string) {
-    try {
-      await adminFetch(`/api/admin/reports/${reportId}/dismiss`, { method: 'POST' });
-      setFlaggedContent(prev => prev.filter(r => r.id !== reportId));
-    } catch {}
-  }
-
-  async function handleReportRemove(report: Report) {
-    try {
-      if (report.subject_type === 'content') {
-        await adminFetch(`/api/admin/content/${report.subject_id}/remove`, { method: 'POST' });
-      }
-      await adminFetch(`/api/admin/reports/${report.id}/take-action`, { method: 'POST' });
-      setFlaggedContent(prev => prev.filter(r => r.id !== report.id));
-    } catch {}
   }
 
   async function handleAccessAction(id: string, action: 'approved' | 'rejected') {
@@ -276,14 +238,6 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     } catch {}
   }
 
-  async function handleCreatorAction(id: string, action: 'approve' | 'reject') {
-    try {
-      const res = await adminFetch(`/api/admin/creators/${id}/${action}`, { method: 'POST' });
-      if (!res.ok) throw new Error();
-      setCreatorApps((prev) => prev.filter((a) => a.id !== id));
-    } catch {}
-  }
-
   async function copyCreatorSetupLink(id: string) {
     try {
       const res = await adminFetch(`/api/admin/creators/${id}/generate-setup-link`, { method: 'POST' });
@@ -295,27 +249,6 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     } catch {
       alert('Failed to generate setup link.');
     }
-  }
-
-  async function handleContentAction(id: string, status: string, reason?: string) {
-    const endpointMap: Record<string, string> = {
-      approved: 'approve',
-      rejected: 'reject',
-      changes_requested: 'request-changes',
-      removed: 'remove',
-    };
-    const endpoint = endpointMap[status];
-    if (endpoint) {
-      try {
-        await adminFetch(`/api/admin/content/${id}/${endpoint}`, {
-          method: 'POST',
-          body: JSON.stringify({ rejection_reason: reason }),
-        });
-      } catch {}
-    }
-    setContentActions((p) => ({ ...p, [id]: { status, reason } }));
-    setActiveRejection(null);
-    setRejectionReason('');
   }
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
@@ -620,18 +553,35 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                       </div>
                     </div>
                     <div className="flex gap-2 flex-shrink-0 flex-wrap justify-end">
-                      <button onClick={() => handleCreatorAction(app.id, 'approve')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors">
-                        <CheckCircle className="w-3.5 h-3.5" /> Approve
-                      </button>
-                      <button onClick={() => handleCreatorAction(app.id, 'reject')}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
-                        <XCircle className="w-3.5 h-3.5" /> Reject
-                      </button>
-                      <button onClick={() => copyCreatorSetupLink(app.id)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-bg-hover text-arc-secondary hover:text-white border border-white/10 hover:border-gold/30 transition-colors">
-                        <Send className="w-3.5 h-3.5" /> Copy Setup Link
-                      </button>
+                      <ActionButton
+                        onAction={async () => {
+                          const res = await adminFetch(`/api/admin/creators/${app.id}/approve`, { method: 'POST' });
+                          if (!res.ok) throw new Error();
+                        }}
+                        onSuccess={() => setCreatorApps(prev => prev.filter(a => a.id !== app.id))}
+                        label={<><CheckCircle className="w-3.5 h-3.5" /> Approve</>}
+                        loadingLabel="Approving…"
+                        successLabel="Approved"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                      />
+                      <ActionButton
+                        onAction={async () => {
+                          const res = await adminFetch(`/api/admin/creators/${app.id}/reject`, { method: 'POST' });
+                          if (!res.ok) throw new Error();
+                        }}
+                        onSuccess={() => setCreatorApps(prev => prev.filter(a => a.id !== app.id))}
+                        label={<><XCircle className="w-3.5 h-3.5" /> Reject</>}
+                        loadingLabel="Rejecting…"
+                        successLabel="Rejected"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
+                      />
+                      <ActionButton
+                        onAction={() => copyCreatorSetupLink(app.id)}
+                        label={<><Send className="w-3.5 h-3.5" /> Copy Setup Link</>}
+                        loadingLabel="Generating…"
+                        successLabel="Copied!"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-bg-hover text-arc-secondary hover:text-white border border-white/10 hover:border-gold/30 transition-colors"
+                      />
                     </div>
                   </div>
 
@@ -785,17 +735,38 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
                         {!action && (
                           <div className="flex flex-wrap items-center gap-2">
-                            <button onClick={() => handleContentAction(item.id, 'approved')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors">
-                              <CheckCircle className="w-3.5 h-3.5" /> Approve
-                            </button>
+                            <ActionButton
+                              onAction={async () => {
+                                const res = await adminFetch(`/api/admin/content/${item.id}/approve`, { method: 'POST' });
+                                if (!res.ok) throw new Error();
+                              }}
+                              onSuccess={() => setContentActions(p => ({ ...p, [item.id]: { status: 'approved' } }))}
+                              label={<><CheckCircle className="w-3.5 h-3.5" /> Approve</>}
+                              loadingLabel="Approving…"
+                              successLabel="Approved"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                            />
 
                             {activeRejection === item.id ? (
                               <>
-                                <button onClick={() => handleContentAction(item.id, 'rejected', rejectionReason)}
-                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
-                                  <XCircle className="w-3.5 h-3.5" /> Confirm Rejection
-                                </button>
+                                <ActionButton
+                                  onAction={async () => {
+                                    const res = await adminFetch(`/api/admin/content/${item.id}/reject`, {
+                                      method: 'POST',
+                                      body: JSON.stringify({ rejection_reason: rejectionReason }),
+                                    });
+                                    if (!res.ok) throw new Error();
+                                  }}
+                                  onSuccess={() => {
+                                    setContentActions(p => ({ ...p, [item.id]: { status: 'rejected', reason: rejectionReason } }));
+                                    setActiveRejection(null);
+                                    setRejectionReason('');
+                                  }}
+                                  label={<><XCircle className="w-3.5 h-3.5" /> Confirm Rejection</>}
+                                  loadingLabel="Rejecting…"
+                                  successLabel="Rejected"
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
+                                />
                                 <button onClick={() => { setActiveRejection(null); setRejectionReason(''); }}
                                   className="text-xs text-arc-muted hover:text-white transition-colors">Cancel</button>
                               </>
@@ -806,15 +777,29 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                               </button>
                             )}
 
-                            <button onClick={() => handleContentAction(item.id, 'changes_requested')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10 transition-colors">
-                              <MessageSquare className="w-3.5 h-3.5" /> Request Changes
-                            </button>
+                            <ActionButton
+                              onAction={async () => {
+                                const res = await adminFetch(`/api/admin/content/${item.id}/request-changes`, { method: 'POST' });
+                                if (!res.ok) throw new Error();
+                              }}
+                              onSuccess={() => setContentActions(p => ({ ...p, [item.id]: { status: 'changes_requested' } }))}
+                              label={<><MessageSquare className="w-3.5 h-3.5" /> Request Changes</>}
+                              loadingLabel="Sending…"
+                              successLabel="Sent"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10 transition-colors"
+                            />
 
-                            <button onClick={() => handleContentAction(item.id, 'removed')}
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/25 transition-colors">
-                              Remove
-                            </button>
+                            <ActionButton
+                              onAction={async () => {
+                                const res = await adminFetch(`/api/admin/content/${item.id}/remove`, { method: 'POST' });
+                                if (!res.ok) throw new Error();
+                              }}
+                              onSuccess={() => setContentActions(p => ({ ...p, [item.id]: { status: 'removed' } }))}
+                              label="Remove"
+                              loadingLabel="Removing…"
+                              successLabel="Removed"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/25 transition-colors"
+                            />
                           </div>
                         )}
 
@@ -893,18 +878,32 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                           <Eye className="w-3.5 h-3.5" /> Review
                         </button>
                       )}
-                      <button
-                        onClick={() => handleReportRemove(report)}
+                      <ActionButton
+                        onAction={async () => {
+                          if (report.subject_type === 'content') {
+                            const r1 = await adminFetch(`/api/admin/content/${report.subject_id}/remove`, { method: 'POST' });
+                            if (!r1.ok) throw new Error();
+                          }
+                          const r2 = await adminFetch(`/api/admin/reports/${report.id}/take-action`, { method: 'POST' });
+                          if (!r2.ok) throw new Error();
+                        }}
+                        onSuccess={() => setFlaggedContent(prev => prev.filter(r => r.id !== report.id))}
+                        label={<><XCircle className="w-3.5 h-3.5" /> Remove</>}
+                        loadingLabel="Removing…"
+                        successLabel="Removed"
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
-                      >
-                        <XCircle className="w-3.5 h-3.5" /> Remove
-                      </button>
-                      <button
-                        onClick={() => handleReportDismiss(report.id)}
+                      />
+                      <ActionButton
+                        onAction={async () => {
+                          const res = await adminFetch(`/api/admin/reports/${report.id}/dismiss`, { method: 'POST' });
+                          if (!res.ok) throw new Error();
+                        }}
+                        onSuccess={() => setFlaggedContent(prev => prev.filter(r => r.id !== report.id))}
+                        label={<><CheckCircle className="w-3.5 h-3.5" /> Clear</>}
+                        loadingLabel="Clearing…"
+                        successLabel="Cleared"
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
-                      >
-                        <CheckCircle className="w-3.5 h-3.5" /> Clear
-                      </button>
+                      />
                     </div>
                   </div>
                 </div>
@@ -1035,12 +1034,19 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                             </td>
                             <td className="px-4 py-3">
                               {v.age_verification_status !== 'verified' && (
-                                <button
-                                  onClick={() => handleAdminVerifyAge(v.id)}
+                                <ActionButton
+                                  onAction={async () => {
+                                    const res = await adminFetch(`/api/admin/users/${v.id}/verify-age`, { method: 'POST' });
+                                    if (!res.ok) throw new Error();
+                                  }}
+                                  onSuccess={() => setVerifications(prev => prev.map(ver =>
+                                    ver.id === v.id ? { ...ver, age_verification_status: 'verified', age_verified_at: new Date().toISOString() } : ver
+                                  ))}
+                                  label={<><CheckCircle className="w-3 h-3" /> Override</>}
+                                  loadingLabel="Verifying…"
+                                  successLabel="Verified"
                                   className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
-                                >
-                                  <CheckCircle className="w-3 h-3" /> Override
-                                </button>
+                                />
                               )}
                             </td>
                           </tr>
@@ -1099,20 +1105,40 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-1.5">
                               {c.creator_kyc_status !== 'approved' && (
-                                <button
-                                  onClick={() => handleCreatorKycUpdate(c.id, 'approved')}
+                                <ActionButton
+                                  onAction={async () => {
+                                    const res = await adminFetch(`/api/admin/creators/${c.id}/update-kyc`, {
+                                      method: 'POST',
+                                      body: JSON.stringify({ kyc_status: 'approved' }),
+                                    });
+                                    if (!res.ok) throw new Error();
+                                  }}
+                                  onSuccess={() => setCreatorKyc(prev => prev.map(cr =>
+                                    cr.id === c.id ? { ...cr, creator_kyc_status: 'approved' } : cr
+                                  ))}
+                                  label={<><CheckCircle className="w-3 h-3" /> Approve</>}
+                                  loadingLabel="Approving…"
+                                  successLabel="Approved"
                                   className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
-                                >
-                                  <CheckCircle className="w-3 h-3" /> Approve
-                                </button>
+                                />
                               )}
                               {c.creator_kyc_status !== 'rejected' && (
-                                <button
-                                  onClick={() => handleCreatorKycUpdate(c.id, 'rejected')}
+                                <ActionButton
+                                  onAction={async () => {
+                                    const res = await adminFetch(`/api/admin/creators/${c.id}/update-kyc`, {
+                                      method: 'POST',
+                                      body: JSON.stringify({ kyc_status: 'rejected' }),
+                                    });
+                                    if (!res.ok) throw new Error();
+                                  }}
+                                  onSuccess={() => setCreatorKyc(prev => prev.map(cr =>
+                                    cr.id === c.id ? { ...cr, creator_kyc_status: 'rejected' } : cr
+                                  ))}
+                                  label={<><XCircle className="w-3 h-3" /> Reject</>}
+                                  loadingLabel="Rejecting…"
+                                  successLabel="Rejected"
                                   className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
-                                >
-                                  <XCircle className="w-3 h-3" /> Reject
-                                </button>
+                                />
                               )}
                             </div>
                           </td>
