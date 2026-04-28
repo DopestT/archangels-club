@@ -198,7 +198,11 @@ export default function LockedContentPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const { isAuthenticated, token, isApproved, isAdmin, isAgeVerified, ageVerificationStatus } = useAuth();
+  const { isAuthenticated, token, isApproved, isAdmin } = useAuth();
+  const [hasConfirmed18, setHasConfirmed18] = useState(
+    () => localStorage.getItem('arc_18_confirmed') === '1'
+  );
+  const [showAgeGate, setShowAgeGate] = useState(false);
 
   const [content,       setContent]       = useState<Content | null>(null);
   const [unlocked,      setUnlocked]      = useState(false);
@@ -214,8 +218,6 @@ export default function LockedContentPage() {
   const [showModal,       setShowModal]       = useState(false);
   const [subscribing,     setSubscribing]    = useState(false);
   const [subscribeError,  setSubscribeError] = useState<string | null>(null);
-  const [verifying,       setVerifying]      = useState(false);
-  const [verifyError,     setVerifyError]    = useState<string | null>(null);
   const [moreContent,   setMoreContent]   = useState<GlobalContent[]>([]);
 
   const paymentSuccess  = searchParams.get('payment') === 'success';
@@ -327,36 +329,6 @@ export default function LockedContentPage() {
     }
   }
 
-  async function handleVerifyAge() {
-    if (!isAuthenticated) {
-      navigate(`/login?next=${encodeURIComponent(`/content/${id}`)}`);
-      return;
-    }
-    setVerifyError(null);
-    setVerifying(true);
-    try {
-      const res = await fetch(`${API_BASE}/api/verification/start`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok || (!data.url && !data.already_verified)) {
-        setVerifying(false);
-        setVerifyError(data.error ?? 'Failed to start verification. Please try again.');
-        return;
-      }
-      if (data.already_verified) {
-        setVerifying(false);
-        return;
-      }
-      setRedirecting(true);
-      window.location.href = data.url;
-    } catch {
-      setVerifying(false);
-      setVerifyError('Unable to reach the server. Please try again.');
-    }
-  }
-
   async function handleUnlock() {
     if (!token) return;
 
@@ -441,7 +413,8 @@ export default function LockedContentPage() {
   const isLocked      = content.access_type !== 'free' && !unlocked;
   const badgeType     = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
   const previewMode   = isAdminPreview ? 'Admin Preview Mode' : isCreatorPreview ? 'Creator Preview Mode' : null;
-  const canPurchase   = isAuthenticated && (isAdmin || (isApproved && isAgeVerified))
+  const canPurchase   = isAuthenticated && (isAdmin || isApproved)
+                        && (isAdmin || hasConfirmed18)
                         && content.access_type === 'locked' && !isAdminPreview && !isCreatorPreview;
 
   // Effective price this user pays (discounted if subscribed)
@@ -454,6 +427,37 @@ export default function LockedContentPage() {
 
   return (
     <div className="min-h-screen bg-bg-primary py-12">
+
+      {/* Age gate modal */}
+      {showAgeGate && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-bg-surface border border-gold-border/60 rounded-2xl w-full max-w-sm p-8 shadow-2xl shadow-black/60">
+            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gold/10 border border-gold-border mx-auto mb-5">
+              <Shield className="w-7 h-7 text-gold" />
+            </div>
+            <h3 className="font-serif text-xl text-white text-center mb-2">Age Confirmation</h3>
+            <p className="text-sm text-arc-secondary text-center mb-6">
+              This content is intended for adults only. By continuing, you confirm that you are 18 years of age or older.
+            </p>
+            <button
+              onClick={() => {
+                localStorage.setItem('arc_18_confirmed', '1');
+                setHasConfirmed18(true);
+                setShowAgeGate(false);
+              }}
+              className="btn-gold w-full py-3.5 text-base mb-3"
+            >
+              I confirm I am 18 or older
+            </button>
+            <button
+              onClick={() => setShowAgeGate(false)}
+              className="w-full text-xs text-arc-muted hover:text-arc-secondary py-2 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Unlock modal */}
       {showModal && (
@@ -585,35 +589,19 @@ export default function LockedContentPage() {
                 </div>
               ) : !isApproved && !isAdmin ? (
                 <p className="text-sm text-arc-secondary">Your account is pending approval.</p>
-              ) : isApproved && !isAgeVerified && !isAdmin ? (
+              ) : isApproved && !hasConfirmed18 && !isAdmin ? (
                 <div className="text-center px-4">
-                  <p className="text-sm text-white mb-1">Age Verification Required</p>
+                  <p className="text-sm text-white mb-1">Confirm Your Age</p>
                   <p className="text-xs text-arc-secondary mb-4">
-                    Archangels Club requires age verification before restricted content can be viewed.
-                    Verification is handled securely by Stripe Identity.
+                    This content is for adults 18 and older. Please confirm your age to continue.
                   </p>
                   <button
-                    onClick={handleVerifyAge}
-                    disabled={verifying}
+                    onClick={() => setShowAgeGate(true)}
                     className="btn-gold px-8 py-3.5 text-base gap-2 flex items-center justify-center"
                   >
-                    {verifying ? <Spinner /> : <Shield className="w-4 h-4" />}
-                    {verifying
-                      ? (ageVerificationStatus === 'pending' ? 'Verification pending…' : 'Starting…')
-                      : ageVerificationStatus === 'pending'
-                      ? 'Verification Pending — Check Status'
-                      : ageVerificationStatus === 'failed'
-                      ? 'Retry Age Verification'
-                      : 'Verify Age to Continue'}
+                    <Shield className="w-4 h-4" />
+                    I Am 18 or Older
                   </button>
-                  {verifyError && (
-                    <p className="text-xs text-arc-error mt-2">{verifyError}</p>
-                  )}
-                  {ageVerificationStatus === 'failed' && (
-                    <p className="text-xs text-arc-secondary mt-2">
-                      Previous verification was unsuccessful. Please try again with a valid ID.
-                    </p>
-                  )}
                 </div>
               ) : content.access_type === 'subscribers' && !isSubscribed ? (
                 <div className="text-center px-4">

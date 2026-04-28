@@ -176,7 +176,6 @@ const DDL = `
   );
 
   ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
-  ALTER TABLE access_requests ALTER COLUMN username DROP NOT NULL;
 
   ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
   ALTER TABLE content ADD CONSTRAINT content_status_check
