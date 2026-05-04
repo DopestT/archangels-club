@@ -76,7 +76,7 @@ function buildHtml(opts: {
 <body style="margin:0;padding:0;background:#000000;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
 
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
-       style="background:#000000;min-height:100vh;">
+       style="background:#000000;">
   <tr>
     <td align="center" style="padding:52px 20px 40px;">
 
@@ -167,16 +167,17 @@ async function send(to: string, subject: string, html: string): Promise<SendResu
 // ─── Creator templates ────────────────────────────────────────────────────────
 
 export async function sendCreatorWelcome(to: string, name: string) {
-  return send(to, 'Your creator profile is live', buildHtml({
-    eyebrow: 'Creator Access',
-    heading: 'Your profile is live.',
+  return send(to, 'Your Archangels Club creator account is approved', buildHtml({
+    eyebrow: 'Creator Approved',
+    heading: 'Your creator account is approved.',
     lines: [
       `${name}.`,
-      'Your creator account on Archangels Club is active. Your profile is now visible to members.',
-      'Post your first piece of content to begin generating revenue.',
+      'Congratulations — your Archangels Club creator account has been approved.',
+      'You can now log in, complete your profile, upload content, and start building your audience.',
+      'Welcome to Archangels Club.',
     ],
-    ctaLabel: 'Upload Content',
-    ctaUrl: `${BASE_URL}/upload`,
+    ctaLabel: 'Go to Creator Studio',
+    ctaUrl: `${BASE_URL}/creator`,
   }));
 }
 
@@ -285,6 +286,20 @@ export async function sendSetPasswordEmail(to: string, name: string, token: stri
     ],
     ctaLabel: 'Set Password',
     ctaUrl: `${BASE_URL}/set-password?token=${token}`,
+  }));
+}
+
+export async function sendForgotPasswordEmail(to: string, token: string) {
+  return send(to, 'Reset your Archangels Club password', buildHtml({
+    heading: 'Reset your password.',
+    lines: [
+      'You requested to reset your Archangels Club password.',
+      'Click the link below to create a new password.',
+      '<strong style="color:#C8A96A;">This link expires in 24 hours.</strong>',
+      'If you did not request this, you can ignore this email.',
+    ],
+    ctaLabel: 'Reset Password',
+    ctaUrl: `${BASE_URL}/reset-password?token=${token}`,
   }));
 }
 

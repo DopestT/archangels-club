@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Lock, ChevronRight, Shield, Crown, Star, ArrowRight, Check } from 'lucide-react';
 import { sampleCreators, sampleContent } from '../data/seed';
@@ -6,30 +6,52 @@ import Avatar from '../components/ui/Avatar';
 import { VerifiedBadge } from '../components/ui/Badge';
 import Logo from '../components/brand/Logo';
 import { formatCurrency } from '../lib/utils';
+import { useAuth } from '../context/AuthContext';
 
 export default function LandingPage() {
+  const { isAuthenticated } = useAuth();
+  const [videoKey, setVideoKey] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const vid = videoRef.current;
+    if (!vid) return;
+    // Remount the element on each loop end — forces browser to fully release
+    // decoded frame memory instead of accumulating it across loops
+    function onEnd() { setVideoKey(k => k + 1); }
+    function onError() { setVideoKey(k => k + 1); }
+    vid.addEventListener('ended', onEnd);
+    vid.addEventListener('error', onError);
+    return () => {
+      vid.removeEventListener('ended', onEnd);
+      vid.removeEventListener('error', onError);
+    };
+  }, [videoKey]);
+
   return (
     <div className="bg-bg-primary">
 
       {/* ─── HERO ─── */}
-      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background glow effects */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-gold/4 rounded-full blur-3xl" />
-          <div className="absolute bottom-0 left-0 w-96 h-96 bg-gold/3 rounded-full blur-3xl" />
-          <div className="absolute top-0 right-0 w-72 h-72 bg-gold/3 rounded-full blur-3xl" />
-        </div>
+      <section className="relative min-h-screen flex items-start justify-center overflow-hidden bg-black">
+        {/* Background video */}
+        <video
+          key={videoKey}
+          ref={videoRef}
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          autoPlay
+          muted
+          playsInline
+        >
+          <source src="/archangelshero.mp4" type="video/mp4" />
+        </video>
 
-        {/* Subtle grid */}
-        <div
-          className="absolute inset-0 pointer-events-none opacity-[0.03]"
-          style={{
-            backgroundImage: 'linear-gradient(rgba(212,175,55,1) 1px, transparent 1px), linear-gradient(90deg, rgba(212,175,55,1) 1px, transparent 1px)',
-            backgroundSize: '60px 60px',
-          }}
-        />
+        {/* Dark overlay — ensures text contrast */}
+        <div className="absolute inset-0 bg-black/35 pointer-events-none" />
 
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-24 pb-32">
+        {/* Gradient vignette — deeper at top/bottom for nav + scroll legibility */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50 pointer-events-none" />
+
+        <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-16 pb-24">
           {/* Primary logo — hero */}
           <div className="flex justify-center mb-10">
             <Logo variant="primary" size="lg" />
@@ -51,13 +73,27 @@ export default function LandingPage() {
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link to="/signup" className="btn-gold px-8 py-4 text-base gap-3">
-              Request Access
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-            <Link to="/explore" className="btn-outline px-8 py-4 text-base">
-              Explore Preview
-            </Link>
+            {isAuthenticated ? (
+              <>
+                <Link to="/explore" className="btn-gold px-8 py-4 text-base gap-3">
+                  Explore Creators
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link to="/dashboard" className="btn-outline px-8 py-4 text-base">
+                  My Dashboard
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link to="/signup" className="btn-gold px-8 py-4 text-base gap-3">
+                  Request Access
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
+                <Link to="/explore" className="btn-outline px-8 py-4 text-base">
+                  Explore Preview
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Trust badges */}

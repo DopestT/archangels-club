@@ -1,4 +1,4 @@
-export const API_BASE = 'https://archangels-club-production.up.railway.app';
+export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
 
 export interface NextAction {
   label: string;

@@ -298,6 +298,9 @@ const DDL = `
 
   ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;
   ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS reviewed_by TEXT;
+
+  ALTER TABLE custom_requests ADD COLUMN IF NOT EXISTS deadline TIMESTAMPTZ;
+  ALTER TABLE custom_requests ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid';
 `;
 
 export async function runMigrations(): Promise<void> {

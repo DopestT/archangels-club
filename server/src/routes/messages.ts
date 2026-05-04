@@ -109,15 +109,20 @@ router.post('/', requireAuth, async (req, res) => {
 // POST /api/messages/custom-request — send a custom content request
 router.post('/custom-request', requireAuth, async (req, res) => {
   try {
-    const { creator_id, description, offered_price } = req.body;
+    const { creator_id, description, offered_price, deadline } = req.body;
     if (!creator_id || !description || offered_price === undefined) {
       res.status(400).json({ error: 'creator_id, description, and offered_price are required.' });
       return;
     }
+    const parsedDeadline = deadline ? new Date(deadline) : null;
+    if (deadline && isNaN(parsedDeadline!.getTime())) {
+      res.status(400).json({ error: 'deadline must be a valid date.' });
+      return;
+    }
     const id = crypto.randomUUID();
     await execute(
-      'INSERT INTO custom_requests (id, fan_id, creator_id, description, offered_price) VALUES ($1, $2, $3, $4, $5)',
-      [id, req.auth!.userId, creator_id, description, offered_price]
+      'INSERT INTO custom_requests (id, fan_id, creator_id, description, offered_price, deadline) VALUES ($1, $2, $3, $4, $5, $6)',
+      [id, req.auth!.userId, creator_id, description, offered_price, parsedDeadline ?? null]
     );
     res.status(201).json({ id });
   } catch (err) {

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { query, queryOne, execute } from '../db/schema.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
-import { sendSetPasswordEmail } from '../services/email.js';
+import { sendSetPasswordEmail, sendForgotPasswordEmail } from '../services/email.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -202,7 +202,7 @@ router.post('/forgot-password', async (req, res) => {
       [crypto.randomUUID(), email.toLowerCase().trim(), resetToken, expiresAt]
     );
 
-    sendSetPasswordEmail(email.toLowerCase().trim(), user.display_name, resetToken).catch(console.error);
+    sendForgotPasswordEmail(email.toLowerCase().trim(), resetToken).catch(console.error);
     res.json({ success: true });
   } catch (err) {
     console.error('[auth] forgot-password error:', err);

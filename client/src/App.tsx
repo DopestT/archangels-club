@@ -23,11 +23,14 @@ import CreatorOnboarding from './pages/CreatorOnboarding';
 import NotificationsPage from './pages/NotificationsPage';
 import StaticPage from './pages/StaticPage';
 import SetPasswordPage from './pages/SetPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import NotFoundPage from './pages/NotFoundPage';
 import PaymentResultPage from './pages/PaymentResultPage';
+import MagicLoginPage from './pages/MagicLoginPage';
 import PaymentSuccessPage from './pages/PaymentSuccessPage';
 import AgeVerificationReturnPage from './pages/AgeVerificationReturnPage';
 import SplashScreen from './components/brand/SplashScreen';
+import ErrorBoundary from './components/ErrorBoundary';
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -77,16 +80,18 @@ function ProtectedRoute({
 function AppRoutes() {
   return (
     <Routes>
-      <Route element={<AppShell />}>
+      <Route path="/" element={<AppShell />}>
         {/* Public */}
         <Route index element={<LandingPage />} />
         <Route path="explore" element={<ExplorePage />} />
         <Route path="creator/:username" element={<CreatorProfilePage />} />
         <Route path="content/:id" element={<LockedContentPage />} />
         <Route path="login" element={<AuthPage mode="login" />} />
+        <Route path="magic-login" element={<MagicLoginPage />} />
         <Route path="signup" element={<AuthPage mode="signup" />} />
         <Route path="request-access" element={<AuthPage mode="signup" />} />
         <Route path="set-password" element={<SetPasswordPage />} />
+        <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="payment/success" element={<PaymentSuccessPage />} />
         <Route path="verify-age/return" element={<AgeVerificationReturnPage />} />
         <Route path="privacy" element={<StaticPage page="privacy" />} />
@@ -238,7 +243,9 @@ export default function App() {
       <AuthProvider>
         <SavedProvider>
           <ToastProvider>
-            <AppWithSplash />
+            <ErrorBoundary>
+              <AppWithSplash />
+            </ErrorBoundary>
           </ToastProvider>
         </SavedProvider>
       </AuthProvider>

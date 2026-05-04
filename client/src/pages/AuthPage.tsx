@@ -42,6 +42,25 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
+  // owner magic link
+  const OWNER_EMAIL = 'khewitt1985@gmail.com';
+  const [magicLoading, setMagicLoading] = useState(false);
+  const [magicSent, setMagicSent] = useState(false);
+  const showMagicLink = mode === 'login' && email.toLowerCase().trim() === OWNER_EMAIL;
+
+  async function handleMagicLink() {
+    setMagicLoading(true);
+    try {
+      await fetch(`${API_BASE}/api/auth/magic-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: OWNER_EMAIL }),
+      });
+    } catch {}
+    setMagicSent(true);
+    setMagicLoading(false);
+  }
+
   // ?redirect= takes priority over router state, then fallback to /explore
   const from = searchParams.get('redirect') ?? (location.state as { from?: string })?.from ?? '/explore';
 
@@ -99,7 +118,7 @@ export default function AuthPage({ mode }: { mode: Mode }) {
         navigate('/creator', { replace: true });
       } else if (role === 'both') {
         const mode = getViewMode();
-        navigate(mode === 'creator' ? '/creator' : '/dashboard', { replace: true });
+        navigate(mode === 'member' ? '/dashboard' : '/creator', { replace: true });
       } else {
         setViewMode('member');
         navigate('/dashboard', { replace: true });
@@ -402,11 +421,35 @@ export default function AuthPage({ mode }: { mode: Mode }) {
                 </div>
               )}
 
-              <button type="submit" disabled={loading} className="btn-gold w-full py-3.5 text-sm mt-2">
-                {loading
-                  ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
-                  : 'Sign In'}
-              </button>
+              {showMagicLink ? (
+                magicSent ? (
+                  <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-success/8 border border-arc-success/25 mt-2">
+                    <Mail className="w-4 h-4 text-arc-success flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-arc-success">Magic link sent</p>
+                      <p className="text-xs text-arc-muted mt-0.5">Check {OWNER_EMAIL} — link expires in 15 minutes.</p>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleMagicLink}
+                    disabled={magicLoading}
+                    className="btn-gold w-full py-3.5 text-sm mt-2 gap-2"
+                  >
+                    {magicLoading
+                      ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                      : <Mail className="w-4 h-4" />}
+                    {magicLoading ? 'Sending…' : 'Send Magic Link'}
+                  </button>
+                )
+              ) : (
+                <button type="submit" disabled={loading} className="btn-gold w-full py-3.5 text-sm mt-2">
+                  {loading
+                    ? <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>
+                    : 'Sign In'}
+                </button>
+              )}
 
               <p className="text-xs text-arc-muted text-center mt-3 leading-relaxed">
                 Creator access is handled through approved accounts.{' '}

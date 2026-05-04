@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
-import { requireAuth, requireApproved, requireAgeVerified } from '../middleware/auth.js';
+import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { queryOne } from '../db/schema.js';
 
 const router = Router();
@@ -43,7 +43,7 @@ router.get('/session/:sessionId', requireAuth, async (req, res) => {
 });
 
 // POST /api/checkout/create — unified checkout: unlock | tip | subscription
-router.post('/create', requireAuth, requireApproved, requireAgeVerified, async (req, res) => {
+router.post('/create', requireAuth, requireApproved, async (req, res) => {
   const { type, content_id, creator_id, amount } = req.body;
 
   console.log('[checkout/create] body:', JSON.stringify(req.body));

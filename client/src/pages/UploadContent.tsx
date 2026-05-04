@@ -205,34 +205,18 @@ export default function UploadContent() {
     return (
       <div className="min-h-screen bg-bg-primary flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center">
-          <div className="w-20 h-20 rounded-full bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mx-auto mb-8">
-            <Clock className="w-9 h-9 text-amber-400" />
+          <div className="w-20 h-20 rounded-full bg-arc-success/10 border border-arc-success/30 flex items-center justify-center mx-auto mb-8">
+            <Check className="w-9 h-9 text-arc-success" />
           </div>
-          <span className="section-eyebrow mb-4 block">Content Submitted</span>
-          <h1 className="font-serif text-3xl text-white mb-4">Under Review</h1>
-          <p className="text-arc-secondary leading-relaxed mb-6">
-            <strong className="text-white">{submittedTitle}</strong> has been submitted for review.
-            Our moderation team typically reviews content within <strong className="text-white">24 hours</strong>.
-            It will go live automatically once approved.
+          <span className="section-eyebrow mb-4 block">Published</span>
+          <h1 className="font-serif text-3xl text-white mb-4">Your drop is live.</h1>
+          <p className="text-arc-secondary leading-relaxed mb-8">
+            <strong className="text-white">{submittedTitle}</strong> is now visible to members and available to unlock immediately.
           </p>
-          <div className="card-surface p-5 rounded-xl text-left mb-6 space-y-3">
-            <p className="text-xs font-medium text-gold">What happens next:</p>
-            {[
-              'Moderation team reviews your content against platform guidelines',
-              "You'll be notified by email if changes are requested",
-              'Once approved, content goes live and is immediately purchasable',
-              'Rejected content includes a reason — you may revise and resubmit',
-            ].map((step) => (
-              <div key={step} className="flex items-start gap-2.5 text-xs text-arc-secondary">
-                <Check className="w-3.5 h-3.5 text-gold flex-shrink-0 mt-0.5" />
-                {step}
-              </div>
-            ))}
-          </div>
           <div className="flex flex-col gap-3">
             <button onClick={resetUpload} className="btn-gold w-full">
               <Upload className="w-4 h-4" />
-              Upload Another
+              Upload Another Drop
             </button>
             <Link to="/creator" className="btn-outline w-full">Back to Creator Studio</Link>
           </div>
@@ -287,10 +271,10 @@ export default function UploadContent() {
             </div>
           </div>
 
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/5 border border-arc-error/20 mb-8">
-            <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 mb-8">
+            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-medium text-arc-error mb-0.5">Content Moderation Policy</p>
+              <p className="text-xs font-medium text-amber-300 mb-0.5">Content Moderation Policy</p>
               <p className="text-xs text-arc-muted leading-relaxed">
                 Prohibited: illegal material, minors in any context, non-consensual imagery, or content violating our guidelines.
                 Violations result in immediate account termination and may be reported to authorities.
@@ -503,7 +487,7 @@ export default function UploadContent() {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {status === 'uploading' ? `Uploading… ${uploadProgress}%` : status === 'saving' ? 'Saving…' : 'Submit for Review'}
+                {status === 'uploading' ? `Uploading… ${uploadProgress}%` : status === 'saving' ? 'Saving…' : 'Publish'}
               </button>
             </div>
 

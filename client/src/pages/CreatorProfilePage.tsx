@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { Lock, Heart, MessageCircle, Star, Crown, Send, AlertTriangle, Users, Clock, Unlock } from 'lucide-react';
+import { Lock, Heart, MessageCircle, Star, Crown, Send, AlertTriangle, Users, Clock, Unlock, X as XIcon, CheckCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import ContentCard from '../components/content/ContentCard';
 import Avatar from '../components/ui/Avatar';
@@ -195,6 +195,16 @@ export default function CreatorProfilePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  // Custom request modal
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [reqDescription, setReqDescription] = useState('');
+  const [reqAmount, setReqAmount] = useState('');
+  const [reqDeadline, setReqDeadline] = useState('');
+  const [reqSubmitting, setReqSubmitting] = useState(false);
+  const [reqError, setReqError] = useState('');
+  const [reqDone, setReqDone] = useState(false);
+  const reqBackdropRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!username) return;
     setLoading(true);
@@ -243,6 +253,9 @@ export default function CreatorProfilePage() {
 
     const body: Record<string, unknown> = { type, creator_id: creator.id };
     if (type === 'tip') body.amount = tipAmt ?? 10;
+    if (type === 'subscription' && creator.username) {
+      body.return_path = `/creator/${creator.username}`;
+    }
 
     console.log(`[checkout] starting ${type} for creator:`, creator.username, body);
 
@@ -273,6 +286,46 @@ export default function CreatorProfilePage() {
 
   function handleTip(amount: number) {
     startCheckout('tip', amount);
+  }
+
+  async function submitCustomRequest() {
+    if (!creator) return;
+    if (!isAuthenticated) { navigate('/login'); return; }
+    if (!reqDescription.trim()) { setReqError('Please describe your request.'); return; }
+    const amount = parseFloat(reqAmount);
+    if (!reqAmount || isNaN(amount) || amount <= 0) { setReqError('Please enter a valid offer amount.'); return; }
+    setReqError('');
+    setReqSubmitting(true);
+    try {
+      const body: Record<string, unknown> = {
+        creator_id: creator.id,
+        description: reqDescription.trim(),
+        offered_price: amount,
+      };
+      if (reqDeadline) body.deadline = reqDeadline;
+      const res = await fetch(`${API_BASE}/api/messages/custom-request`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setReqError(data.error ?? 'Failed to submit request. Please try again.'); return; }
+      setReqDone(true);
+    } catch {
+      setReqError('Unable to reach the server. Please try again.');
+    } finally {
+      setReqSubmitting(false);
+    }
+  }
+
+  function openRequestModal() {
+    if (!isAuthenticated) { navigate('/login'); return; }
+    setReqDescription('');
+    setReqAmount('');
+    setReqDeadline('');
+    setReqError('');
+    setReqDone(false);
+    setShowRequestModal(true);
   }
 
   if (loading) {
@@ -475,11 +528,120 @@ export default function CreatorProfilePage() {
             <p className="text-sm text-white font-sans font-medium mb-0.5">Request Custom Content</p>
             <p className="text-xs text-arc-secondary">Send a private request directly to {creator.display_name}. 24h response guarantee.</p>
           </div>
-          <Link to="/messages" className="btn-outline text-sm flex-shrink-0">
+          <button onClick={openRequestModal} className="btn-outline text-sm flex-shrink-0">
             <MessageCircle className="w-4 h-4" />
             Request
-          </Link>
+          </button>
         </div>
+
+        {/* Custom request modal */}
+        {showRequestModal && (
+          <div
+            ref={reqBackdropRef}
+            className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={(e) => { if (e.target === reqBackdropRef.current && !reqSubmitting) setShowRequestModal(false); }}
+          >
+            <div className="bg-bg-surface border border-gold-border/60 rounded-t-2xl sm:rounded-2xl w-full sm:max-w-md max-h-[92vh] overflow-y-auto shadow-2xl shadow-black/60 pb-safe">
+              <div className="flex items-center justify-between p-5 border-b border-white/8">
+                <div>
+                  <h3 className="font-serif text-lg text-white">Request Custom Content</h3>
+                  <p className="text-xs text-arc-muted mt-0.5">from {creator.display_name}</p>
+                </div>
+                <button
+                  onClick={() => { if (!reqSubmitting) setShowRequestModal(false); }}
+                  className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-arc-muted hover:text-white transition-colors"
+                >
+                  <XIcon className="w-4 h-4" />
+                </button>
+              </div>
+
+              {reqDone ? (
+                <div className="p-8 text-center">
+                  <div className="w-16 h-16 rounded-full bg-arc-success/10 border border-arc-success/30 flex items-center justify-center mx-auto mb-5">
+                    <CheckCircle className="w-8 h-8 text-arc-success" />
+                  </div>
+                  <h4 className="font-serif text-xl text-white mb-2">Request sent.</h4>
+                  <p className="text-sm text-arc-secondary mb-6">Your request has been submitted. {creator.display_name} will respond within 24 hours.</p>
+                  <button onClick={() => setShowRequestModal(false)} className="btn-gold w-full py-3">Done</button>
+                </div>
+              ) : (
+                <div className="p-5 space-y-4">
+                  {reqError && (
+                    <div className="p-3 rounded-xl bg-arc-error/10 border border-arc-error/30">
+                      <p className="text-xs text-arc-error">{reqError}</p>
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-xs text-arc-secondary mb-1.5">Describe your request *</label>
+                    <textarea
+                      value={reqDescription}
+                      onChange={(e) => setReqDescription(e.target.value)}
+                      placeholder={`Tell ${creator.display_name} exactly what you'd like them to create…`}
+                      className="input-dark min-h-28 resize-none"
+                      maxLength={800}
+                      disabled={reqSubmitting}
+                    />
+                    <p className="text-xs text-arc-muted mt-1 text-right">{reqDescription.length}/800</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-arc-secondary mb-1.5">Your offer amount (USD) *</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-arc-muted text-sm">$</span>
+                      <input
+                        type="number"
+                        value={reqAmount}
+                        onChange={(e) => setReqAmount(e.target.value)}
+                        placeholder="0.00"
+                        className="input-dark pl-7"
+                        min="1"
+                        step="0.01"
+                        disabled={reqSubmitting}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs text-arc-secondary mb-1.5">Deadline <span className="text-arc-muted">(optional)</span></label>
+                    <input
+                      type="date"
+                      value={reqDeadline}
+                      onChange={(e) => setReqDeadline(e.target.value)}
+                      min={new Date().toISOString().split('T')[0]}
+                      className="input-dark"
+                      disabled={reqSubmitting}
+                    />
+                  </div>
+
+                  <button
+                    onClick={submitCustomRequest}
+                    disabled={reqSubmitting}
+                    className="btn-gold w-full py-3.5 mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {reqSubmitting ? (
+                      <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    {reqSubmitting ? 'Submitting…' : 'Submit Request'}
+                  </button>
+
+                  <button
+                    onClick={() => setShowRequestModal(false)}
+                    disabled={reqSubmitting}
+                    className="w-full text-xs text-arc-muted hover:text-arc-secondary py-2 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Tags */}
         {creator.tags.length > 0 && (

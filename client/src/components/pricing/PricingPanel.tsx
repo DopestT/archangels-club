@@ -110,6 +110,7 @@ export default function PricingPanel({ config, onChange }: Props) {
 
           {/* Price Guide */}
           <button
+            type="button"
             onClick={() => setShowGuide(!showGuide)}
             className="flex items-center gap-1.5 text-xs text-arc-muted hover:text-gold transition-colors mb-2"
           >
@@ -122,12 +123,15 @@ export default function PricingPanel({ config, onChange }: Props) {
             <div className="rounded-xl border border-white/8 overflow-hidden">
               {TIERS.map((tier, i) => {
                 const isActive = tier.id === activeTier.id;
+                const tierPrice = tier.max === Infinity ? tier.min : Math.round((tier.min + tier.max) / 2);
                 return (
-                  <div
+                  <button
+                    type="button"
                     key={tier.id}
-                    className={`flex items-center gap-3 px-4 py-3 transition-all ${
+                    onClick={() => set(config, onChange, 'price', tierPrice)}
+                    className={`w-full flex items-center gap-3 px-4 py-3 transition-all text-left cursor-pointer ${
                       i < TIERS.length - 1 ? 'border-b border-white/5' : ''
-                    } ${isActive ? 'bg-gold-muted/50' : 'hover:bg-white/2'}`}
+                    } ${isActive ? 'bg-gold-muted/50' : 'hover:bg-white/4'}`}
                   >
                     <span className={tier.color}>{tier.icon}</span>
                     <div className="flex-1 min-w-0">
@@ -140,7 +144,7 @@ export default function PricingPanel({ config, onChange }: Props) {
                     </div>
                     <span className={`text-xs font-mono ${isActive ? 'text-gold' : 'text-arc-muted'}`}>{tier.range}</span>
                     <span className={`text-xs w-12 text-right ${isActive ? 'text-arc-success' : 'text-arc-muted'}`}>{tier.conversion}</span>
-                  </div>
+                  </button>
                 );
               })}
               <div className="px-4 py-2.5 bg-white/2 border-t border-white/5">

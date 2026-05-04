@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft,
-  Shield, CheckCircle, Star, X as XIcon, AlertCircle, Eye,
+  Shield, CheckCircle, Star, X as XIcon, AlertCircle, Eye, MessageSquare,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
@@ -83,7 +83,7 @@ function UnlockModal({
       className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={(e) => { if (e.target === backdropRef.current) onClose(); }}
     >
-      <div className="bg-bg-surface border border-gold-border/60 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl shadow-black/60">
+      <div className="bg-bg-surface border border-gold-border/60 rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl shadow-black/60">
 
         {/* Preview image */}
         <div className="relative h-44 overflow-hidden bg-bg-primary">
@@ -199,11 +199,6 @@ export default function LockedContentPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { isAuthenticated, token, isApproved, isAdmin } = useAuth();
-  const [hasConfirmed18, setHasConfirmed18] = useState(
-    () => localStorage.getItem('arc_18_confirmed') === '1'
-  );
-  const [showAgeGate, setShowAgeGate] = useState(false);
-
   const [content,       setContent]       = useState<Content | null>(null);
   const [unlocked,      setUnlocked]      = useState(false);
   const [mediaUrl,      setMediaUrl]      = useState<string | null>(null);
@@ -312,7 +307,7 @@ export default function LockedContentPage() {
         body: JSON.stringify({
           type: 'subscription',
           creator_id: content.creator_id,
-          return_path: `/content/${id}`,
+          return_path: content.creator_username ? `/creator/${content.creator_username}` : `/content/${id}`,
         }),
       });
       const data = await res.json();
@@ -414,7 +409,6 @@ export default function LockedContentPage() {
   const badgeType     = content.access_type === 'free' ? 'free' : content.access_type === 'subscribers' ? 'subscribers' : 'locked';
   const previewMode   = isAdminPreview ? 'Admin Preview Mode' : isCreatorPreview ? 'Creator Preview Mode' : null;
   const canPurchase   = isAuthenticated && (isAdmin || isApproved)
-                        && (isAdmin || hasConfirmed18)
                         && content.access_type === 'locked' && !isAdminPreview && !isCreatorPreview;
 
   // Effective price this user pays (discounted if subscribed)
@@ -427,37 +421,6 @@ export default function LockedContentPage() {
 
   return (
     <div className="min-h-screen bg-bg-primary py-12">
-
-      {/* Age gate modal */}
-      {showAgeGate && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-bg-surface border border-gold-border/60 rounded-2xl w-full max-w-sm p-8 shadow-2xl shadow-black/60">
-            <div className="flex items-center justify-center w-14 h-14 rounded-full bg-gold/10 border border-gold-border mx-auto mb-5">
-              <Shield className="w-7 h-7 text-gold" />
-            </div>
-            <h3 className="font-serif text-xl text-white text-center mb-2">Age Confirmation</h3>
-            <p className="text-sm text-arc-secondary text-center mb-6">
-              This content is intended for adults only. By continuing, you confirm that you are 18 years of age or older.
-            </p>
-            <button
-              onClick={() => {
-                localStorage.setItem('arc_18_confirmed', '1');
-                setHasConfirmed18(true);
-                setShowAgeGate(false);
-              }}
-              className="btn-gold w-full py-3.5 text-base mb-3"
-            >
-              I confirm I am 18 or older
-            </button>
-            <button
-              onClick={() => setShowAgeGate(false)}
-              className="w-full text-xs text-arc-muted hover:text-arc-secondary py-2 transition-colors"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Unlock modal */}
       {showModal && (
@@ -589,20 +552,6 @@ export default function LockedContentPage() {
                 </div>
               ) : !isApproved && !isAdmin ? (
                 <p className="text-sm text-arc-secondary">Your account is pending approval.</p>
-              ) : isApproved && !hasConfirmed18 && !isAdmin ? (
-                <div className="text-center px-4">
-                  <p className="text-sm text-white mb-1">Confirm Your Age</p>
-                  <p className="text-xs text-arc-secondary mb-4">
-                    This content is for adults 18 and older. Please confirm your age to continue.
-                  </p>
-                  <button
-                    onClick={() => setShowAgeGate(true)}
-                    className="btn-gold px-8 py-3.5 text-base gap-2 flex items-center justify-center"
-                  >
-                    <Shield className="w-4 h-4" />
-                    I Am 18 or Older
-                  </button>
-                </div>
               ) : content.access_type === 'subscribers' && !isSubscribed ? (
                 <div className="text-center px-4">
                   <p className="text-sm text-white mb-3">Subscribe to unlock this creator's private content.</p>
@@ -721,6 +670,28 @@ export default function LockedContentPage() {
               {subscribeError && (
                 <p className="text-xs text-arc-error mt-2">{subscribeError}</p>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* Request custom content CTA — shown after unlock */}
+        {unlocked && content.creator_username && !isCreatorPreview && !isAdminPreview && (
+          <div className="mt-5 p-5 rounded-xl bg-bg-surface border border-white/10 flex items-start gap-4">
+            <div className="w-10 h-10 rounded-full bg-gold/10 border border-gold-border flex items-center justify-center flex-shrink-0">
+              <MessageSquare className="w-5 h-5 text-gold" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white mb-0.5">Want something made just for you?</p>
+              <p className="text-xs text-arc-secondary mb-3">
+                Send {content.creator_name} a custom request — direct, private, and on your terms.
+              </p>
+              <Link
+                to={`/messages?creator=${content.creator_username}`}
+                className="inline-flex items-center gap-2 btn-outline text-sm px-5 py-2"
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Request Custom Content
+              </Link>
             </div>
           </div>
         )}
