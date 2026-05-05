@@ -1,5 +1,13 @@
 export const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
+export interface ApiResponse<T = unknown> {
+  ok?: boolean;
+  message?: string;
+  nextAction?: string;
+  data?: T;
+  error?: string;
+}
+
 function getToken(): string | null {
   try {
     const raw = localStorage.getItem('arc_auth');

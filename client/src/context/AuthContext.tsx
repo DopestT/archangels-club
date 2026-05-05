@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
-import type { User, UserStatus } from '../types';
+import type { User, UserStatus, AgeVerificationStatus } from '../types';
 import { API_BASE } from '../lib/api';
 
 const STORAGE_KEY = 'arc_auth';
@@ -16,8 +16,10 @@ interface AuthContextValue {
   userStatus: UserStatus | null;
   isPending: boolean;
   isApproved: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  ageVerificationStatus: AgeVerificationStatus | null;
+  login: (email: string, password: string) => Promise<User>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -27,7 +29,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
-  // Restore session from localStorage on mount
   useEffect(() => {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -43,23 +44,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const login = useCallback(async (email: string, password: string) => {
-     const url = `/api/auth/login`;
-    console.log('[login] URL:', url);
-    console.log('[login] method: POST');
-
-    const res = await fetch(url, {
+  const login = useCallback(async (email: string, password: string): Promise<User> => {
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
     });
 
-    console.log('[login] response status:', res.status);
-
     let data: any;
     try {
       data = await res.json();
-      console.log('[login] response body:', data);
     } catch {
       throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
     }
@@ -70,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
     setUser(data.user);
     setToken(data.token);
+    return data.user;
   }, []);
 
   const logout = useCallback(() => {
@@ -78,11 +73,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setToken(null);
   }, []);
 
+  const refreshUser = useCallback(async (): Promise<void> => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const { token: storedToken } = JSON.parse(raw) as StoredAuth;
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${storedToken}` },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.user) {
+        const updated: StoredAuth = { token: storedToken, user: data.user };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        setUser(data.user);
+      }
+    } catch {}
+  }, []);
+
   const isCreator = user?.role === 'creator' || user?.role === 'both';
   const isAdmin = user?.role === 'admin';
   const userStatus = (user?.status as UserStatus) ?? null;
   const isPending = userStatus === 'pending';
   const isApproved = userStatus === 'approved';
+  const ageVerificationStatus = (user?.age_verification_status as AgeVerificationStatus) ?? null;
 
   return (
     <AuthContext.Provider value={{
@@ -95,8 +109,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userStatus,
       isPending,
       isApproved,
+      ageVerificationStatus,
       login,
       logout,
+      refreshUser,
     }}>
       {children}
     </AuthContext.Provider>
