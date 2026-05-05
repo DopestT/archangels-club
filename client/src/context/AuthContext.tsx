@@ -51,9 +51,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       body: JSON.stringify({ email, password }),
     });
 
+    console.log('[login] response status:', res.status);
+
     let data: any;
     try {
       data = await res.json();
+      console.log('[login] response body:', data);
     } catch {
       throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
     }
