@@ -1,18 +1,17 @@
-import twilio from 'twilio';
-
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID ?? '',
-  process.env.TWILIO_AUTH_TOKEN ?? '',
-);
-const FROM = process.env.TWILIO_PHONE_NUMBER ?? '';
 const BASE_URL = process.env.CLIENT_URL ?? 'http://localhost:3000';
 
 async function sendSms(to: string, body: string): Promise<boolean> {
+  const FROM = process.env.TWILIO_PHONE_NUMBER ?? '';
   if (!process.env.TWILIO_ACCOUNT_SID || !FROM) {
     console.log(`[sms:dev] To: ${to} | Body: ${body}`);
     return true;
   }
   try {
+    const { default: twilio } = await import('twilio');
+    const client = twilio(
+      process.env.TWILIO_ACCOUNT_SID,
+      process.env.TWILIO_AUTH_TOKEN ?? '',
+    );
     await client.messages.create({ from: FROM, to, body });
     return true;
   } catch (err) {

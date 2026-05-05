@@ -1,18 +1,4 @@
-export const API_BASE = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
-
-export interface NextAction {
-  label: string;
-  href?: string;
-  action?: string;
-}
-
-export interface ApiResponse<T = unknown> {
-  ok: boolean;
-  message: string;
-  code?: string;
-  data?: T;
-  nextAction?: NextAction;
-}
+export const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 function getToken(): string | null {
   try {
