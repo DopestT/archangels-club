@@ -3,6 +3,8 @@ import { Resend } from 'resend';
 const FROM = process.env.EMAIL_FROM ?? 'Archangels Club <access@archangelsclub.com>';
 const BASE_URL = process.env.CLIENT_URL ?? 'http://localhost:3000';
 
+console.log('RESEND KEY LOADED:', !!process.env.RESEND_API_KEY);
+
 // ─── Base HTML template ───────────────────────────────────────────────────────
 
 function buildHtml(opts: {
@@ -453,5 +455,13 @@ export async function sendUserPurchaseConfirmation(to: string, name: string, con
     ],
     ctaLabel: 'View Content',
     ctaUrl: `${BASE_URL}/content/${contentId}`,
+  }));
+}
+
+export async function sendTestEmail(to: string) {
+  return send(to, 'Test Email — Archangels Club', buildHtml({
+    eyebrow: 'System Check',
+    heading: 'Resend is working.',
+    lines: ['This is a test email confirming your email delivery pipeline is live.'],
   }));
 }
