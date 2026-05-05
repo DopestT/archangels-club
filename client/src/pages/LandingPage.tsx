@@ -54,7 +54,7 @@ export default function LandingPage() {
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
           autoPlay muted playsInline
         >
-          <source src="/archangelshero.mp4" type="video/mp4" />
+          <source src="/greatangel.mp4" type="video/mp4" />
         </video>
         <div className="absolute inset-0 bg-black/35 pointer-events-none" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50 pointer-events-none" />
