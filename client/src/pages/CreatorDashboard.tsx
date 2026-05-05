@@ -20,6 +20,7 @@ export default function CreatorDashboard() {
   const { user, token, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
+  useEffect(() => { document.title = 'Creator Studio — Archangels Club'; }, []);
   // Persist mode on mount
   useEffect(() => { setViewMode('creator'); }, []);
   const [statusLoading, setStatusLoading] = useState(true);

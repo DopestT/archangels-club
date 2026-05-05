@@ -49,6 +49,24 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/creators/stats — public platform stats for landing page
+router.get('/stats', async (_req, res) => {
+  try {
+    const [creators, members, content] = await Promise.all([
+      queryOne<{ n: string }>(`SELECT COUNT(*) as n FROM creator_profiles WHERE is_approved = 1`),
+      queryOne<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE status = 'approved'`),
+      queryOne<{ n: string }>(`SELECT COUNT(*) as n FROM content WHERE status = 'approved'`),
+    ]);
+    res.json({
+      creator_count: parseInt(creators?.n ?? '0'),
+      member_count: parseInt(members?.n ?? '0'),
+      content_count: parseInt(content?.n ?? '0'),
+    });
+  } catch {
+    res.json({ creator_count: 0, member_count: 0, content_count: 0 });
+  }
+});
+
 // POST /api/creators/apply — authenticated user submits creator application
 router.post('/apply', requireAuth, async (req, res) => {
   try {

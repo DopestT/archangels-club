@@ -218,6 +218,7 @@ export default function CreatorProfilePage() {
         if (creatorData.error) {
           setError(creatorData.error);
         } else {
+          document.title = `${creatorData.display_name} — Archangels Club`;
           setCreator(creatorData);
           setContent(Array.isArray(contentData) ? contentData : []);
 

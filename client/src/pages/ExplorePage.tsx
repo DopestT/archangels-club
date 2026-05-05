@@ -108,6 +108,8 @@ export default function ExplorePage() {
   const [sortBy, setSortBy] = useState<'popular' | 'newest' | 'price-low' | 'price-high'>('popular');
   const [showCreators, setShowCreators] = useState(false);
 
+  useEffect(() => { document.title = 'Explore Creators — Archangels Club'; }, []);
+
   // ── Load trending + rising on mount ───────────────────────────────────────
   useEffect(() => {
     fetch(`${API_BASE}/api/content?sort=trending&limit=12`)

@@ -37,6 +37,7 @@ export default function MemberDashboard() {
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => { document.title = 'My Dashboard — Archangels Club'; }, []);
   // Mark member mode when the dashboard is explicitly visited
   useEffect(() => {
     setViewMode('member');
