@@ -113,7 +113,7 @@ async function seedDemo() {
   console.log('\n🌱  Archangels Club — demo seed\n');
   await runMigrations();
 
-  const demoPassword = await bcrypt.hash('DemoPass123!', 10);
+  const demoPassword = await bcrypt.hash('1234', 10);
 
   for (const creator of CREATORS) {
     console.log(`\n── ${creator.displayName} (@${creator.username}) ──`);
@@ -124,11 +124,12 @@ async function seedDemo() {
          (id, email, username, password_hash, display_name, avatar_url, role, status, is_verified_creator)
        VALUES ($1, $2, $3, $4, $5, $6, 'creator', 'approved', 1)
        ON CONFLICT (email) DO UPDATE SET
-         username          = EXCLUDED.username,
-         display_name      = EXCLUDED.display_name,
-         avatar_url        = EXCLUDED.avatar_url,
-         role              = 'creator',
-         status            = 'approved',
+         username            = EXCLUDED.username,
+         display_name        = EXCLUDED.display_name,
+         avatar_url          = EXCLUDED.avatar_url,
+         password_hash       = EXCLUDED.password_hash,
+         role                = 'creator',
+         status              = 'approved',
          is_verified_creator = 1`,
       [creator.userId, creator.email, creator.username, demoPassword,
        creator.displayName, creator.avatarUrl]
@@ -199,9 +200,10 @@ async function seedDemo() {
        (id, email, username, password_hash, display_name, role, status, is_verified_creator)
      VALUES ($1, $2, $3, $4, $5, 'fan', 'approved', 0)
      ON CONFLICT (email) DO UPDATE SET
-       username   = EXCLUDED.username,
-       role       = 'fan',
-       status     = 'approved'`,
+       username      = EXCLUDED.username,
+       password_hash = EXCLUDED.password_hash,
+       role          = 'fan',
+       status        = 'approved'`,
     [U.fan, 'demo.fan@archangels.demo', 'demofan', demoPassword, 'Demo Fan']
   );
   const fanRow = await pool.query<{ id: string }>(
@@ -216,7 +218,7 @@ async function seedDemo() {
   console.log('   Selena Noir→ /creator/selenanoir');
   console.log('   Elara Moon → /creator/elaramoon');
   console.log('\n   Demo login credentials:');
-  console.log('   Creators & Fan:   password: DemoPass123!');
+  console.log('   Creators & Fan:   password: 1234');
   console.log('   Fan login email:  demo.fan@archangels.demo');
   console.log('   (Fan account is approved — use it to test the purchase flow)\n');
 }
