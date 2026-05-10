@@ -32,16 +32,19 @@ vi.mock('stripe', () => {
   }
   // Expose .errors as a static property on the constructor so
   // `err instanceof Stripe.errors.StripeError` works in the catch block.
-  const MockStripe: any = vi.fn().mockImplementation(() => ({
-    checkout: { sessions: { create: mockCreate, retrieve: vi.fn() } },
-    webhooks: { constructEvent: vi.fn() },
-  }));
+  // Must use `function` (not arrow) so vitest allows `new MockStripe()`.
+  const MockStripe: any = vi.fn().mockImplementation(function() {
+    return {
+      checkout: { sessions: { create: mockCreate, retrieve: vi.fn() } },
+      webhooks: { constructEvent: vi.fn() },
+    };
+  });
   MockStripe.errors = { StripeError: MockStripeError };
   return { default: MockStripe };
 });
 
 vi.mock('../services/email.js', () => ({
-  sendSetPasswordEmail:          vi.fn().mockResolvedValue(undefined),
+  sendSetPasswordEmail:          vi.fn().mockResolvedValue({ ok: true }),
   sendUserWelcome:               vi.fn().mockResolvedValue(undefined),
   sendUserRejected:              vi.fn().mockResolvedValue(undefined),
   sendUserMoreInfoRequested:     vi.fn().mockResolvedValue(undefined),
@@ -50,6 +53,7 @@ vi.mock('../services/email.js', () => ({
   sendContentApproved:           vi.fn().mockResolvedValue(undefined),
   sendContentRejected:           vi.fn().mockResolvedValue(undefined),
   sendContentChangesRequested:   vi.fn().mockResolvedValue(undefined),
+  upsertContact:                 vi.fn().mockResolvedValue(undefined),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -242,7 +246,8 @@ describe('Admin: POST /api/admin/users/:id/approve', () => {
     mockExecute
       .mockResolvedValueOnce(1) // INSERT users
       .mockResolvedValueOnce(1) // INSERT password_resets
-      .mockResolvedValueOnce(1); // UPDATE access_requests
+      .mockResolvedValueOnce(1) // UPDATE access_requests status
+      .mockResolvedValueOnce(1); // UPDATE access_requests reviewed_at (fire-and-forget)
 
     const res = await request(app)
       .post('/api/admin/users/req-1/approve')
@@ -407,13 +412,15 @@ describe('POST /api/webhooks/stripe — unlock', () => {
       const mockClient = { query: vi.fn().mockResolvedValue({ rows: [] }) } as any;
       await fn(mockClient);
     });
-    // queryOne for creator lookup (used in resolve branch when creator_user_id is in meta → skipped)
-    // queryOne for existing-session check → null (not duplicate)
-    // queryOne for existing-unlock check → null (not duplicate)
-    // queryOne for content title after unlock
+    // queryOne call order (webhook → fulfillCheckoutSession):
+    //   1. stripe_processed_events check (event-level dedup)
+    //   2. transactions stripe_session_id check (session-level dedup)
+    //   3. content_unlocks check (unlock row dedup)
+    //   4. content title lookup (for purchase notification)
     mockQueryOne
-      .mockResolvedValueOnce(null)   // existing transaction by session_id → none
-      .mockResolvedValueOnce(null)   // existing unlock row → none
+      .mockResolvedValueOnce(null)                     // stripe_processed_events → not processed
+      .mockResolvedValueOnce(null)                     // existing transaction by session_id → none
+      .mockResolvedValueOnce(null)                     // existing unlock row → none
       .mockResolvedValueOnce({ title: 'Secret Drop' }); // content title for trigger
   });
 

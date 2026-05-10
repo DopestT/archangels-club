@@ -4,9 +4,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --env-file .env src/index.ts",
     "build": "tsc",
-    "start": "tsx src/index.ts",
+    "start": "tsx --env-file .env src/index.ts",
     "seed": "tsx src/db/seed.ts",
     "seed:demo": "tsx src/db/seedDemo.ts",
     "create-admin": "tsx src/db/createAdmin.ts",

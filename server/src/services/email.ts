@@ -166,6 +166,30 @@ async function send(to: string, subject: string, html: string): Promise<SendResu
   }
 }
 
+// ─── Resend Contacts (Audience) ───────────────────────────────────────────────
+
+export async function upsertContact(opts: {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  unsubscribed?: boolean;
+}): Promise<void> {
+  const audienceId = process.env.RESEND_AUDIENCE_ID;
+  if (!process.env.RESEND_API_KEY || !audienceId) return;
+  const resend = new Resend(process.env.RESEND_API_KEY);
+  try {
+    await resend.contacts.create({
+      audienceId,
+      email: opts.email,
+      firstName: opts.firstName,
+      lastName: opts.lastName,
+      unsubscribed: opts.unsubscribed ?? false,
+    });
+  } catch (err) {
+    console.error('[email] upsertContact failed:', err);
+  }
+}
+
 // ─── Creator templates ────────────────────────────────────────────────────────
 
 export async function sendCreatorWelcome(to: string, name: string) {

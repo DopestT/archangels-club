@@ -301,6 +301,13 @@ const DDL = `
 
   ALTER TABLE custom_requests ADD COLUMN IF NOT EXISTS deadline TIMESTAMPTZ;
   ALTER TABLE custom_requests ADD COLUMN IF NOT EXISTS payment_status TEXT NOT NULL DEFAULT 'unpaid';
+
+  ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+
+  CREATE TABLE IF NOT EXISTS stripe_processed_events (
+    event_id TEXT PRIMARY KEY,
+    processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
 `;
 
 export async function runMigrations(): Promise<void> {

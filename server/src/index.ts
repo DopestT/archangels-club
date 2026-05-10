@@ -16,6 +16,7 @@ import stripeRoutes from './routes/stripe.js';
 import activityRoutes from './routes/activity.js';
 import bugReportRoutes from './routes/bugReport.js';
 import checkoutRoutes from './routes/checkout.js';
+import membersRoutes from './routes/members.js';
 import aiRoutes from './routes/ai.js';
 import emailTestRoutes from './routes/emailTest.js';
 
@@ -55,6 +56,7 @@ app.use('/api/stripe', stripeRoutes);
 app.use('/api/activity', activityRoutes);
 app.use('/api/admin/bug-report', bugReportRoutes);
 app.use('/api/checkout', checkoutRoutes);
+app.use('/api/members', membersRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/email', emailTestRoutes);
 

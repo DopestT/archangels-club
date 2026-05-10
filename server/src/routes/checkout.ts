@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { queryOne } from '../db/schema.js';
+import { fulfillCheckoutSession } from '../services/fulfillment.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://archangelsclub.com';
@@ -19,9 +20,17 @@ router.get('/session/:sessionId', requireAuth, async (req, res) => {
     const session = await stripe.checkout.sessions.retrieve(String(req.params.sessionId));
     const meta = session.metadata ?? {};
 
-    if (meta.user_id !== req.auth!.userId && req.auth!.role !== 'admin') {
+    const metaUserId = meta.user_id ?? meta.userId;
+    if (metaUserId !== req.auth!.userId && req.auth!.role !== 'admin') {
       res.status(403).json({ error: 'Access denied.' });
       return;
+    }
+
+    // Trigger fulfillment if paid — safe to call multiple times (idempotent)
+    if (session.payment_status === 'paid' || session.status === 'complete') {
+      fulfillCheckoutSession(session).catch(err =>
+        console.error('[checkout/session] fulfillment error:', err)
+      );
     }
 
     res.json({

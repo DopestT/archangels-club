@@ -9,6 +9,7 @@ import {
   sendUserWelcome, sendUserRejected, sendUserMoreInfoRequested,
   sendCreatorWelcome, sendCreatorRejected,
   sendContentApproved, sendContentRejected, sendContentChangesRequested,
+  upsertContact,
 } from '../services/email.js';
 
 const router = Router();
@@ -137,6 +138,7 @@ router.post('/users/:id/approve', async (req, res) => {
     // Send set-password email and capture result for caller
     const emailResult = await sendSetPasswordEmail(email, displayName, resetToken);
     console.log(`[admin] approve — email result for ${email}:`, JSON.stringify(emailResult));
+    upsertContact({ email, firstName: displayName }).catch(console.error);
 
     res.json({
       ok: true,
