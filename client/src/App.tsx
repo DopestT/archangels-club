@@ -1,36 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SavedProvider } from './context/SavedContext';
 import { ToastProvider } from './components/ui/Toast';
 import AppShell from './components/layout/AppShell';
-import LandingPage from './pages/LandingPage';
-import ExplorePage from './pages/ExplorePage';
-import CreatorProfilePage from './pages/CreatorProfilePage';
-import LockedContentPage from './pages/LockedContentPage';
-import AuthPage from './pages/AuthPage';
-import PendingAccessPage from './pages/PendingAccessPage';
-import AccessDeniedPage from './pages/AccessDeniedPage';
-import MemberDashboard from './pages/MemberDashboard';
-import CreatorDashboard from './pages/CreatorDashboard';
-import CreatorApplicationPage from './pages/CreatorApplicationPage';
-import UploadContent from './pages/UploadContent';
-import MessagesPage from './pages/MessagesPage';
-import AdminDashboard from './pages/AdminDashboard';
-import AdminControlCenter from './pages/AdminControlCenter';
-import BugControlPage from './pages/BugControlPage';
-import CreatorOnboarding from './pages/CreatorOnboarding';
-import NotificationsPage from './pages/NotificationsPage';
-import StaticPage from './pages/StaticPage';
-import SetPasswordPage from './pages/SetPasswordPage';
-import ResetPasswordPage from './pages/ResetPasswordPage';
-import NotFoundPage from './pages/NotFoundPage';
-import PaymentResultPage from './pages/PaymentResultPage';
-import MagicLoginPage from './pages/MagicLoginPage';
-import PaymentSuccessPage from './pages/PaymentSuccessPage';
-import AgeVerificationReturnPage from './pages/AgeVerificationReturnPage';
 import SplashScreen from './components/brand/SplashScreen';
 import ErrorBoundary from './components/ErrorBoundary';
+
+const LandingPage              = lazy(() => import('./pages/LandingPage'));
+const ExplorePage              = lazy(() => import('./pages/ExplorePage'));
+const CreatorProfilePage       = lazy(() => import('./pages/CreatorProfilePage'));
+const LockedContentPage        = lazy(() => import('./pages/LockedContentPage'));
+const AuthPage                 = lazy(() => import('./pages/AuthPage'));
+const PendingAccessPage        = lazy(() => import('./pages/PendingAccessPage'));
+const AccessDeniedPage         = lazy(() => import('./pages/AccessDeniedPage'));
+const MemberDashboard          = lazy(() => import('./pages/MemberDashboard'));
+const CreatorDashboard         = lazy(() => import('./pages/CreatorDashboard'));
+const CreatorApplicationPage   = lazy(() => import('./pages/CreatorApplicationPage'));
+const UploadContent            = lazy(() => import('./pages/UploadContent'));
+const MessagesPage             = lazy(() => import('./pages/MessagesPage'));
+const AdminDashboard           = lazy(() => import('./pages/AdminDashboard'));
+const AdminControlCenter       = lazy(() => import('./pages/AdminControlCenter'));
+const BugControlPage           = lazy(() => import('./pages/BugControlPage'));
+const CreatorOnboarding        = lazy(() => import('./pages/CreatorOnboarding'));
+const NotificationsPage        = lazy(() => import('./pages/NotificationsPage'));
+const StaticPage               = lazy(() => import('./pages/StaticPage'));
+const SetPasswordPage          = lazy(() => import('./pages/SetPasswordPage'));
+const ResetPasswordPage        = lazy(() => import('./pages/ResetPasswordPage'));
+const NotFoundPage             = lazy(() => import('./pages/NotFoundPage'));
+const PaymentResultPage        = lazy(() => import('./pages/PaymentResultPage'));
+const MagicLoginPage           = lazy(() => import('./pages/MagicLoginPage'));
+const PaymentSuccessPage       = lazy(() => import('./pages/PaymentSuccessPage'));
+const AgeVerificationReturnPage = lazy(() => import('./pages/AgeVerificationReturnPage'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -79,6 +80,7 @@ function ProtectedRoute({
 
 function AppRoutes() {
   return (
+    <Suspense fallback={<SplashScreen />}>
     <Routes>
       <Route path="/" element={<AppShell />}>
         {/* Public */}
@@ -220,6 +222,7 @@ function AppRoutes() {
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
+    </Suspense>
   );
 }
 

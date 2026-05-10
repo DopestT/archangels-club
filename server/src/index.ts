@@ -26,8 +26,16 @@ if (!PORT) {
   throw new Error("PORT environment variable is required");
 }
 
+const ALLOWED_ORIGINS = [
+  'https://archangelsclub.com',
+  'https://www.archangelsclub.com',
+  ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : []),
+];
 const corsOptions = {
-  origin: true,
+  origin: (origin: string | undefined, cb: (e: Error | null, ok?: boolean) => void) => {
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    cb(new Error(`CORS: origin not allowed — ${origin}`));
+  },
   credentials: true,
 };
 app.options('*', cors(corsOptions));
@@ -61,7 +69,7 @@ app.use('/api/ai', aiRoutes);
 app.use('/api/email', emailTestRoutes);
 
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', platform: 'Archangels Club API' });
+  res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });
 });
 
 app.get('/api/health/db', async (_req, res) => {
@@ -73,81 +81,6 @@ app.get('/api/health/db', async (_req, res) => {
   }
 });
 
-// TEMPORARY debug endpoints — remove before public launch
-app.get('/api/debug/creators', async (_req, res) => {
-  try {
-    const rows = await pool.query(`
-      SELECT u.id, u.username, u.display_name, u.email, u.role, u.status, u.is_verified_creator,
-             cp.application_status, cp.is_approved
-      FROM creator_profiles cp
-      JOIN users u ON u.id = cp.user_id
-      ORDER BY u.username
-    `);
-    res.json(rows.rows);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.get('/api/debug/content', async (_req, res) => {
-  try {
-    const rows = await pool.query(`
-      SELECT c.id, c.title, c.content_type, c.access_type, c.status, c.price, c.created_at,
-             u.username AS creator_username, u.display_name AS creator_name
-      FROM content c
-      JOIN creator_profiles cp ON cp.id = c.creator_id
-      JOIN users u ON u.id = cp.user_id
-      ORDER BY c.created_at DESC
-      LIMIT 100
-    `);
-    res.json(rows.rows);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.get('/api/debug/creator-applications', async (_req, res) => {
-  try {
-    const rows = await pool.query(`
-      SELECT cp.id, cp.user_id, cp.bio, cp.tags, cp.content_categories,
-             cp.subscription_price, cp.starting_price, cp.application_status, cp.is_approved,
-             cp.pitch, cp.created_at,
-             u.email, u.username, u.display_name, u.role, u.status AS user_status
-      FROM creator_profiles cp
-      JOIN users u ON u.id = cp.user_id
-      ORDER BY cp.created_at DESC
-    `);
-    res.json(rows.rows);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.get('/api/debug/users', async (_req, res) => {
-  try {
-    const rows = await pool.query(`
-      SELECT id, email, username, display_name, role, status, is_verified_creator, created_at
-      FROM users ORDER BY created_at DESC LIMIT 100
-    `);
-    res.json(rows.rows);
-  } catch (err) {
-    res.status(500).json({ error: String(err) });
-  }
-});
-
-app.get('/api/debug/env', (_req, res) => {
-  res.json({
-    node_env: process.env.NODE_ENV ?? 'not set',
-    client_url: process.env.CLIENT_URL ?? 'not set',
-    stripe_key_prefix: process.env.STRIPE_SECRET_KEY
-      ? process.env.STRIPE_SECRET_KEY.substring(0, 7)
-      : 'not set',
-    stripe_mode: process.env.STRIPE_SECRET_KEY?.startsWith('sk_live') ? 'live' : 'test',
-    resend_configured: !!process.env.RESEND_API_KEY,
-    database_url_set: !!process.env.DATABASE_URL,
-    port: process.env.PORT ?? 'not set',
-  });
-});
 
 async function start() {
   try {
