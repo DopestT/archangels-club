@@ -335,10 +335,10 @@ export async function sendUserWelcome(to: string, name: string) {
     heading: "You're in.",
     lines: [
       `${name}.`,
-      'Your access to Archangels Club is active. Discover and unlock exclusive content from our creator community.',
+      'Your access to Archangels Club has been approved. Sign in with your email and password to get started.',
     ],
-    ctaLabel: 'Start Exploring',
-    ctaUrl: `${BASE_URL}/explore`,
+    ctaLabel: 'Sign In',
+    ctaUrl: `${BASE_URL}/login`,
   }));
 }
 

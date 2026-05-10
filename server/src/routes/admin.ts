@@ -120,23 +120,31 @@ router.post('/users/:id/approve', async (req, res) => {
       );
     }
 
-    // Generate one-time set-password token (expires in 24 hours)
-    const resetToken = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    await execute(
-      `INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)`,
-      [crypto.randomUUID(), email, resetToken, expiresAt]
-    );
-
     await execute(`UPDATE access_requests SET status = 'approved' WHERE id = $1`, [req.params.id]);
-    // reviewed_at / reviewed_by set separately — columns may not exist on first deploy
     execute(
       `UPDATE access_requests SET reviewed_at = NOW(), reviewed_by = $2 WHERE id = $1`,
       [req.params.id, req.auth!.userId]
     ).catch(() => {});
 
-    // Send set-password email and capture result for caller
-    const emailResult = await sendSetPasswordEmail(email, displayName, resetToken);
+    // If the user already has a password (registered via signup), just notify them to log in.
+    // If no password yet (access-request only), send a set-password link.
+    const userRecord = await queryOne<{ password_hash: string | null }>(
+      'SELECT password_hash FROM users WHERE email = $1', [email]
+    );
+    const hasPassword = !!userRecord?.password_hash;
+
+    let emailResult: { ok: boolean; messageId?: string; error?: string };
+    if (hasPassword) {
+      emailResult = await sendUserWelcome(email, displayName);
+    } else {
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await execute(
+        `INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)`,
+        [crypto.randomUUID(), email, resetToken, expiresAt]
+      );
+      emailResult = await sendSetPasswordEmail(email, displayName, resetToken);
+    }
     console.log(`[admin] approve — email result for ${email}:`, JSON.stringify(emailResult));
     upsertContact({ email, firstName: displayName }).catch(console.error);
 
@@ -190,6 +198,20 @@ router.post('/reprocess-approved', async (req, res) => {
         results.push({ email, action: 'user_created' });
       } else if (existing.status !== 'approved') {
         await execute(`UPDATE users SET status = 'approved' WHERE id = $1`, [existing.id]);
+        const userRecord = await queryOne<{ password_hash: string | null }>(
+          'SELECT password_hash FROM users WHERE id = $1', [existing.id]
+        );
+        if (userRecord?.password_hash) {
+          sendUserWelcome(email, displayName).catch(console.error);
+        } else {
+          const resetToken = crypto.randomBytes(32).toString('hex');
+          const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+          await execute(
+            `INSERT INTO password_resets (id, email, token, expires_at) VALUES ($1, $2, $3, $4)`,
+            [crypto.randomUUID(), email, resetToken, expiresAt]
+          );
+          sendSetPasswordEmail(email, displayName, resetToken).catch(console.error);
+        }
         results.push({ email, action: 'status_updated' });
       } else {
         results.push({ email, action: 'already_exists' });
