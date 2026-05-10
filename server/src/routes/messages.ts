@@ -130,16 +130,64 @@ router.post('/custom-request', requireAuth, async (req, res) => {
   }
 });
 
-// PATCH /api/messages/custom-request/:id — creator updates request status
+// PATCH /api/messages/custom-request/:id — update request status
+// Creator can: accepted, rejected, completed
+// Fan can:     cancelled (their own pending requests only)
 router.patch('/custom-request/:id', requireAuth, async (req, res) => {
   try {
     const { status } = req.body;
+    const userId = req.auth!.userId;
+    const requestId = req.params.id;
+
     const valid = ['accepted', 'rejected', 'completed', 'cancelled'];
     if (!valid.includes(status)) {
       res.status(400).json({ error: `status must be one of: ${valid.join(', ')}` });
       return;
     }
-    await execute('UPDATE custom_requests SET status = $1 WHERE id = $2', [status, req.params.id]);
+
+    const existing = await queryOne<{ fan_id: string; creator_id: string; status: string }>(
+      `SELECT cr.fan_id, cr.creator_id, cr.status
+       FROM custom_requests cr
+       JOIN creator_profiles cp ON cp.id = cr.creator_id
+       WHERE cr.id = $1`,
+      [requestId]
+    );
+    if (!existing) {
+      res.status(404).json({ error: 'Request not found.' });
+      return;
+    }
+
+    const isFan = existing.fan_id === userId;
+    const isCreatorProfile = await queryOne(
+      'SELECT 1 FROM creator_profiles WHERE id = $1 AND user_id = $2',
+      [existing.creator_id, userId]
+    );
+
+    if (status === 'cancelled') {
+      if (!isFan) {
+        res.status(403).json({ error: 'Only the requester can cancel.' });
+        return;
+      }
+      if (existing.status !== 'pending') {
+        res.status(400).json({ error: 'Only pending requests can be cancelled.' });
+        return;
+      }
+    } else {
+      if (!isCreatorProfile) {
+        res.status(403).json({ error: 'Only the creator can accept, reject, or complete.' });
+        return;
+      }
+      if (status === 'completed' && existing.status !== 'accepted') {
+        res.status(400).json({ error: 'Only accepted requests can be marked complete.' });
+        return;
+      }
+      if (['accepted', 'rejected'].includes(status) && existing.status !== 'pending') {
+        res.status(400).json({ error: 'Only pending requests can be accepted or rejected.' });
+        return;
+      }
+    }
+
+    await execute('UPDATE custom_requests SET status = $1 WHERE id = $2', [status, requestId]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update request.' });

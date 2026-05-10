@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Plus, Clock, CheckCircle, MessageCircle } from 'lucide-react';
+import { Send, Plus, Clock, CheckCircle, MessageCircle, XCircle } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
@@ -32,9 +32,13 @@ interface CustomRequest {
   offered_price: number;
   status: string;
   created_at: string;
-  creator_name: string;
-  creator_avatar: string | null;
-  creator_username: string;
+  // Fan's outgoing view
+  creator_name?: string;
+  creator_avatar?: string | null;
+  creator_username?: string;
+  // Creator's incoming view
+  fan_name?: string;
+  fan_avatar?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -46,7 +50,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export default function MessagesPage() {
-  const { user, token } = useAuth();
+  const { user, token, isCreator } = useAuth();
   const [activeTab, setActiveTab] = useState<'messages' | 'requests'>('messages');
 
   // Conversations + thread
@@ -71,6 +75,8 @@ export default function MessagesPage() {
   // Custom requests tab
   const [myRequests, setMyRequests] = useState<CustomRequest[]>([]);
   const [reqsLoading, setReqsLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState<Record<string, boolean>>({});
+  const [actionError, setActionError] = useState<Record<string, string>>({});
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -114,16 +120,40 @@ export default function MessagesPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Load custom requests tab
+  // Load custom requests tab — creators see incoming, fans see outgoing
   useEffect(() => {
     if (activeTab !== 'requests' || !token) return;
     setReqsLoading(true);
-    fetch(`${API_BASE}/api/messages/my-requests`, { headers: authHeaders })
+    const url = isCreator
+      ? `${API_BASE}/api/creators/my/requests`
+      : `${API_BASE}/api/messages/my-requests`;
+    fetch(url, { headers: authHeaders })
       .then((r) => r.json())
       .then((data) => { if (Array.isArray(data)) setMyRequests(data); })
       .catch(() => {})
       .finally(() => setReqsLoading(false));
-  }, [activeTab, token]);
+  }, [activeTab, token, isCreator]);
+
+  async function handleRequestAction(id: string, status: string) {
+    setActionLoading((prev) => ({ ...prev, [id]: true }));
+    setActionError((prev) => ({ ...prev, [id]: '' }));
+    try {
+      const res = await fetch(`${API_BASE}/api/messages/custom-request/${id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Failed to update request.');
+      }
+      setMyRequests((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+    } catch (err) {
+      setActionError((prev) => ({ ...prev, [id]: err instanceof Error ? err.message : 'Error' }));
+    } finally {
+      setActionLoading((prev) => ({ ...prev, [id]: false }));
+    }
+  }
 
   async function sendMessage() {
     if (!newMessage.trim() || !activePartnerId || !token) return;
@@ -380,50 +410,137 @@ export default function MessagesPage() {
 
         {activeTab === 'requests' && (
           <div className="space-y-4">
+            <p className="text-xs text-arc-muted mb-2">
+              {isCreator ? 'Incoming requests from members' : 'Your sent requests'}
+            </p>
             {reqsLoading ? (
               <div className="flex items-center justify-center py-16 text-arc-muted text-sm">Loading…</div>
             ) : myRequests.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-16">
                 <MessageCircle className="w-10 h-10 text-arc-muted mb-4" />
                 <p className="text-arc-secondary text-sm mb-1">No custom requests yet.</p>
-                <p className="text-xs text-arc-muted">Send a custom request from a creator's profile page.</p>
+                <p className="text-xs text-arc-muted">
+                  {isCreator
+                    ? 'Requests from members will appear here.'
+                    : 'Send a custom request from a creator\'s profile page.'}
+                </p>
               </div>
             ) : (
-              myRequests.map((req) => (
-                <div key={req.id} className="card-surface p-6 rounded-xl">
-                  <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar src={req.creator_avatar ?? undefined} name={req.creator_name} size="sm" ring />
-                      <div>
-                        <p className="text-sm text-white">{req.creator_name}</p>
-                        <p className="text-xs text-arc-muted">@{req.creator_username}</p>
+              myRequests.map((req) => {
+                const busy = !!actionLoading[req.id];
+                const err  = actionError[req.id];
+                return (
+                  <div key={req.id} className="card-surface p-6 rounded-xl">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex items-center gap-3">
+                        {isCreator ? (
+                          <>
+                            <Avatar src={req.fan_avatar ?? undefined} name={req.fan_name ?? 'Member'} size="sm" ring />
+                            <div>
+                              <p className="text-sm text-white">{req.fan_name ?? 'Member'}</p>
+                              <p className="text-xs text-arc-muted">sent this request</p>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <Avatar src={req.creator_avatar ?? undefined} name={req.creator_name ?? 'Creator'} size="sm" ring />
+                            <div>
+                              <p className="text-sm text-white">{req.creator_name}</p>
+                              <p className="text-xs text-arc-muted">@{req.creator_username}</p>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="font-serif text-xl text-gold">{formatCurrency(Number(req.offered_price))}</p>
+                        <p className="text-xs text-arc-muted">offered</p>
                       </div>
                     </div>
-                    <div className="text-right flex-shrink-0">
-                      <p className="font-serif text-xl text-gold">{formatCurrency(Number(req.offered_price))}</p>
-                      <p className="text-xs text-arc-muted">offered</p>
-                    </div>
-                  </div>
 
-                  <p className="text-sm text-arc-secondary leading-relaxed mb-4">{req.description}</p>
+                    <p className="text-sm text-arc-secondary leading-relaxed mb-4">{req.description}</p>
 
-                  <div className="flex items-center gap-3">
-                    <span className={`text-xs px-2.5 py-0.5 rounded-full border ${STATUS_COLORS[req.status] ?? STATUS_COLORS.pending}`}>
-                      {req.status}
-                    </span>
-                    <span className="text-xs text-arc-muted flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {timeAgo(req.created_at)}
-                    </span>
-                    {req.status === 'accepted' && (
-                      <div className="flex items-center gap-1.5 text-xs text-arc-success ml-auto">
-                        <CheckCircle className="w-3.5 h-3.5" />
-                        In progress
-                      </div>
+                    {err && (
+                      <p className="text-xs text-arc-error mb-3">{err}</p>
                     )}
+
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-3">
+                        <span className={`text-xs px-2.5 py-0.5 rounded-full border ${STATUS_COLORS[req.status] ?? STATUS_COLORS.pending}`}>
+                          {req.status}
+                        </span>
+                        <span className="text-xs text-arc-muted flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {timeAgo(req.created_at)}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {/* Creator actions */}
+                        {isCreator && req.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleRequestAction(req.id, 'accepted')}
+                              disabled={busy}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-arc-success/10 text-arc-success hover:bg-arc-success/20 transition-colors text-xs font-medium border border-arc-success/20 disabled:opacity-50"
+                            >
+                              <CheckCircle className="w-3.5 h-3.5" />
+                              {busy ? '…' : 'Accept'}
+                            </button>
+                            <button
+                              onClick={() => handleRequestAction(req.id, 'rejected')}
+                              disabled={busy}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-arc-error/10 text-arc-error hover:bg-arc-error/20 transition-colors text-xs font-medium border border-arc-error/20 disabled:opacity-50"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                              {busy ? '…' : 'Decline'}
+                            </button>
+                          </>
+                        )}
+                        {isCreator && req.status === 'accepted' && (
+                          <button
+                            onClick={() => handleRequestAction(req.id, 'completed')}
+                            disabled={busy}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors text-xs font-medium border border-blue-400/20 disabled:opacity-50"
+                          >
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            {busy ? '…' : 'Mark Complete'}
+                          </button>
+                        )}
+                        {isCreator && req.status === 'completed' && (
+                          <div className="flex items-center gap-1.5 text-xs text-blue-400">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Fulfilled
+                          </div>
+                        )}
+
+                        {/* Fan actions */}
+                        {!isCreator && req.status === 'accepted' && (
+                          <div className="flex items-center gap-1.5 text-xs text-arc-success">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            In progress
+                          </div>
+                        )}
+                        {!isCreator && req.status === 'completed' && (
+                          <div className="flex items-center gap-1.5 text-xs text-blue-400">
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            Fulfilled
+                          </div>
+                        )}
+                        {!isCreator && req.status === 'pending' && (
+                          <button
+                            onClick={() => handleRequestAction(req.id, 'cancelled')}
+                            disabled={busy}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-arc-muted hover:bg-white/10 hover:text-white transition-colors text-xs border border-white/10 disabled:opacity-50"
+                          >
+                            <XCircle className="w-3.5 h-3.5" />
+                            {busy ? '…' : 'Cancel Request'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}
