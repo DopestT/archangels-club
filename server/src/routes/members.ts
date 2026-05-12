@@ -13,7 +13,9 @@ router.get('/my/stats', requireAuth, requireApproved, async (req, res) => {
         [req.auth!.userId]
       ),
       queryOne<{ n: string }>(
-        "SELECT COUNT(*) as n FROM subscriptions WHERE subscriber_id = $1 AND status = 'active' AND expires_at > NOW()",
+        `SELECT COUNT(*) as n FROM subscriptions
+         WHERE subscriber_id = $1 AND expires_at > NOW()
+           AND status IN ('active','cancelled')`,
         [req.auth!.userId]
       ),
       queryOne<{ n: string }>(
@@ -67,13 +69,14 @@ router.get('/my/unlocked', requireAuth, requireApproved, async (req, res) => {
 router.get('/my/subscriptions', requireAuth, requireApproved, async (req, res) => {
   try {
     const rows = await query<any>(`
-      SELECT s.id, s.status, s.started_at, s.expires_at,
+      SELECT s.id, s.status, s.started_at, s.expires_at, s.cancel_at_period_end,
              cp.id as creator_id, u.display_name, u.username, u.avatar_url,
              cp.subscription_price, cp.bio
       FROM subscriptions s
       JOIN creator_profiles cp ON cp.id = s.creator_id
       JOIN users u ON u.id = cp.user_id
-      WHERE s.subscriber_id = $1 AND s.status = 'active' AND s.expires_at > NOW()
+      WHERE s.subscriber_id = $1 AND s.expires_at > NOW()
+        AND s.status IN ('active','cancelled')
       ORDER BY s.started_at DESC
     `, [req.auth!.userId]);
 

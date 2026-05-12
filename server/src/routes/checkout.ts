@@ -123,7 +123,8 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
       const sub = await queryOne<{ id: string }>(
         `SELECT id FROM subscriptions
-         WHERE subscriber_id = $1 AND creator_id = $2 AND status = 'active' AND expires_at > NOW()`,
+         WHERE subscriber_id = $1 AND creator_id = $2
+           AND expires_at > NOW() AND status IN ('active','cancelled')`,
         [req.auth!.userId, content.creator_id]
       );
       const isSubscribed = !!sub;

@@ -61,7 +61,8 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
 
   function onMouseEnter() {
     setHovered(true);
-    if (videoRef.current && content.media_url) {
+    // Only autoplay video for free (non-locked) content — locked content must not expose media_url in DOM
+    if (videoRef.current && content.media_url && !isLocked) {
       videoRef.current.play().catch(() => {});
       timerRef.current = setTimeout(() => {
         if (videoRef.current) {
@@ -111,8 +112,8 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
             </div>
           )}
 
-          {/* Video preview — plays on hover, blurred if locked */}
-          {content.content_type === 'video' && content.media_url && (
+          {/* Video preview — only for free content; locked content must not expose media_url in DOM */}
+          {content.content_type === 'video' && content.media_url && !isLocked && (
             <video
               ref={videoRef}
               src={content.media_url}
@@ -122,9 +123,8 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
               preload="none"
               className="absolute inset-0 w-full h-full object-cover"
               style={{
-                filter: imgBlur > 0 ? `blur(${imgBlur}px)` : undefined,
                 opacity: hovered ? 1 : 0,
-                transition: 'filter 0.5s ease, opacity 0.4s ease',
+                transition: 'opacity 0.4s ease',
               }}
             />
           )}

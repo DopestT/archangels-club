@@ -34,8 +34,6 @@ const PaymentResultPage        = lazy(() => import('./pages/PaymentResultPage'))
 const MagicLoginPage           = lazy(() => import('./pages/MagicLoginPage'));
 const PaymentSuccessPage       = lazy(() => import('./pages/PaymentSuccessPage'));
 const AgeVerificationReturnPage = lazy(() => import('./pages/AgeVerificationReturnPage'));
-const CreatorMediaLibrary      = lazy(() => import('./pages/CreatorMediaLibrary'));
-const CreatorEditContent       = lazy(() => import('./pages/CreatorEditContent'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.

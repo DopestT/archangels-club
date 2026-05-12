@@ -213,6 +213,7 @@ export default function LockedContentPage() {
   const [showModal,       setShowModal]       = useState(false);
   const [subscribing,     setSubscribing]    = useState(false);
   const [subscribeError,  setSubscribeError] = useState<string | null>(null);
+  const [streamLoading, setStreamLoading] = useState(false);
   const [moreContent,   setMoreContent]   = useState<GlobalContent[]>([]);
 
   const paymentSuccess  = searchParams.get('payment') === 'success';
@@ -255,11 +256,35 @@ export default function LockedContentPage() {
         if (data.is_creator_preview) setIsCreatorPreview(true);
         if (data.unlocked) {
           setUnlocked(true);
-          setMediaUrl(data.media_url ?? null);
+          if (data.media_url) {
+            setMediaUrl(data.media_url);
+          } else {
+            fetchStreamUrl();
+          }
         }
       })
       .catch(() => {});
   }, [content, token, paymentSuccess, alreadyUnlocked]);
+
+  async function fetchStreamUrl() {
+    if (!token || !id) return;
+    setStreamLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/content/${id}/stream-url`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (res.ok && data.token) {
+        setMediaUrl(`${API_BASE}/api/media/${data.token}`);
+      } else {
+        setError(data.error ?? 'Failed to load media. Please try again.');
+      }
+    } catch {
+      setError('Unable to load media stream. Check your connection and try again.');
+    } finally {
+      setStreamLoading(false);
+    }
+  }
 
   function fetchAccess(retries = 5, delayMs = 2000) {
     if (!token || !id) return;
@@ -270,7 +295,11 @@ export default function LockedContentPage() {
       .then(data => {
         if (data.unlocked) {
           setUnlocked(true);
-          setMediaUrl(data.media_url ?? null);
+          if (data.media_url) {
+            setMediaUrl(data.media_url);
+          } else {
+            fetchStreamUrl();
+          }
         } else if (retries > 0) {
           setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
         } else {
@@ -509,9 +538,16 @@ export default function LockedContentPage() {
             />
           )}
 
-          {!content.preview_url && !mediaUrl && (
+          {!content.preview_url && !mediaUrl && !streamLoading && (
             <div className="absolute inset-0 flex items-center justify-center bg-bg-surface">
               <div className="text-arc-muted">{TYPE_ICONS[content.content_type]}</div>
+            </div>
+          )}
+
+          {streamLoading && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg-primary/80 backdrop-blur-sm">
+              <div className="w-10 h-10 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+              <p className="text-xs text-arc-secondary">Loading media…</p>
             </div>
           )}
 
@@ -519,7 +555,29 @@ export default function LockedContentPage() {
             <img src={mediaUrl} alt={content.title} className="w-full object-cover" style={{ maxHeight: '520px' }} />
           )}
           {unlocked && mediaUrl && content.content_type === 'video' && (
-            <video src={mediaUrl} controls className="w-full" style={{ maxHeight: '520px' }} />
+            <video
+              src={mediaUrl}
+              controls
+              playsInline
+              preload="metadata"
+              poster={content.preview_url ?? undefined}
+              controlsList="nodownload"
+              className="w-full bg-black"
+              style={{ maxHeight: '520px' }}
+            />
+          )}
+          {unlocked && mediaUrl && content.content_type === 'audio' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-bg-surface p-6">
+              <Music className="w-12 h-12 text-gold/50" />
+              <p className="text-sm text-arc-secondary">{content.title}</p>
+              <audio
+                src={mediaUrl}
+                controls
+                preload="metadata"
+                controlsList="nodownload"
+                className="w-full max-w-sm"
+              />
+            </div>
           )}
 
           {/* Lock overlay — opens modal on click, no direct API call */}
