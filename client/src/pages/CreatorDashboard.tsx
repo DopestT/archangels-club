@@ -42,7 +42,7 @@ const ACT_COLORS: Record<string, string> = {
 };
 
 export default function CreatorDashboard() {
-  const { user, token, refreshUser } = useAuth();
+  const { user, token, refreshUser, isVerifiedCreator } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => { document.title = 'Creator Studio — Archangels Club'; }, []);
@@ -243,7 +243,7 @@ export default function CreatorDashboard() {
         <CreatorWelcomeReveal
           userId={user.id}
           firstName={firstName}
-          isVerifiedCreator={user.is_verified_creator ?? false}
+          isVerifiedCreator={isVerifiedCreator}
         />
       )}
     <div className="min-h-screen bg-bg-primary py-10">
@@ -278,16 +278,18 @@ export default function CreatorDashboard() {
               </h1>
               <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                 <span className="text-xs text-arc-muted">@{user?.username}</span>
-                {user?.is_verified_creator ? (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-arc-success/10 border border-arc-success/25 text-arc-success">
-                    <CheckCircle className="w-3 h-3" />
-                    Studio Open
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400">
-                    <Clock className="w-3 h-3" />
-                    Under Review
-                  </span>
+                {!statusLoading && (
+                  isVerifiedCreator ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-arc-success/10 border border-arc-success/25 text-arc-success">
+                      <CheckCircle className="w-3 h-3" />
+                      Studio Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-white/6 border border-white/10 text-arc-muted">
+                      <Clock className="w-3 h-3" />
+                      Application Received
+                    </span>
+                  )
                 )}
               </div>
             </div>
@@ -295,9 +297,9 @@ export default function CreatorDashboard() {
 
           {/* Tagline */}
           <p className="text-sm text-arc-secondary mb-5 max-w-lg leading-relaxed">
-            {user?.is_verified_creator
+            {!statusLoading && (isVerifiedCreator
               ? 'Upload drops, grow your audience, and collect earnings — this is your command center.'
-              : 'Prepare your first drop and complete your profile while your application is reviewed.'}
+              : 'Set up your profile and prepare your first drop. You\'ll be notified as soon as your studio is ready.')}
           </p>
 
           {/* Action row — primary CTA dominates */}
@@ -325,21 +327,21 @@ export default function CreatorDashboard() {
           </div>
         </div>
 
-        {/* Under-review banner — shown before approval */}
-        {!statusLoading && !user?.is_verified_creator && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 mb-5">
-            <Clock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+        {/* Pre-approval notice — gated fully on fresh data */}
+        {!statusLoading && !isVerifiedCreator && (
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-white/4 border border-white/10 mb-5">
+            <Clock className="w-4 h-4 text-arc-muted flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-amber-300">Creator Application Under Review</p>
+              <p className="text-xs font-medium text-white">Application Received</p>
               <p className="text-xs text-arc-muted mt-0.5 leading-relaxed">
-                Your studio is being prepared. Our team typically responds within <strong className="text-amber-200">48–72 hours</strong>.
+                Your studio is being prepared. You'll receive an email once your creator access is enabled.
               </p>
             </div>
           </div>
         )}
 
         {/* Quick Actions — verified creators only */}
-        {user?.is_verified_creator && (
+        {isVerifiedCreator && (
           <div className="mb-8">
             <p className="text-[11px] font-bold tracking-widest uppercase text-arc-muted mb-3">Quick Actions</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

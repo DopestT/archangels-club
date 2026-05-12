@@ -12,6 +12,7 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isAuthLoading: boolean;
   isCreator: boolean;
+  isVerifiedCreator: boolean;
   isAdmin: boolean;
   userStatus: UserStatus | null;
   isPending: boolean;
@@ -85,16 +86,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { Authorization: `Bearer ${storedToken}` },
       });
       if (!res.ok) return;
-      const data = await res.json();
-      if (data.user) {
-        const updated: StoredAuth = { token: storedToken, user: data.user };
+      // /api/auth/me returns the user object directly (not nested under .user)
+      const freshUser = await res.json() as User;
+      if (freshUser?.id) {
+        const updated: StoredAuth = { token: storedToken, user: freshUser };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-        setUser(data.user);
+        setUser(freshUser);
       }
     } catch {}
   }, []);
 
   const isCreator = user?.role === 'creator' || user?.role === 'both';
+  const isVerifiedCreator = user?.is_verified_creator === true;
   const isAdmin = user?.role === 'admin';
   const userStatus = (user?.status as UserStatus) ?? null;
   const isPending = userStatus === 'pending';
@@ -108,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isAuthenticated: !!user,
       isAuthLoading,
       isCreator,
+      isVerifiedCreator,
       isAdmin,
       userStatus,
       isPending,
