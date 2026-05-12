@@ -594,7 +594,7 @@ router.post('/:id/unlock', requireAuth, requireApproved, async (req, res) => {
     );
     if (alreadyUnlocked) { res.json({ unlocked: true }); return; }
 
-    const PLATFORM_FEE_RATE = 0.2;
+    const PLATFORM_FEE_RATE = 0.3;
     const platformFee = Math.round(content.price * PLATFORM_FEE_RATE * 100) / 100;
     const netAmount = content.price - platformFee;
 

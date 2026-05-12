@@ -490,7 +490,7 @@ export default function AdminControlCenter() {
             )}
             {/* Transactions */}
             {activeQueue === 'transactions' && (
-              <QueueShell label="Transactions" count={transactions.length} desc="All completed payments. Platform fee is 20%, creator receives 80%.">
+              <QueueShell label="Transactions" count={transactions.length} desc="All completed payments. Platform fee is 30%, creator receives 70%.">
                 {transactions.length === 0 && <EmptyQueue />}
                 {transactions.map((tx) => (
                   <div key={tx.id} className="card-surface rounded-xl p-5">

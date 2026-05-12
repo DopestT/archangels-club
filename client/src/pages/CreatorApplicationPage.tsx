@@ -220,7 +220,7 @@ export default function CreatorApplicationPage() {
                     className="input-dark pl-8"
                   />
                 </div>
-                <p className="text-xs text-arc-muted mt-1">You receive {formatCurrency(parseFloat(subscriptionPrice || '0') * 0.8)}/mo per subscriber</p>
+                <p className="text-xs text-arc-muted mt-1">You receive {formatCurrency(parseFloat(subscriptionPrice || '0') * 0.7)}/mo per subscriber</p>
               </div>
               <div>
                 <label className="block text-xs text-arc-secondary mb-1.5">Starting / Unlock Price</label>

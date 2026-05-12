@@ -396,7 +396,7 @@ export default function CreatorDashboard() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-white mb-0.5">Enable payouts to start earning</p>
               <p className="text-xs text-arc-secondary leading-relaxed">
-                Connect your bank via Stripe. You keep 80% of every payment — handled automatically.
+                Connect your bank via Stripe. Creators receive 70% of every payment — processed automatically.
               </p>
               {stripeError && (
                 <p className="text-xs text-amber-400 mt-2">{stripeError}</p>
@@ -426,7 +426,7 @@ export default function CreatorDashboard() {
             <CheckCircle className="w-4 h-4 text-arc-success flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-arc-success">Payouts active</p>
-              <p className="text-xs text-arc-muted mt-0.5">You keep 80% of every sale — deposited automatically each week.</p>
+              <p className="text-xs text-arc-muted mt-0.5">Creators receive 70% of every sale — deposited automatically each week.</p>
             </div>
             <button onClick={openStripeDashboard} className="text-xs text-gold hover:underline flex items-center gap-1 flex-shrink-0">
               <ExternalLink className="w-3 h-3" />
@@ -866,10 +866,10 @@ export default function CreatorDashboard() {
                 <p className="text-xs font-medium text-white">Your Payout</p>
               </div>
               <p className="text-xs text-arc-secondary leading-relaxed">
-                You keep 80% of every sale — subscriptions, unlocks, tips, and custom requests. Fees are handled automatically.
+                Creators receive 70% of unlocks, subscriptions, tips, and custom requests. Payouts are processed automatically through Stripe.
               </p>
               <p className="text-[11px] text-arc-muted mt-2">
-                Processed weekly · min. $50 · bank or crypto
+                Processed weekly · minimum $50
               </p>
             </div>
 

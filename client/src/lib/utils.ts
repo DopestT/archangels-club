@@ -35,7 +35,7 @@ export function timeAgo(dateStr: string | null | undefined): string {
 }
 
 export function calculateFee(amount: number): { platformFee: number; netAmount: number } {
-  const platformFee = Math.round(amount * 0.2 * 100) / 100;
+  const platformFee = Math.round(amount * 0.3 * 100) / 100;
   const netAmount = Math.round((amount - platformFee) * 100) / 100;
   return { platformFee, netAmount };
 }

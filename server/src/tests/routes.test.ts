@@ -476,7 +476,7 @@ describe('POST /api/webhooks/stripe — unlock', () => {
     expect(mockWithTxn).not.toHaveBeenCalled();
   });
 
-  it('10. creator earnings = 80% of gross amount', async () => {
+  it('10. creator earnings = 70% of gross amount', async () => {
     const body = JSON.stringify(makeWebhookBody());
     await request(app)
       .post('/api/webhooks/stripe')
@@ -492,7 +492,7 @@ describe('POST /api/webhooks/stripe — unlock', () => {
     const platformFee     = txnArgs[5]; // index 5 = platform_fee
     const creatorEarnings = txnArgs[6]; // index 6 = net_amount / creator_earnings
     expect(grossAmount).toBeCloseTo(9.99, 2);
-    expect(platformFee).toBeCloseTo(2.00, 2);
-    expect(creatorEarnings).toBeCloseTo(7.99, 2);
+    expect(platformFee).toBeCloseTo(3.00, 2);
+    expect(creatorEarnings).toBeCloseTo(6.99, 2);
   });
 });

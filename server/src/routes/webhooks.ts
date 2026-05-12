@@ -270,7 +270,7 @@ async function handleInvoicePaid(
       );
       if (creator) {
         const grossAmount = (invoice.amount_paid ?? 0) / 100;
-        const platformFee = Math.round(grossAmount * 0.2 * 100) / 100;
+        const platformFee = Math.round(grossAmount * 0.3 * 100) / 100;
         const netAmount = Math.round((grossAmount - platformFee) * 100) / 100;
 
         await execute(

@@ -46,7 +46,7 @@ export default function PricingPanel({ config, onChange }: Props) {
   const [showBundle, setShowBundle] = useState(false);
 
   const price = isNaN(config.price) ? 0 : config.price;
-  const net = price * 0.8;
+  const net = price * 0.7;
   const activeTier = getPriceTier(price);
   const subDiscountedPrice = price * (1 - config.subscriberDiscountPct / 100);
 
@@ -104,7 +104,7 @@ export default function PricingPanel({ config, onChange }: Props) {
           {price > 0 && (
             <div className="flex items-center gap-4 text-xs mb-4">
               <span className="text-arc-muted">You receive <span className="text-arc-success font-medium">{formatCurrency(net)}</span></span>
-              <span className="text-arc-muted">Fee <span className="text-arc-secondary">{formatCurrency(price * 0.2)}</span></span>
+              <span className="text-arc-muted">Fee <span className="text-arc-secondary">{formatCurrency(price * 0.3)}</span></span>
             </div>
           )}
 
@@ -175,7 +175,7 @@ export default function PricingPanel({ config, onChange }: Props) {
           </div>
           {price > 0 && (
             <p className="text-xs text-arc-muted mt-1.5">
-              You receive <span className="text-arc-success">{formatCurrency(price * 0.8)}/mo</span> per active subscriber.
+              You receive <span className="text-arc-success">{formatCurrency(price * 0.7)}/mo</span> per active subscriber.
             </p>
           )}
         </div>

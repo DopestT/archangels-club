@@ -6,7 +6,7 @@ import { fulfillCheckoutSession } from '../services/fulfillment.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://archangelsclub.com';
-const PLATFORM_FEE_RATE = 0.2;
+const PLATFORM_FEE_RATE = 0.3;
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not set');

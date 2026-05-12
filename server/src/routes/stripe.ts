@@ -203,7 +203,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
       }
 
       const unitAmount = Math.round(tipAmount * 100);
-      const feeAmount = Math.round(unitAmount * 0.2);
+      const feeAmount = Math.round(unitAmount * 0.3);
 
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],

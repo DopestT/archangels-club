@@ -65,7 +65,7 @@ export default function PaymentPanel({
 
         <div className="flex items-center gap-1.5 text-xs text-arc-muted justify-center">
           <Lock className="w-3 h-3" />
-          Secure payment · 80% goes directly to creator
+          Secure payment · 70% goes directly to creator
         </div>
       </div>
     </div>

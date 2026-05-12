@@ -96,7 +96,7 @@ function MediaCard({ item }: { item: MediaItem }) {
   const title       = item.title?.trim() || 'Untitled Drop';
   const unlocks     = safeNum(item.unlock_count);
   const price       = safeNum(item.price);
-  const estimated   = unlocks * price * 0.8;
+  const estimated   = unlocks * price * 0.7;
   const statusCfg   = STATUS_CONFIG[item.status] ?? { label: item.status, color: 'text-arc-muted', bg: 'bg-white/5 border-white/10' };
   const accessCfg   = ACCESS_CONFIG[item.access_type] ?? ACCESS_CONFIG.free;
   const typeIcon    = TYPE_ICONS[item.content_type];
@@ -434,7 +434,7 @@ export default function CreatorMediaLibrary() {
     if      (sortBy === 'recent')  copy.sort((a, b) => (b.created_at ?? '') > (a.created_at ?? '') ? 1 : -1);
     else if (sortBy === 'unlocks') copy.sort((a, b) => safeNum(b.unlock_count) - safeNum(a.unlock_count));
     else if (sortBy === 'earning') {
-      const earn = (i: MediaItem) => safeNum(i.unlock_count) * safeNum(i.price) * 0.8;
+      const earn = (i: MediaItem) => safeNum(i.unlock_count) * safeNum(i.price) * 0.7;
       copy.sort((a, b) => earn(b) - earn(a));
     }
 

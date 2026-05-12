@@ -352,7 +352,7 @@ export default function LandingPage() {
               </p>
               <ul className="space-y-4 mb-10">
                 {[
-                  { icon: <TrendingUp className="w-4 h-4" />, text: 'Keep up to 80% of every transaction' },
+                  { icon: <TrendingUp className="w-4 h-4" />, text: 'Receive 70% of every transaction' },
                   { icon: <Users className="w-4 h-4" />, text: 'Set your own subscription and content prices' },
                   { icon: <Image className="w-4 h-4" />, text: 'Publish photos, videos, audio, and written content' },
                   { icon: <Zap className="w-4 h-4" />, text: 'Instant payouts via Stripe — no waiting 30 days' },
@@ -370,7 +370,7 @@ export default function LandingPage() {
 
             <div className="grid grid-cols-2 gap-4">
               {[
-                { label: 'Creator Payout', value: 'Up to 80%' },
+                { label: 'Creator Payout', value: '70%' },
                 { label: 'Payout Speed', value: 'Instant' },
                 { label: 'Min. Subscription', value: '$9.99/mo' },
                 { label: 'Content Types', value: '4 formats' },

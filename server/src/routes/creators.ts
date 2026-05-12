@@ -255,7 +255,7 @@ router.get('/my/content', requireAuth, requireCreator, async (req, res) => {
       available_until:         r.available_until ?? null,
       subscriber_discount_pct: Number(r.subscriber_discount_pct) || 0,
       unlock_count:            Number(r.unlock_count) || 0,
-      earnings_estimate:       Math.round(Number(r.price) * Number(r.unlock_count) * 0.8 * 100) / 100,
+      earnings_estimate:       Math.round(Number(r.price) * Number(r.unlock_count) * 0.7 * 100) / 100,
       created_at:              r.created_at,
       updated_at:              r.updated_at ?? r.created_at,
       scheduled_for:           r.publish_at ?? null,

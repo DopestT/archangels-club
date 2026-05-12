@@ -60,7 +60,7 @@ router.post('/create-unlock-session', requireAuth, requireApproved, async (req, 
 
     const stripe = getStripe();
     const amountCents = Math.round(effectivePrice * 100);
-    const feeCents = Math.round(amountCents * 0.2);
+    const feeCents = Math.round(amountCents * 0.3);
     const hasConnect = !!content.stripe_account_id && !!content.stripe_onboarding_complete;
 
     console.log('[payments/unlock] content:', content.title, 'basePrice:', content.price,

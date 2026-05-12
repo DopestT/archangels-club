@@ -119,7 +119,7 @@ export async function fulfillCheckoutSession(
       }
 
       const grossAmount     = session.amount_total ? session.amount_total / 100 : Number(amountStr ?? 0);
-      const platformFee     = Math.round(grossAmount * 0.2 * 100) / 100;
+      const platformFee     = Math.round(grossAmount * 0.3 * 100) / 100;
       const creatorEarnings = Math.round((grossAmount - platformFee) * 100) / 100;
       const subId           = crypto.randomUUID();
 
@@ -202,7 +202,7 @@ export async function fulfillCheckoutSession(
       }
 
       const grossAmount     = session.amount_total ? session.amount_total / 100 : Number(amountStr ?? 0);
-      const platformFee     = Math.round(grossAmount * 0.2 * 100) / 100;
+      const platformFee     = Math.round(grossAmount * 0.3 * 100) / 100;
       const creatorEarnings = Math.round((grossAmount - platformFee) * 100) / 100;
       const txnId           = crypto.randomUUID();
 
@@ -281,7 +281,7 @@ export async function fulfillCheckoutSession(
       const grossAmount     = amountStr
         ? Number(amountStr)
         : (session.amount_total ? session.amount_total / 100 : 0);
-      const platformFee     = Math.round(grossAmount * 0.2 * 100) / 100;
+      const platformFee     = Math.round(grossAmount * 0.3 * 100) / 100;
       const creatorEarnings = Math.round((grossAmount - platformFee) * 100) / 100;
       const txnId           = crypto.randomUUID();
       const unlockId        = crypto.randomUUID();
