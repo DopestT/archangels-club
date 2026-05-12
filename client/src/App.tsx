@@ -23,6 +23,8 @@ const AdminDashboard           = lazy(() => import('./pages/AdminDashboard'));
 const AdminControlCenter       = lazy(() => import('./pages/AdminControlCenter'));
 const BugControlPage           = lazy(() => import('./pages/BugControlPage'));
 const CreatorOnboarding        = lazy(() => import('./pages/CreatorOnboarding'));
+const CreatorMediaLibrary      = lazy(() => import('./pages/CreatorMediaLibrary'));
+const CreatorEditContent       = lazy(() => import('./pages/CreatorEditContent'));
 const NotificationsPage        = lazy(() => import('./pages/NotificationsPage'));
 const StaticPage               = lazy(() => import('./pages/StaticPage'));
 const SetPasswordPage          = lazy(() => import('./pages/SetPasswordPage'));

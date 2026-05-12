@@ -348,17 +348,31 @@ router.post('/creators/:id/suspend', async (req, res) => {
 
 router.post('/content/:id/approve', async (req, res) => {
   try {
-    const row = await queryOne<{ creator_id: string; title: string }>(
-      `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
+    const row = await queryOne<{ creator_id: string; title: string; publish_at: string | null; status: string }>(
+      `SELECT creator_id, title, publish_at, status FROM content WHERE id = $1`, [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
-    await execute(`UPDATE content SET status = 'approved' WHERE id = $1`, [req.params.id]);
+
+    const approvableStatuses = ['pending_review', 'scheduled', 'rejected', 'changes_requested'];
+    if (!approvableStatuses.includes(row.status)) {
+      res.status(409).json({ error: `Cannot approve content with status '${row.status}'.` });
+      return;
+    }
+
+    // If publish_at is in the future, hold as scheduled rather than going live immediately
+    const newStatus =
+      row.publish_at && new Date(row.publish_at) > new Date() ? 'scheduled' : 'approved';
+
+    await execute(
+      `UPDATE content SET status = $1, rejection_reason = NULL, updated_at = NOW() WHERE id = $2`,
+      [newStatus, req.params.id]
+    );
     const user = await queryOne<{ email: string; display_name: string }>(
       `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
       [row.creator_id]
     );
     if (user) sendContentApproved(user.email, user.display_name, row.title).catch(console.error);
-    res.json({ success: true });
+    res.json({ success: true, status: newStatus });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve content.' });
   }
@@ -366,14 +380,21 @@ router.post('/content/:id/approve', async (req, res) => {
 
 router.post('/content/:id/reject', async (req, res) => {
   try {
-    const { rejection_reason } = req.body;
-    const row = await queryOne<{ creator_id: string; title: string }>(
-      `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
+    const row = await queryOne<{ creator_id: string; title: string; status: string }>(
+      `SELECT creator_id, title, status FROM content WHERE id = $1`, [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+
+    const rejectableStatuses = ['pending_review', 'scheduled', 'changes_requested'];
+    if (!rejectableStatuses.includes(row.status)) {
+      res.status(409).json({ error: `Cannot reject content with status '${row.status}'.` });
+      return;
+    }
+
+    const { rejection_reason } = req.body;
     await execute(
-      `UPDATE content SET status = 'rejected', rejection_reason = $2 WHERE id = $1`,
-      [req.params.id, rejection_reason ?? null]
+      `UPDATE content SET status = 'rejected', rejection_reason = $1, updated_at = NOW() WHERE id = $2`,
+      [rejection_reason ?? null, req.params.id]
     );
     const user = await queryOne<{ email: string; display_name: string }>(
       `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
@@ -388,14 +409,21 @@ router.post('/content/:id/reject', async (req, res) => {
 
 router.post('/content/:id/request-changes', async (req, res) => {
   try {
-    const { rejection_reason } = req.body;
-    const row = await queryOne<{ creator_id: string; title: string }>(
-      `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
+    const row = await queryOne<{ creator_id: string; title: string; status: string }>(
+      `SELECT creator_id, title, status FROM content WHERE id = $1`, [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+
+    const changeableStatuses = ['pending_review', 'scheduled', 'rejected'];
+    if (!changeableStatuses.includes(row.status)) {
+      res.status(409).json({ error: `Cannot request changes on content with status '${row.status}'.` });
+      return;
+    }
+
+    const { rejection_reason } = req.body;
     await execute(
-      `UPDATE content SET status = 'changes_requested', rejection_reason = $2 WHERE id = $1`,
-      [req.params.id, rejection_reason ?? null]
+      `UPDATE content SET status = 'changes_requested', rejection_reason = $1, updated_at = NOW() WHERE id = $2`,
+      [rejection_reason ?? null, req.params.id]
     );
     const user = await queryOne<{ email: string; display_name: string }>(
       `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
@@ -410,8 +438,21 @@ router.post('/content/:id/request-changes', async (req, res) => {
 
 router.post('/content/:id/remove', async (req, res) => {
   try {
-    const changed = await execute(`UPDATE content SET status = 'removed' WHERE id = $1`, [req.params.id]);
-    if (changed === 0) { res.status(404).json({ error: 'Content not found.' }); return; }
+    const row = await queryOne<{ status: string }>(
+      `SELECT status FROM content WHERE id = $1`, [req.params.id]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+    if (row.status === 'removed') {
+      res.status(409).json({ error: 'Content is already removed.' });
+      return;
+    }
+    if (row.status === 'draft') {
+      res.status(409).json({ error: "Cannot remove a draft — the creator should delete it." });
+      return;
+    }
+    await execute(
+      `UPDATE content SET status = 'removed', updated_at = NOW() WHERE id = $1`, [req.params.id]
+    );
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove content.' });
@@ -546,7 +587,9 @@ router.patch('/creators/:id/status', async (req, res) => {
 router.get('/content-approvals', async (req, res) => {
   try {
     const rows = await query(`
-      SELECT c.*, u.display_name AS creator_name, u.username AS creator_username, u.avatar_url AS creator_avatar
+      SELECT c.*,
+             u.display_name AS creator_name, u.username AS creator_username, u.avatar_url AS creator_avatar,
+             (SELECT COUNT(*) FROM unlocks WHERE content_id = c.id) AS unlock_count
       FROM content c
       JOIN creator_profiles cp ON cp.id = c.creator_id
       JOIN users u ON u.id = cp.user_id
@@ -559,17 +602,49 @@ router.get('/content-approvals', async (req, res) => {
   }
 });
 
+// GET /api/admin/scheduled-content — approved content waiting on publish_at
+router.get('/scheduled-content', async (req, res) => {
+  try {
+    const rows = await query(`
+      SELECT c.*, u.display_name AS creator_name, u.username AS creator_username
+      FROM content c
+      JOIN creator_profiles cp ON cp.id = c.creator_id
+      JOIN users u ON u.id = cp.user_id
+      WHERE c.status = 'scheduled'
+      ORDER BY c.publish_at ASC
+    `);
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch scheduled content.' });
+  }
+});
+
 router.patch('/content/:id/status', async (req, res) => {
   try {
     const { status, rejection_reason } = req.body;
-    const allowed = ['approved', 'rejected', 'removed'];
+    const allowed = ['approved', 'rejected', 'removed', 'scheduled'];
     if (!allowed.includes(status)) {
       res.status(400).json({ error: `status must be one of: ${allowed.join(', ')}` });
       return;
     }
-    const changed = await execute('UPDATE content SET status = $1 WHERE id = $2', [status, req.params.id]);
+
+    if (status === 'scheduled') {
+      const existing = await queryOne<{ publish_at: string | null }>(
+        `SELECT publish_at FROM content WHERE id = $1`, [req.params.id]
+      );
+      if (!existing) { res.status(404).json({ error: 'Content not found' }); return; }
+      if (!existing.publish_at) {
+        res.status(400).json({ error: 'Cannot set status to scheduled: content has no publish_at date.' });
+        return;
+      }
+    }
+
+    const changed = await execute(
+      'UPDATE content SET status = $1, rejection_reason = $2, updated_at = NOW() WHERE id = $3',
+      [status, rejection_reason ?? null, req.params.id]
+    );
     if (changed === 0) { res.status(404).json({ error: 'Content not found' }); return; }
-    res.json({ success: true, status, rejection_reason: rejection_reason ?? null });
+    res.json({ success: true, status });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update content status.' });
   }
@@ -702,6 +777,96 @@ router.post('/creators/:id/update-kyc', async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to update KYC status.' });
+  }
+});
+
+// ── Money Health Dashboard ────────────────────────────────────────────────────
+
+// GET /api/admin/money-health — monetary system audit view
+router.get('/money-health', async (req, res) => {
+  try {
+    const [
+      successfulPayments,
+      failedFulfillments,
+      needsReviewFulfillments,
+      webhookFailures,
+      webhookDuplicates,
+      activeSubscriptions,
+      expiredSubscriptions,
+      refundedTransactions,
+      disputedTransactions,
+      revenueRow,
+      recentFailedEvents,
+      recentNeedsReview,
+    ] = await Promise.all([
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM transactions WHERE status = 'completed'`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM fulfillment_records WHERE status = 'failed'`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM fulfillment_records WHERE status = 'needs_review'`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM payment_events WHERE processing_status = 'failed'`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM payment_events WHERE processing_status = 'skipped_duplicate'`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM subscriptions WHERE status = 'active' AND expires_at > NOW()`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM subscriptions WHERE expires_at <= NOW()`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM transactions WHERE status = 'refunded'`
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM transactions WHERE status = 'disputed'`
+      ),
+      queryOne<{ total_volume: string; total_fee: string; total_net: string }>(
+        `SELECT SUM(amount) as total_volume, SUM(platform_fee) as total_fee,
+                SUM(net_amount) as total_net
+         FROM transactions WHERE status = 'completed'`
+      ),
+      query(
+        `SELECT pe.stripe_event_id, pe.event_type, pe.error_message, pe.received_at
+         FROM payment_events pe
+         WHERE pe.processing_status = 'failed'
+         ORDER BY pe.received_at DESC LIMIT 20`
+      ),
+      query(
+        `SELECT fr.stripe_session_id, fr.purchase_type, fr.user_id, fr.creator_id,
+                fr.attempts, fr.last_error, fr.updated_at
+         FROM fulfillment_records fr
+         WHERE fr.status IN ('failed','needs_review')
+         ORDER BY fr.updated_at DESC LIMIT 20`
+      ),
+    ]);
+
+    res.json({
+      summary: {
+        successfulPayments: parseInt(successfulPayments?.n ?? '0', 10),
+        failedFulfillments: parseInt(failedFulfillments?.n ?? '0', 10),
+        needsReviewFulfillments: parseInt(needsReviewFulfillments?.n ?? '0', 10),
+        webhookFailures: parseInt(webhookFailures?.n ?? '0', 10),
+        webhookDuplicatesPrevented: parseInt(webhookDuplicates?.n ?? '0', 10),
+        activeSubscriptions: parseInt(activeSubscriptions?.n ?? '0', 10),
+        expiredSubscriptions: parseInt(expiredSubscriptions?.n ?? '0', 10),
+        refundedTransactions: parseInt(refundedTransactions?.n ?? '0', 10),
+        disputedTransactions: parseInt(disputedTransactions?.n ?? '0', 10),
+        totalVolume: parseFloat(revenueRow?.total_volume ?? '0'),
+        totalPlatformFee: parseFloat(revenueRow?.total_fee ?? '0'),
+        totalCreatorNet: parseFloat(revenueRow?.total_net ?? '0'),
+      },
+      recentWebhookFailures: recentFailedEvents,
+      recentFulfillmentIssues: recentNeedsReview,
+    });
+  } catch (err) {
+    console.error('[admin] money-health error:', err);
+    res.status(500).json({ error: 'Failed to fetch money health.' });
   }
 });
 

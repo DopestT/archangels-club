@@ -13,7 +13,7 @@ router.get('/', async (req, res) => {
     let sql = `
       SELECT cp.*, u.display_name, u.username, u.avatar_url, u.is_verified_creator,
         (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active') as subscriber_count,
-        (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND c.status = 'approved') as content_count
+        (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))) as content_count
       FROM creator_profiles cp
       JOIN users u ON u.id = cp.user_id
       WHERE cp.is_approved = 1
@@ -55,7 +55,7 @@ router.get('/stats', async (_req, res) => {
     const [creators, members, content] = await Promise.all([
       queryOne<{ n: string }>(`SELECT COUNT(*) as n FROM creator_profiles WHERE is_approved = 1`),
       queryOne<{ n: string }>(`SELECT COUNT(*) as n FROM users WHERE status = 'approved'`),
-      queryOne<{ n: string }>(`SELECT COUNT(*) as n FROM content WHERE status = 'approved'`),
+      queryOne<{ n: string }>(`SELECT COUNT(*) as n FROM content WHERE status = 'approved' OR (status = 'scheduled' AND publish_at <= NOW())`),
     ]);
     res.json({
       creator_count: parseInt(creators?.n ?? '0'),
@@ -178,7 +178,8 @@ router.get('/my/transactions', requireAuth, requireCreator, async (req, res) => 
   }
 });
 
-// GET /api/creators/my/content — all of this creator's own content (all statuses, must be before /:username)
+// GET /api/creators/my/content — authenticated creator's own content, all statuses
+// Query params: status, content_type, limit (max 100), offset
 router.get('/my/content', requireAuth, requireCreator, async (req, res) => {
   try {
     const profile = await queryOne<{ id: string }>(
@@ -187,17 +188,129 @@ router.get('/my/content', requireAuth, requireCreator, async (req, res) => {
     );
     if (!profile) { res.json([]); return; }
 
+    // Optional filters
+    const rawStatus      = typeof req.query.status       === 'string' ? req.query.status       : null;
+    const rawContentType = typeof req.query.content_type === 'string' ? req.query.content_type : null;
+    const limit          = Math.min(Math.max(parseInt(req.query.limit  as string, 10) || 100, 1), 100);
+    const offset         = Math.max(parseInt(req.query.offset as string, 10) || 0, 0);
+
+    // Validate optional filter values against allowed sets to prevent injection
+    const VALID_STATUSES      = new Set(['draft', 'pending_review', 'approved', 'rejected', 'removed', 'scheduled', 'changes_requested', 'failed_processing']);
+    const VALID_CONTENT_TYPES = new Set(['image', 'video', 'audio', 'text']);
+    const statusFilter      = rawStatus      && VALID_STATUSES.has(rawStatus)      ? rawStatus      : null;
+    const contentTypeFilter = rawContentType && VALID_CONTENT_TYPES.has(rawContentType) ? rawContentType : null;
+
+    const params: unknown[] = [profile.id];
+    let extraWhere = '';
+    let paramIdx = 2;
+
+    if (statusFilter) {
+      extraWhere += ` AND c.status = $${paramIdx++}`;
+      params.push(statusFilter);
+    }
+    if (contentTypeFilter) {
+      extraWhere += ` AND c.content_type = $${paramIdx++}`;
+      params.push(contentTypeFilter);
+    }
+    params.push(limit, offset);
+
     const rows = await query(`
-      SELECT c.*,
+      SELECT
+        c.id,
+        c.title,
+        c.description,
+        c.content_type,
+        c.access_type,
+        c.price,
+        c.status,
+        c.preview_url,
+        c.media_url,
+        c.max_unlocks,
+        c.available_until,
+        c.subscriber_discount_pct,
+        c.publish_at,
+        c.updated_at,
+        c.rejection_reason,
+        c.created_at,
         (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id)::int AS unlock_count
       FROM content c
-      WHERE c.creator_id = $1
+      WHERE c.creator_id = $1${extraWhere}
       ORDER BY c.created_at DESC
-    `, [profile.id]);
+      LIMIT $${paramIdx++} OFFSET $${paramIdx++}
+    `, params);
 
-    res.json(rows);
+    // Enrich with computed fields; return all DB values directly now that schema has them
+    const enriched = (rows as any[]).map(r => ({
+      id:                      r.id,
+      title:                   r.title || 'Untitled Drop',
+      caption:                 r.description ?? '',
+      content_type:            r.content_type,
+      access_type:             r.access_type,
+      price:                   Number(r.price) || 0,
+      status:                  r.status,
+      preview_url:             r.preview_url ?? null,
+      thumbnail_url:           r.preview_url ?? null,   // no separate thumbnail column
+      media_url:               r.media_url ?? null,     // creator may access own media_url
+      max_unlocks:             r.max_unlocks ?? null,
+      available_until:         r.available_until ?? null,
+      subscriber_discount_pct: Number(r.subscriber_discount_pct) || 0,
+      unlock_count:            Number(r.unlock_count) || 0,
+      earnings_estimate:       Math.round(Number(r.price) * Number(r.unlock_count) * 0.8 * 100) / 100,
+      created_at:              r.created_at,
+      updated_at:              r.updated_at ?? r.created_at,
+      scheduled_for:           r.publish_at ?? null,
+      rejection_reason:        r.rejection_reason ?? null,
+    }));
+
+    res.json(enriched);
   } catch (err) {
+    console.error('[creators/my/content] error:', err);
     res.status(500).json({ error: 'Failed to fetch content.' });
+  }
+});
+
+// GET /api/creators/my/onboarding — computed onboarding step state
+router.get('/my/onboarding', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const profile = await queryOne<{
+      id: string;
+      bio: string;
+      cover_image_url: string | null;
+      subscription_price: string;
+      stripe_onboarding_complete: number;
+      custom_requests_enabled: number;
+      onboarding_dismissed: number;
+      training_viewed: number;
+      total_earnings: string;
+    }>(
+      `SELECT id, bio, cover_image_url, subscription_price, stripe_onboarding_complete,
+              custom_requests_enabled, onboarding_dismissed, training_viewed, total_earnings
+       FROM creator_profiles WHERE user_id = $1`,
+      [req.auth!.userId]
+    );
+    if (!profile) { res.status(404).json({ error: 'Creator profile not found.' }); return; }
+
+    const contentRow = await queryOne<{ n: string }>(
+      `SELECT COUNT(*) as n FROM content WHERE creator_id = $1`,
+      [profile.id]
+    );
+
+    const totalEarnings = parseFloat(profile.total_earnings) || 0;
+
+    res.json({
+      steps: {
+        profile_complete: profile.bio.trim().length >= 50 && !!profile.cover_image_url,
+        payout_setup: profile.stripe_onboarding_complete === 1,
+        first_upload: parseInt(contentRow?.n ?? '0', 10) > 0,
+        subscription_price_set: parseFloat(profile.subscription_price) !== 9.99,
+        custom_requests_enabled: profile.custom_requests_enabled === 1,
+        training_viewed: profile.training_viewed === 1,
+      },
+      dismissed: profile.onboarding_dismissed === 1,
+      total_earnings: totalEarnings,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch onboarding state.' });
   }
 });
 
@@ -233,7 +346,7 @@ router.get('/:username', async (req, res) => {
     const row = await queryOne<any>(`
       SELECT cp.*, u.display_name, u.username, u.avatar_url, u.is_verified_creator,
         (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active') as subscriber_count,
-        (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND c.status = 'approved') as content_count
+        (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))) as content_count
       FROM creator_profiles cp
       JOIN users u ON u.id = cp.user_id
       WHERE LOWER(u.username) = $1
@@ -272,7 +385,8 @@ router.get('/:username/content', async (req, res) => {
       FROM content c
       JOIN creator_profiles cp ON cp.id = c.creator_id
       JOIN users u ON u.id = cp.user_id
-      WHERE c.creator_id = $1 AND c.status = 'approved'
+      WHERE c.creator_id = $1
+        AND (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))
       ORDER BY c.created_at DESC
     `, [creator.id]);
 
@@ -313,7 +427,10 @@ router.get('/:username/similar', async (req, res) => {
 // PATCH /api/creators/profile — update own profile
 router.patch('/profile', requireAuth, requireCreator, async (req, res) => {
   try {
-    const { bio, cover_image_url, tags, subscription_price, starting_price } = req.body;
+    const {
+      bio, cover_image_url, tags, subscription_price, starting_price,
+      custom_requests_enabled, onboarding_dismissed, training_viewed,
+    } = req.body;
 
     const profile = await queryOne<any>(`
       SELECT cp.id FROM creator_profiles cp JOIN users u ON u.id = cp.user_id WHERE u.id = $1
@@ -327,12 +444,22 @@ router.patch('/profile', requireAuth, requireCreator, async (req, res) => {
         cover_image_url = COALESCE($2, cover_image_url),
         tags = COALESCE($3, tags),
         subscription_price = COALESCE($4, subscription_price),
-        starting_price = COALESCE($5, starting_price)
-      WHERE id = $6
-    `, [bio ?? null, cover_image_url ?? null,
-        tags ? JSON.stringify(tags) : null,
-        subscription_price ?? null, starting_price ?? null,
-        profile.id]);
+        starting_price = COALESCE($5, starting_price),
+        custom_requests_enabled = COALESCE($6, custom_requests_enabled),
+        onboarding_dismissed = COALESCE($7, onboarding_dismissed),
+        training_viewed = COALESCE($8, training_viewed)
+      WHERE id = $9
+    `, [
+      bio ?? null,
+      cover_image_url ?? null,
+      tags ? JSON.stringify(tags) : null,
+      subscription_price ?? null,
+      starting_price ?? null,
+      custom_requests_enabled != null ? (custom_requests_enabled ? 1 : 0) : null,
+      onboarding_dismissed != null ? (onboarding_dismissed ? 1 : 0) : null,
+      training_viewed != null ? (training_viewed ? 1 : 0) : null,
+      profile.id,
+    ]);
 
     res.json({ success: true });
   } catch (err) {

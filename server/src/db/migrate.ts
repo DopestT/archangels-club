@@ -309,7 +309,95 @@ const DDL = `
     processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
 
+  -- ── Payment event ledger ─────────────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS payment_events (
+    id TEXT PRIMARY KEY,
+    stripe_event_id TEXT UNIQUE NOT NULL,
+    event_type TEXT NOT NULL,
+    stripe_object_id TEXT,
+    stripe_customer_id TEXT,
+    stripe_session_id TEXT,
+    stripe_payment_intent_id TEXT,
+    stripe_subscription_id TEXT,
+    stripe_invoice_id TEXT,
+    user_id TEXT,
+    creator_id TEXT,
+    amount_cents INTEGER,
+    currency TEXT DEFAULT 'usd',
+    raw_summary JSONB,
+    processing_status TEXT NOT NULL DEFAULT 'received'
+      CHECK(processing_status IN ('received','processed','failed','skipped_duplicate')),
+    error_message TEXT,
+    received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    processed_at TIMESTAMPTZ
+  );
+
+  -- ── Fulfillment records ──────────────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS fulfillment_records (
+    id TEXT PRIMARY KEY,
+    stripe_session_id TEXT UNIQUE NOT NULL,
+    stripe_event_id TEXT,
+    user_id TEXT NOT NULL,
+    creator_id TEXT,
+    purchase_type TEXT NOT NULL CHECK(purchase_type IN ('subscription','unlock','tip','custom_request')),
+    ref_type TEXT,
+    ref_id TEXT,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK(status IN ('pending','fulfilled','failed','needs_review')),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    last_error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  -- ── Missing columns on transactions ──────────────────────────────────────────
+  ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_invoice_id TEXT;
+  ALTER TABLE transactions ADD COLUMN IF NOT EXISTS stripe_subscription_id TEXT;
+  ALTER TABLE transactions ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'usd';
+  ALTER TABLE transactions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+  -- ── Missing columns on subscriptions ─────────────────────────────────────────
+  ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS stripe_customer_id TEXT;
+  ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_start TIMESTAMPTZ;
+  ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS current_period_end TIMESTAMPTZ;
+  ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS cancel_at_period_end BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+
+  -- ── Indices ───────────────────────────────────────────────────────────────────
+  CREATE INDEX IF NOT EXISTS idx_payment_events_type_received ON payment_events(event_type, received_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_payment_events_session ON payment_events(stripe_session_id);
+  CREATE INDEX IF NOT EXISTS idx_payment_events_sub ON payment_events(stripe_subscription_id);
+  CREATE INDEX IF NOT EXISTS idx_payment_events_status ON payment_events(processing_status, received_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_fulfillment_session ON fulfillment_records(stripe_session_id);
+  CREATE INDEX IF NOT EXISTS idx_fulfillment_status ON fulfillment_records(status);
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_sub ON subscriptions(stripe_subscription_id);
+  CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer ON subscriptions(stripe_customer_id);
+  CREATE INDEX IF NOT EXISTS idx_transactions_stripe_invoice ON transactions(stripe_invoice_id);
+
+  -- ── Creator onboarding tracking ───────────────────────────────────────────────
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS custom_requests_enabled SMALLINT NOT NULL DEFAULT 1;
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS onboarding_dismissed SMALLINT NOT NULL DEFAULT 0;
+  ALTER TABLE creator_profiles ADD COLUMN IF NOT EXISTS training_viewed SMALLINT NOT NULL DEFAULT 0;
+
+  -- ── Content publishing workflow ───────────────────────────────────────────────
+  -- publish_at: null = publish immediately on approval; future date = hold until then
+  -- updated_at: tracks last creator edit or admin action for ordering / staleness
+  -- rejection_reason: admin-provided feedback shown to creator on rejection
+  ALTER TABLE content ADD COLUMN IF NOT EXISTS publish_at TIMESTAMPTZ;
+  ALTER TABLE content ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   ALTER TABLE content ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
+
+  -- Expand status constraint: add scheduled and failed_processing
+  ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
+  ALTER TABLE content ADD CONSTRAINT content_status_check
+    CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested','scheduled','failed_processing'));
+
+  -- New content defaults to draft so creators can save before submitting for review
+  ALTER TABLE content ALTER COLUMN status SET DEFAULT 'draft';
+
+  CREATE INDEX IF NOT EXISTS idx_content_status ON content(status);
+  CREATE INDEX IF NOT EXISTS idx_content_publish_at ON content(publish_at) WHERE publish_at IS NOT NULL;
+  CREATE INDEX IF NOT EXISTS idx_content_updated_at ON content(updated_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {

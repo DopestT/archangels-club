@@ -1,8 +1,11 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { query, queryOne, execute, withTransaction } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator } from '../middleware/auth.js';
 import { triggerCreatorFirstPost, triggerCreatorFirstSale, triggerPurchaseConfirmation } from '../services/triggers.js';
+
+const JWT_SECRET = process.env.JWT_SECRET ?? 'archangels_dev_secret_change_in_production';
 
 const router = Router();
 
@@ -53,11 +56,17 @@ router.get('/', async (req, res) => {
           (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id AND cu.unlocked_at >= NOW() - INTERVAL '24 hours')::int AS recent_unlocks_24h,
           (SELECT COALESCE(SUM(t.net_amount), 0) FROM transactions t WHERE t.ref_type = 'content' AND t.ref_id = c.id AND t.status = 'completed') AS content_revenue
       ) stats
-      WHERE c.status = 'approved' AND cp.is_approved = 1 AND cp.application_status = 'approved'${extraWhere}
+      WHERE (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))
+        AND cp.is_approved = 1 AND cp.application_status = 'approved'${extraWhere}
       ORDER BY ${orderBy}
       LIMIT ${limit} OFFSET ${offsetNum}
     `, params);
-    res.json(rows);
+    // Strip media_url for non-free content — callers must use /stream-url JWT for actual playback
+    const safe = (rows as any[]).map(r => ({
+      ...r,
+      media_url: r.access_type === 'free' ? r.media_url : null,
+    }));
+    res.json(safe);
   } catch (err) {
     console.error('[content] GET / error:', err);
     res.status(500).json({ error: 'Failed to fetch content.' });
@@ -77,6 +86,7 @@ router.get('/saved', requireAuth, async (req, res) => {
       JOIN creator_profiles cp ON cp.id = c.creator_id
       JOIN users u ON u.id = cp.user_id
       WHERE sc.user_id = $1
+        AND (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))
       ORDER BY sc.saved_at DESC
     `, [req.auth!.userId]);
     res.json(rows);
@@ -86,10 +96,13 @@ router.get('/saved', requireAuth, async (req, res) => {
 });
 
 // GET /api/content/:id
+// Public users only see approved or publish_at-elapsed scheduled content.
+// The creator who owns the content and admins may see any status via Bearer token.
 router.get('/:id', async (req, res) => {
   try {
     const row = await queryOne<any>(`
-      SELECT c.*, u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
+      SELECT c.*, cp.user_id AS creator_user_id,
+        u.display_name as creator_name, u.username as creator_username, u.avatar_url as creator_avatar,
         cp.subscription_price as creator_subscription_price,
         (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id) as unlock_count
       FROM content c
@@ -99,6 +112,23 @@ router.get('/:id', async (req, res) => {
     `, [req.params.id]);
 
     if (!row) { res.status(404).json({ error: 'Content not found' }); return; }
+
+    const isPubliclyVisible =
+      row.status === 'approved' ||
+      (row.status === 'scheduled' && row.publish_at && new Date(row.publish_at) <= new Date());
+
+    if (!isPubliclyVisible) {
+      // Attempt optional auth — allow creator or admin to view non-public content
+      const authHeader = req.headers.authorization;
+      let allowed = false;
+      if (authHeader?.startsWith('Bearer ')) {
+        try {
+          const decoded = jwt.verify(authHeader.slice(7), JWT_SECRET) as any;
+          allowed = decoded.role === 'admin' || decoded.userId === row.creator_user_id;
+        } catch {}
+      }
+      if (!allowed) { res.status(404).json({ error: 'Content not found' }); return; }
+    }
 
     const safeRow = { ...row };
     if (row.access_type !== 'free') safeRow.media_url = null;
@@ -120,30 +150,42 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     );
     if (!content) { res.status(404).json({ error: 'Content not found' }); return; }
 
+    // Fans must not see non-public content at all — including free drafts that would leak media_url
+    const isAdmin   = req.auth!.role === 'admin';
+    const isCreator = content.creator_user_id === req.auth!.userId;
+    if (!isAdmin && !isCreator) {
+      const isPubliclyVisible =
+        content.status === 'approved' ||
+        (content.status === 'scheduled' && content.publish_at && new Date(content.publish_at) <= new Date());
+      if (!isPubliclyVisible) { res.status(404).json({ error: 'Content not found' }); return; }
+    }
+
     // Admin: unrestricted access to all content
     if (req.auth!.role === 'admin') {
-      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false,
+      res.json({ unlocked: true, media_url: null, is_subscribed: false,
         discounted_price: null, is_admin_preview: true, is_creator_preview: false });
       return;
     }
 
     // Creator viewing their own content: no paywall, cannot purchase
     if (content.creator_user_id === req.auth!.userId) {
-      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false,
+      res.json({ unlocked: true, media_url: null, is_subscribed: false,
         discounted_price: null, is_admin_preview: false, is_creator_preview: true });
       return;
     }
 
     if (content.access_type === 'free') {
+      // Free content: return URL directly, no token needed
       res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false,
         discounted_price: null, is_admin_preview: false, is_creator_preview: false });
       return;
     }
 
-    // Check active subscription to this creator
+    // Check active subscription to this creator (cancelled-but-not-expired still grants access)
     const sub = await queryOne<{ id: string }>(
       `SELECT id FROM subscriptions
-       WHERE subscriber_id = $1 AND creator_id = $2 AND status = 'active' AND expires_at > NOW()`,
+       WHERE subscriber_id = $1 AND creator_id = $2
+         AND expires_at > NOW() AND status IN ('active','cancelled')`,
       [req.auth!.userId, content.creator_id]
     );
     const isSubscribed = !!sub;
@@ -155,7 +197,8 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     // Subscriber-only content: accessible to active subscribers without unlock fee
     if (content.access_type === 'subscribers') {
       if (isSubscribed) {
-        res.json({ unlocked: true, media_url: content.media_url, is_subscribed: true,
+        // media_url omitted — client fetches via /api/content/:id/stream-url
+        res.json({ unlocked: true, media_url: null, is_subscribed: true,
           discounted_price: null, is_admin_preview: false, is_creator_preview: false });
       } else {
         res.json({ unlocked: false, media_url: null, is_subscribed: false,
@@ -170,7 +213,8 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     );
 
     if (unlock) {
-      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: isSubscribed,
+      // media_url omitted — client fetches via /api/content/:id/stream-url
+      res.json({ unlocked: true, media_url: null, is_subscribed: isSubscribed,
         discounted_price: null, is_admin_preview: false, is_creator_preview: false });
     } else {
       res.json({ unlocked: false, media_url: null, is_subscribed: isSubscribed,
@@ -181,14 +225,107 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
   }
 });
 
-// POST /api/content — creator uploads (always enters pending_review)
+// GET /api/content/:id/stream-url — issue short-lived JWT to stream protected media
+router.get('/:id/stream-url', requireAuth, async (req, res) => {
+  try {
+    const content = await queryOne<any>(
+      `SELECT c.*, cp.user_id AS creator_user_id
+       FROM content c
+       JOIN creator_profiles cp ON cp.id = c.creator_id
+       WHERE c.id = $1`,
+      [req.params.id]
+    );
+    if (!content) { res.status(404).json({ error: 'Content not found' }); return; }
+
+    const isAdmin   = req.auth!.role === 'admin';
+    const isCreator = content.creator_user_id === req.auth!.userId;
+
+    // Fans cannot stream non-public content
+    if (!isAdmin && !isCreator) {
+      const isPubliclyVisible =
+        content.status === 'approved' ||
+        (content.status === 'scheduled' && content.publish_at && new Date(content.publish_at) <= new Date());
+      if (!isPubliclyVisible) { res.status(404).json({ error: 'Content not found' }); return; }
+    }
+
+    if (!isAdmin && !isCreator && content.access_type !== 'free') {
+      if (content.access_type === 'subscribers') {
+        const sub = await queryOne<{ id: string }>(
+          `SELECT id FROM subscriptions
+           WHERE subscriber_id = $1 AND creator_id = $2
+             AND expires_at > NOW() AND status IN ('active','cancelled')`,
+          [req.auth!.userId, content.creator_id]
+        );
+        if (!sub) { res.status(403).json({ error: 'Subscription required.' }); return; }
+      }
+      if (content.access_type === 'locked') {
+        const unlock = await queryOne(
+          'SELECT id FROM content_unlocks WHERE user_id = $1 AND content_id = $2',
+          [req.auth!.userId, req.params.id]
+        );
+        if (!unlock) { res.status(403).json({ error: 'Content not unlocked.' }); return; }
+      }
+    }
+
+    const token = jwt.sign(
+      { type: 'stream', contentId: req.params.id, userId: req.auth!.userId, role: req.auth!.role },
+      JWT_SECRET,
+      { expiresIn: '15m' }
+    );
+
+    res.json({ token });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to generate stream token.' });
+  }
+});
+
+// POST /api/content — create content record; defaults to draft
+// status: 'draft' (default) or 'pending_review' — anything else is ignored
+// publish_at: ISO timestamp; if set and future, admin approval will result in 'scheduled'
 router.post('/', requireAuth, requireCreator, async (req, res) => {
   try {
-    const { title, description, content_type, access_type, preview_url, media_url, price } = req.body;
+    const { title, description, content_type, access_type, preview_url, media_url, price, publish_at } = req.body;
+    const rawStatus = req.body.status;
+    const status: 'draft' | 'pending_review' = rawStatus === 'pending_review' ? 'pending_review' : 'draft';
 
     if (!title || !content_type || !access_type) {
       res.status(400).json({ error: 'title, content_type, and access_type are required.' });
       return;
+    }
+
+    // Media validation is required only when submitting for review, not for drafts
+    if (status === 'pending_review' && content_type !== 'text') {
+      if (!media_url) {
+        res.status(400).json({ error: 'A media file is required for image, video, and audio content.' });
+        return;
+      }
+      if (
+        typeof media_url !== 'string' ||
+        !media_url.startsWith('https://') ||
+        media_url.startsWith('data:') ||
+        media_url.startsWith('/media/')
+      ) {
+        res.status(400).json({ error: 'Invalid media URL. Complete the upload before publishing.' });
+        return;
+      }
+    } else if (media_url) {
+      // Any provided media URL (even on a draft) must be a real HTTPS URL
+      if (
+        typeof media_url !== 'string' ||
+        !media_url.startsWith('https://') ||
+        media_url.startsWith('data:') ||
+        media_url.startsWith('/media/')
+      ) {
+        res.status(400).json({ error: 'Invalid media URL.' });
+        return;
+      }
+    }
+
+    // Validate publish_at if provided — must be a valid future timestamp
+    let publishAt: string | null = null;
+    if (publish_at) {
+      const d = new Date(publish_at as string);
+      if (!isNaN(d.getTime()) && d > new Date()) publishAt = d.toISOString();
     }
 
     const profile = await queryOne<any>(`
@@ -200,76 +337,238 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
 
     const id = crypto.randomUUID();
     await execute(
-      `INSERT INTO content (id, creator_id, title, description, content_type, access_type, preview_url, media_url, price, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'pending_review')`,
+      `INSERT INTO content (id, creator_id, title, description, content_type, access_type, preview_url, media_url, price, status, publish_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
       [id, profile.id, title, description ?? '', content_type, access_type,
-       preview_url ?? null, media_url ?? null, price ?? 0]
+       preview_url ?? null, media_url ?? null, price ?? 0, status, publishAt]
     );
 
-    // First-post trigger (fire-and-forget)
-    const countResult = await queryOne<{ n: string }>(
-      'SELECT COUNT(*) as n FROM content WHERE creator_id = $1',
-      [profile.id]
-    );
-    if (parseInt(countResult?.n ?? '0', 10) === 1) {
-      triggerCreatorFirstPost(req.auth!.userId).catch(console.error);
+    // First-post trigger fires only when submitting for review, not on drafts
+    if (status === 'pending_review') {
+      const countResult = await queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM content WHERE creator_id = $1 AND status != 'draft'`,
+        [profile.id]
+      );
+      if (parseInt(countResult?.n ?? '0', 10) === 1) {
+        triggerCreatorFirstPost(req.auth!.userId).catch(console.error);
+      }
     }
 
-    res.status(201).json({ id, status: 'pending_review', message: 'Content submitted for review.' });
+    const message = status === 'draft' ? 'Draft saved.' : 'Content submitted for review.';
+    res.status(201).json({ id, status, message });
   } catch (err) {
     res.status(500).json({ error: 'Failed to upload content.' });
   }
 });
 
-// PATCH /api/content/:id — creator edits their own rejected/changes_requested content and resubmits
+// PATCH /api/content/:id — creator update own editable content
+// Editable when status is: draft, rejected, changes_requested, or failed_processing
+// For rejected/changes_requested: automatically moves to pending_review and clears rejection_reason
 router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
   try {
-    const { title, description, access_type, price } = req.body;
+    const row = await queryOne<any>(
+      `SELECT c.id, c.status, c.content_type, c.media_url FROM content c
+       JOIN creator_profiles cp ON cp.id = c.creator_id
+       WHERE c.id = $1 AND cp.user_id = $2`,
+      [req.params.id, req.auth!.userId]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
 
-    if (!title || String(title).trim().length === 0) {
-      res.status(400).json({ error: 'title is required.' });
+    const editableStatuses = ['draft', 'rejected', 'changes_requested', 'failed_processing'];
+    if (!editableStatuses.includes(row.status)) {
+      res.status(409).json({ error: `Content in '${row.status}' state cannot be edited.` });
       return;
     }
 
-    const profile = await queryOne<{ id: string }>(
-      'SELECT id FROM creator_profiles WHERE user_id = $1',
-      [req.auth!.userId]
-    );
-    if (!profile) { res.status(403).json({ error: 'Creator profile not found.' }); return; }
+    const { title, description, access_type, price, preview_url, media_url, publish_at, max_unlocks, subscriber_discount_pct } = req.body;
+    const isResubmit = ['rejected', 'changes_requested'].includes(row.status);
 
-    const existing = await queryOne<{ id: string; creator_id: string; status: string; access_type: string }>(
-      'SELECT id, creator_id, status, access_type FROM content WHERE id = $1',
-      [req.params.id]
-    );
-    if (!existing) { res.status(404).json({ error: 'Content not found.' }); return; }
-    if (existing.creator_id !== profile.id) {
-      res.status(403).json({ error: 'You do not own this content.' });
-      return;
+    // Title cannot be empty when resubmitting
+    if (title !== undefined && typeof title === 'string' && !title.trim()) {
+      res.status(400).json({ error: 'Title cannot be empty.' }); return;
+    }
+    if (isResubmit && title !== undefined && typeof title !== 'string') {
+      res.status(400).json({ error: 'Title must be a string.' }); return;
     }
 
-    const editableStatuses = ['rejected', 'changes_requested', 'draft', 'failed_processing'];
-    if (!editableStatuses.includes(existing.status)) {
-      res.status(409).json({ error: `Content with status "${existing.status}" cannot be edited.` });
-      return;
+    if (price !== undefined) {
+      const numPrice = Number(price);
+      if (isNaN(numPrice) || numPrice < 0) {
+        res.status(400).json({ error: 'Price must be a non-negative number.' }); return;
+      }
     }
 
-    const resolvedAccessType = access_type ?? existing.access_type;
-    const parsedPrice = parseFloat(price) || 0;
-    await execute(
-      `UPDATE content
-         SET title = $1, description = $2, access_type = $3, price = $4,
-             status = 'pending_review', rejection_reason = NULL
-       WHERE id = $5`,
-      [String(title).trim(), String(description ?? '').trim(),
-       resolvedAccessType, parsedPrice, req.params.id]
-    );
+    if (access_type !== undefined && !['free', 'locked', 'subscribers'].includes(access_type)) {
+      res.status(400).json({ error: 'Invalid access_type.' }); return;
+    }
+    if (media_url !== undefined && media_url !== null) {
+      if (typeof media_url !== 'string' || !media_url.startsWith('https://') || media_url.startsWith('data:') || media_url.startsWith('/media/')) {
+        res.status(400).json({ error: 'Invalid media URL.' }); return;
+      }
+    }
+    if (publish_at !== undefined && publish_at !== null) {
+      const d = new Date(publish_at as string);
+      if (isNaN(d.getTime()) || d <= new Date()) {
+        res.status(400).json({ error: 'publish_at must be a valid future date.' }); return;
+      }
+    }
+
+    // For resubmit: verify non-text content still has media (use existing if not updating)
+    const effectiveMediaUrl = media_url !== undefined ? media_url : row.media_url;
+    if (isResubmit && row.content_type !== 'text' && !effectiveMediaUrl) {
+      res.status(400).json({ error: 'A media file is required before resubmitting.' }); return;
+    }
+
+    const setClauses: string[] = ['updated_at = NOW()'];
+    const vals: unknown[] = [];
+    let pIdx = 1;
+
+    if (title               !== undefined) { setClauses.push(`title = $${pIdx++}`);                vals.push(title); }
+    if (description         !== undefined) { setClauses.push(`description = $${pIdx++}`);          vals.push(description); }
+    if (access_type         !== undefined) { setClauses.push(`access_type = $${pIdx++}`);          vals.push(access_type); }
+    if (price               !== undefined) { setClauses.push(`price = $${pIdx++}`);                vals.push(price); }
+    if (preview_url         !== undefined) { setClauses.push(`preview_url = $${pIdx++}`);          vals.push(preview_url ?? null); }
+    if (media_url           !== undefined) { setClauses.push(`media_url = $${pIdx++}`);            vals.push(media_url ?? null); }
+    if (publish_at          !== undefined) { setClauses.push(`publish_at = $${pIdx++}`);           vals.push(publish_at ? new Date(publish_at as string).toISOString() : null); }
+    if (max_unlocks         !== undefined) { setClauses.push(`max_unlocks = $${pIdx++}`);          vals.push(max_unlocks ?? null); }
+    if (subscriber_discount_pct !== undefined) { setClauses.push(`subscriber_discount_pct = $${pIdx++}`); vals.push(subscriber_discount_pct); }
+
+    // Auto-resubmit: rejected/changes_requested → pending_review, clear rejection_reason
+    if (isResubmit) {
+      setClauses.push(`status = 'pending_review'`);
+      setClauses.push(`rejection_reason = NULL`);
+    }
+
+    vals.push(req.params.id);
+    await execute(`UPDATE content SET ${setClauses.join(', ')} WHERE id = $${pIdx}`, vals);
 
     const updated = await queryOne<any>('SELECT * FROM content WHERE id = $1', [req.params.id]);
-    console.log(`[content/patch] resubmitted | contentId=${req.params.id} userId=${req.auth!.userId}`);
-    res.json({ success: true, resubmitted: true, content: updated });
+    res.json({ success: true, resubmitted: isResubmit, content: updated });
   } catch (err) {
-    console.error('[content/patch] error:', err);
     res.status(500).json({ error: 'Failed to update content.' });
+  }
+});
+
+// DELETE /api/content/:id — creator delete own draft (only draft status allowed)
+router.delete('/:id', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const row = await queryOne<{ status: string }>(
+      `SELECT c.status FROM content c
+       JOIN creator_profiles cp ON cp.id = c.creator_id
+       WHERE c.id = $1 AND cp.user_id = $2`,
+      [req.params.id, req.auth!.userId]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+    if (row.status !== 'draft') {
+      res.status(409).json({ error: 'Only draft content can be deleted.' }); return;
+    }
+    await execute('DELETE FROM content WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete content.' });
+  }
+});
+
+// POST /api/content/:id/submit — submit draft (or rejected/changes_requested) for review
+router.post('/:id/submit', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const row = await queryOne<any>(
+      `SELECT c.id, c.status, c.content_type, c.media_url FROM content c
+       JOIN creator_profiles cp ON cp.id = c.creator_id
+       WHERE c.id = $1 AND cp.user_id = $2`,
+      [req.params.id, req.auth!.userId]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+
+    if (!['draft', 'rejected', 'changes_requested'].includes(row.status)) {
+      res.status(409).json({ error: `Content in '${row.status}' state cannot be submitted.` }); return;
+    }
+    if (row.content_type !== 'text' && !row.media_url) {
+      res.status(400).json({ error: 'A media file is required before submitting for review.' }); return;
+    }
+
+    await execute(
+      `UPDATE content SET status = 'pending_review', rejection_reason = NULL, updated_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+
+    // First-post trigger: fire when a creator's first non-draft is submitted
+    const profile = await queryOne<{ id: string }>(
+      'SELECT id FROM creator_profiles WHERE user_id = $1', [req.auth!.userId]
+    );
+    if (profile) {
+      const countResult = await queryOne<{ n: string }>(
+        `SELECT COUNT(*) as n FROM content WHERE creator_id = $1 AND status != 'draft'`,
+        [profile.id]
+      );
+      if (parseInt(countResult?.n ?? '0', 10) === 1) {
+        triggerCreatorFirstPost(req.auth!.userId).catch(console.error);
+      }
+    }
+
+    res.json({ success: true, status: 'pending_review' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to submit content.' });
+  }
+});
+
+// POST /api/content/:id/schedule — set a future publish_at and submit for review
+// After admin approval the status becomes 'scheduled' until publish_at is reached
+router.post('/:id/schedule', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const { publish_at } = req.body;
+    if (!publish_at) { res.status(400).json({ error: 'publish_at is required.' }); return; }
+
+    const publishDate = new Date(publish_at as string);
+    if (isNaN(publishDate.getTime()) || publishDate <= new Date()) {
+      res.status(400).json({ error: 'publish_at must be a valid future date.' }); return;
+    }
+
+    const row = await queryOne<any>(
+      `SELECT c.id, c.status, c.content_type, c.media_url FROM content c
+       JOIN creator_profiles cp ON cp.id = c.creator_id
+       WHERE c.id = $1 AND cp.user_id = $2`,
+      [req.params.id, req.auth!.userId]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+
+    if (!['draft', 'rejected', 'changes_requested'].includes(row.status)) {
+      res.status(409).json({ error: `Content in '${row.status}' state cannot be scheduled.` }); return;
+    }
+    if (row.content_type !== 'text' && !row.media_url) {
+      res.status(400).json({ error: 'A media file is required before scheduling.' }); return;
+    }
+
+    await execute(
+      `UPDATE content SET status = 'pending_review', publish_at = $1, rejection_reason = NULL, updated_at = NOW() WHERE id = $2`,
+      [publishDate.toISOString(), req.params.id]
+    );
+    res.json({ success: true, status: 'pending_review', publish_at: publishDate.toISOString() });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to schedule content.' });
+  }
+});
+
+// POST /api/content/:id/cancel-schedule — revert approved scheduled content back to draft
+router.post('/:id/cancel-schedule', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const row = await queryOne<{ status: string }>(
+      `SELECT c.status FROM content c
+       JOIN creator_profiles cp ON cp.id = c.creator_id
+       WHERE c.id = $1 AND cp.user_id = $2`,
+      [req.params.id, req.auth!.userId]
+    );
+    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+    if (row.status !== 'scheduled') {
+      res.status(409).json({ error: 'Only scheduled content can be cancelled.' }); return;
+    }
+    await execute(
+      `UPDATE content SET status = 'draft', publish_at = NULL, updated_at = NOW() WHERE id = $1`,
+      [req.params.id]
+    );
+    res.json({ success: true, status: 'draft' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to cancel scheduled publish.' });
   }
 });
 
@@ -278,6 +577,15 @@ router.post('/:id/unlock', requireAuth, requireApproved, async (req, res) => {
   try {
     const content = await queryOne<any>('SELECT * FROM content WHERE id = $1', [req.params.id]);
     if (!content) { res.status(404).json({ error: 'Content not found' }); return; }
+
+    // Only publicly visible content can be unlocked
+    const isPubliclyVisible =
+      content.status === 'approved' ||
+      (content.status === 'scheduled' && content.publish_at && new Date(content.publish_at) <= new Date());
+    if (!isPubliclyVisible && req.auth!.role !== 'admin') {
+      res.status(404).json({ error: 'Content not found' }); return;
+    }
+
     if (content.access_type === 'free') { res.json({ unlocked: true }); return; }
 
     const alreadyUnlocked = await queryOne(
@@ -331,11 +639,18 @@ router.post('/:id/unlock', requireAuth, requireApproved, async (req, res) => {
   }
 });
 
-// POST /api/content/:id/save — save content
+// POST /api/content/:id/save — save content (only publicly visible content)
 router.post('/:id/save', requireAuth, async (req, res) => {
   try {
-    const content = await queryOne<{ id: string }>('SELECT id FROM content WHERE id = $1', [req.params.id]);
+    const content = await queryOne<any>('SELECT id, status, publish_at FROM content WHERE id = $1', [req.params.id]);
     if (!content) { res.status(404).json({ error: 'Content not found.' }); return; }
+
+    const isPubliclyVisible =
+      content.status === 'approved' ||
+      (content.status === 'scheduled' && content.publish_at && new Date(content.publish_at) <= new Date());
+    if (!isPubliclyVisible && req.auth!.role !== 'admin') {
+      res.status(404).json({ error: 'Content not found.' }); return;
+    }
 
     const id = crypto.randomUUID();
     await execute(
