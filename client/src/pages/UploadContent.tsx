@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X } from 'lucide-react';
+import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save } from 'lucide-react';
+import { timeAgo } from '../lib/utils';
 import type { ContentType, PricingConfig, VideoProcessingConfig } from '../types';
 import ImageEditor from '../components/editor/ImageEditor';
 import VideoProcessor from '../components/editor/VideoProcessor';
@@ -37,10 +38,8 @@ function buildPreviewUrl(cloudName: string, result: CloudinaryUploadResult): str
   const { public_id, resource_type, version } = result;
   const v = `v${version}`;
   if (resource_type === 'video') {
-    // Thumbnail from 3s mark, blurred
     return `https://res.cloudinary.com/${cloudName}/video/upload/so_3,e_blur:600,q_30,w_800/${v}/${public_id}.jpg`;
   }
-  // Image: blurred degraded preview
   return `https://res.cloudinary.com/${cloudName}/image/upload/e_blur:1800,q_20,w_800/${v}/${public_id}`;
 }
 
@@ -100,16 +99,60 @@ export default function UploadContent() {
   const [previewDataUrl, setPreviewDataUrl] = useState<string | null>(null);
   const [videoConfig, setVideoConfig] = useState<VideoProcessingConfig | null>(null);
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'saving' | 'submitted'>('idle');
+  const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'saving' | 'submitted'>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
   const [submittedTitle, setSubmittedTitle] = useState('');
+  const [draftSaved, setDraftSaved] = useState(false);
+  const [draftNotice, setDraftNotice] = useState<{
+    title: string;
+    description: string;
+    contentType: ContentType;
+    pricingConfig: PricingConfig;
+    savedAt: string;
+  } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const activeFile = enhancedFile ?? file;
   const canEnhance = file !== null && (contentType === 'image' || contentType === 'video');
-  const busy = status === 'uploading' || status === 'saving';
+  const busy = status === 'uploading' || status === 'processing' || status === 'saving';
+
+  // Restore saved draft on mount
+  React.useEffect(() => {
+    try {
+      const raw = localStorage.getItem('arc_upload_draft');
+      if (!raw) return;
+      const draft = JSON.parse(raw) as {
+        title: string; description: string;
+        contentType: ContentType; pricingConfig: PricingConfig; savedAt: string;
+      };
+      if (draft.title || draft.description) setDraftNotice(draft);
+    } catch {
+      localStorage.removeItem('arc_upload_draft');
+    }
+  }, []);
+
+  function saveDraft() {
+    try {
+      localStorage.setItem('arc_upload_draft', JSON.stringify({
+        title, description, contentType, pricingConfig,
+        savedAt: new Date().toISOString(),
+      }));
+      setDraftSaved(true);
+      setTimeout(() => setDraftSaved(false), 2000);
+    } catch {}
+  }
+
+  function restoreDraft() {
+    if (!draftNotice) return;
+    setTitle(draftNotice.title);
+    setDescription(draftNotice.description);
+    setContentType(draftNotice.contentType);
+    setPricingConfig(draftNotice.pricingConfig);
+    setDraftNotice(null);
+  }
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0] ?? null;
@@ -117,6 +160,12 @@ export default function UploadContent() {
     setEnhancedFile(null);
     setPreviewDataUrl(null);
     setVideoConfig(null);
+    setImageDataUrl(null);
+    if (f && contentType === 'image') {
+      const reader = new FileReader();
+      reader.onload = (ev) => setImageDataUrl((ev.target?.result as string) ?? null);
+      reader.readAsDataURL(f);
+    }
   }
 
   function handleImageSave(editedFile: File, previewUrl: string) {
@@ -149,7 +198,6 @@ export default function UploadContent() {
           setUploadProgress,
         );
         mediaUrl = result.secure_url;
-        // Only auto-generate preview for locked content if user didn't manually set one
         if (!previewUrl) {
           previewUrl = buildPreviewUrl(sign.cloud_name, result);
         }
@@ -181,6 +229,7 @@ export default function UploadContent() {
       }
 
       setSubmittedTitle(title.trim());
+      localStorage.removeItem('arc_upload_draft');
       setStatus('submitted');
     } catch (err) {
       setUploadError(err instanceof Error ? err.message : 'Unable to reach the server.');
@@ -193,6 +242,7 @@ export default function UploadContent() {
     setEnhancedFile(null);
     setPreviewDataUrl(null);
     setVideoConfig(null);
+    setImageDataUrl(null);
     setStatus('idle');
     setUploadProgress(0);
     setTitle('');
@@ -209,7 +259,7 @@ export default function UploadContent() {
             <Check className="w-9 h-9 text-arc-success" />
           </div>
           <span className="section-eyebrow mb-4 block">Published</span>
-          <h1 className="font-serif text-3xl text-white mb-4">Your drop is live.</h1>
+          <h1 className="font-serif text-3xl text-white">Your drop is live.</h1>
           <p className="text-arc-secondary leading-relaxed mb-8">
             <strong className="text-white">{submittedTitle}</strong> is now visible to members and available to unlock immediately.
           </p>
@@ -276,11 +326,36 @@ export default function UploadContent() {
             <div>
               <p className="text-xs font-medium text-amber-300 mb-0.5">Content Moderation Policy</p>
               <p className="text-xs text-arc-muted leading-relaxed">
-                Prohibited: illegal material, minors in any context, non-consensual imagery, or content violating our guidelines.
-                Violations result in immediate account termination and may be reported to authorities.
+                Content must follow our community guidelines. Prohibited: illegal material, minors in any context, and non-consensual imagery.
+                Violations result in permanent account removal.
               </p>
             </div>
           </div>
+
+          {/* Draft restore notice */}
+          {draftNotice && (
+            <div className="flex items-center gap-3 p-4 rounded-xl bg-white/4 border border-white/10 mb-8">
+              <Clock className="w-4 h-4 text-arc-secondary flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-medium text-white">Saved draft found</p>
+                <p className="text-xs text-arc-muted truncate mt-0.5">
+                  {draftNotice.title ? `"${draftNotice.title}"` : 'Untitled'} · saved {timeAgo(draftNotice.savedAt)}
+                </p>
+              </div>
+              <button
+                onClick={restoreDraft}
+                className="text-xs text-gold hover:text-gold px-3 py-1 rounded-lg border border-gold/30 hover:bg-gold/8 transition-all flex-shrink-0"
+              >
+                Restore
+              </button>
+              <button
+                onClick={() => { setDraftNotice(null); localStorage.removeItem('arc_upload_draft'); }}
+                className="p-1.5 rounded-lg text-arc-muted hover:text-white hover:bg-white/8 transition-all flex-shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
 
           <div className="space-y-6">
 
@@ -297,6 +372,7 @@ export default function UploadContent() {
                       setEnhancedFile(null);
                       setPreviewDataUrl(null);
                       setVideoConfig(null);
+                      setImageDataUrl(null);
                     }}
                     className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all duration-200 ${
                       contentType === id
@@ -359,15 +435,16 @@ export default function UploadContent() {
                       : contentType === 'video'
                       ? 'MP4, MOV, WebM'
                       : contentType === 'audio'
-                      ? 'MP3, WAV, FLAC'
+                      ? 'MP3, M4A, WAV, OGG, AAC'
                       : 'PDF, TXT, MD'}
                   </p>
                 </div>
               ) : (
                 <div className="border border-white/10 rounded-xl overflow-hidden">
-                  {contentType === 'image' && previewDataUrl && (
+                  {/* Preview */}
+                  {contentType === 'image' && (previewDataUrl ?? imageDataUrl) && (
                     <div className="w-full max-h-64 overflow-hidden bg-black">
-                      <img src={previewDataUrl} alt="Preview" className="w-full h-full object-contain" />
+                      <img src={(previewDataUrl ?? imageDataUrl)!} alt="Preview" className="w-full h-full object-contain" />
                     </div>
                   )}
                   {contentType === 'video' && videoConfig?.thumbnail && (
@@ -464,16 +541,38 @@ export default function UploadContent() {
               </div>
             )}
 
+            {/* Audio storage notice */}
+            {contentType === 'audio' && activeFile && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-white/4 border border-white/10">
+                <AlertCircle className="w-4 h-4 text-arc-muted flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-arc-muted leading-relaxed">
+                  Audio playback requires cloud storage. Your submission will be saved and reviewed — full delivery
+                  activates once storage is configured. The review team will be notified.
+                </p>
+              </div>
+            )}
+
             {/* Error */}
             {uploadError && (
               <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/10 border border-arc-error/30">
                 <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
-                <p className="text-xs text-arc-error">{uploadError}</p>
+                <div>
+                  <p className="text-xs text-arc-error">{uploadError}</p>
+                  <p className="text-xs text-arc-muted mt-1">Your work is preserved — try again when ready.</p>
+                </div>
               </div>
             )}
 
-            {/* Submit */}
-            <div className="flex items-center gap-4 pb-10">
+            {/* Actions */}
+            <div className="flex items-center gap-3 pb-10">
+              <button
+                onClick={saveDraft}
+                disabled={busy || (!title.trim() && !activeFile)}
+                className="btn-outline px-5 py-3.5 flex items-center gap-2 text-sm flex-shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {draftSaved ? <Check className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                {draftSaved ? 'Saved' : 'Save Draft'}
+              </button>
               <button
                 onClick={handleSave}
                 disabled={busy || !title.trim()}
@@ -487,7 +586,7 @@ export default function UploadContent() {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {status === 'uploading' ? `Uploading… ${uploadProgress}%` : status === 'saving' ? 'Saving…' : 'Publish'}
+                {status === 'uploading' ? `Uploading… ${uploadProgress}%` : status === 'saving' ? 'Submitting…' : 'Submit for Review'}
               </button>
             </div>
 

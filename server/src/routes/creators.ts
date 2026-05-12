@@ -178,6 +178,29 @@ router.get('/my/transactions', requireAuth, requireCreator, async (req, res) => 
   }
 });
 
+// GET /api/creators/my/content — all of this creator's own content (all statuses, must be before /:username)
+router.get('/my/content', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const profile = await queryOne<{ id: string }>(
+      'SELECT id FROM creator_profiles WHERE user_id = $1',
+      [req.auth!.userId]
+    );
+    if (!profile) { res.json([]); return; }
+
+    const rows = await query(`
+      SELECT c.*,
+        (SELECT COUNT(*) FROM content_unlocks cu WHERE cu.content_id = c.id)::int AS unlock_count
+      FROM content c
+      WHERE c.creator_id = $1
+      ORDER BY c.created_at DESC
+    `, [profile.id]);
+
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch content.' });
+  }
+});
+
 // GET /api/creators/my/requests — creator's custom requests (must be before /:username)
 router.get('/my/requests', requireAuth, requireCreator, async (req, res) => {
   try {

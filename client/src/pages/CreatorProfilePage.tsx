@@ -258,28 +258,22 @@ export default function CreatorProfilePage() {
       body.return_path = `/creator/${creator.username}`;
     }
 
-    console.log(`[checkout] starting ${type} for creator:`, creator.username, body);
-
     try {
-      console.log('[checkout] POST /api/checkout/create');
       const res = await fetch(`${API_BASE}/api/checkout/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(body),
       });
       const data = await res.json();
-      console.log('[checkout] response:', res.status, data);
 
       if (!res.ok || !data.url) {
         setCheckoutError(data.error || 'Failed to start checkout. Please try again.');
         setCheckoutLoading(false);
         return;
       }
-      console.log('[checkout] redirecting to Stripe:', data.url?.substring(0, 60));
       setRedirecting(true);
       window.location.href = data.url;
-    } catch (err) {
-      console.error('[checkout] fetch error:', err);
+    } catch {
       setCheckoutError('Unable to reach the server. Please try again.');
       setCheckoutLoading(false);
     }

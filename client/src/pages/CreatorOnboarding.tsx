@@ -292,7 +292,7 @@ function StepContentTypes() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1.5">
               <p className="font-serif text-white">Teaser + Locked</p>
-              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-500/10 border border-blue-500/20 text-blue-400">SMART STRATEGY</span>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/6 border border-white/15 text-arc-secondary">SMART STRATEGY</span>
             </div>
             <p className="text-xs text-arc-secondary leading-relaxed mb-2.5">
               Post a free preview that hooks visitors, then lock the premium version. Show enough to make them want more — not enough to satisfy.
@@ -319,39 +319,39 @@ function StepPricing() {
       price: '$5',
       label: 'Quick Unlock',
       badge: 'Fast Sales',
-      badgeCls: 'text-green-400 bg-green-400/8 border-green-400/25',
-      iconCls: 'text-green-400 bg-green-400/10 border-green-400/25',
-      activeBorder: 'border-green-400/35 bg-green-400/5',
+      badgeCls: 'text-gold bg-gold/10 border-gold/25',
+      iconCls: 'text-gold bg-gold/10 border-gold/25',
+      activeBorder: 'border-gold/35 bg-gold/5',
       icon: <Zap className="w-5 h-5" />,
       desc: 'Lowest friction. Best for new audiences and building your first unlock count.',
       conversion: '~58% conversion',
-      convCls: 'text-green-400',
+      convCls: 'text-gold',
     },
     {
       id: 'standard',
       price: '$12',
       label: 'Premium Post',
       badge: 'Most Popular',
-      badgeCls: 'text-blue-400 bg-blue-400/8 border-blue-400/25',
-      iconCls: 'text-blue-400 bg-blue-400/10 border-blue-400/25',
-      activeBorder: 'border-blue-400/35 bg-blue-400/5',
+      badgeCls: 'text-arc-secondary bg-white/5 border-white/15',
+      iconCls: 'text-white bg-white/8 border-white/15',
+      activeBorder: 'border-white/20 bg-white/4',
       icon: <TrendingUp className="w-5 h-5" />,
       desc: 'Sweet spot for exclusive photos and clips. Strong balance of volume and revenue.',
       conversion: '~38% conversion',
-      convCls: 'text-blue-400',
+      convCls: 'text-arc-secondary',
     },
     {
       id: 'premium',
       price: '$25',
       label: 'Limited Drop',
       badge: 'High Value',
-      badgeCls: 'text-amber-400 bg-amber-400/8 border-amber-400/25',
-      iconCls: 'text-amber-400 bg-amber-400/10 border-amber-400/25',
-      activeBorder: 'border-amber-400/35 bg-amber-400/5',
+      badgeCls: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
+      iconCls: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
+      activeBorder: 'border-violet-400/35 bg-violet-400/5',
       icon: <Diamond className="w-5 h-5" />,
       desc: 'Use scarcity. Set a limited unlock count to drive urgency. For your best work only.',
       conversion: '~18% conversion',
-      convCls: 'text-amber-400',
+      convCls: 'text-violet-400',
     },
   ];
 

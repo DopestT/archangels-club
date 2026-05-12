@@ -83,6 +83,9 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [contentActions, setContentActions] = useState<Record<string, { status: string; reason?: string }>>({});
   const [activeRejection, setActiveRejection] = useState<string | null>(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [activeChanges, setActiveChanges] = useState<string | null>(null);
+  const [changesReason, setChangesReason] = useState('');
+  const [activeRemove, setActiveRemove] = useState<string | null>(null);
 
   // Flagged content (reports)
   const [flaggedContent, setFlaggedContent] = useState<Report[]>([]);
@@ -250,6 +253,32 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
       alert('Failed to generate setup link.');
     }
   }
+
+
+  async function handleContentAction(id: string, status: string, reason?: string) {
+    const endpointMap: Record<string, string> = {
+      approved: 'approve',
+      rejected: 'reject',
+      changes_requested: 'request-changes',
+      removed: 'remove',
+    };
+    const endpoint = endpointMap[status];
+    if (endpoint) {
+      try {
+        await adminFetch(`/api/admin/content/${id}/${endpoint}`, {
+          method: 'POST',
+          body: JSON.stringify({ rejection_reason: reason }),
+        });
+      } catch {}
+    }
+    setContentActions((p) => ({ ...p, [id]: { status, reason } }));
+    setActiveRejection(null);
+    setRejectionReason('');
+    setActiveChanges(null);
+    setChangesReason('');
+    setActiveRemove(null);
+  }
+
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview' },
@@ -664,7 +693,24 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
             </div>
 
             {contentQueueLoading && (
-              <div className="flex items-center justify-center py-12 text-arc-muted text-sm">Loading…</div>
+              <div className="space-y-4">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="card-surface rounded-xl overflow-hidden animate-pulse">
+                    <div className="flex flex-col sm:flex-row">
+                      <div className="flex-shrink-0 w-full sm:w-40 h-32 bg-white/5" />
+                      <div className="flex-1 p-5">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-6 h-6 rounded-full bg-white/5" />
+                          <div className="h-3 w-24 bg-white/5 rounded" />
+                        </div>
+                        <div className="h-4 w-48 bg-white/5 rounded mb-2" />
+                        <div className="h-3 w-full bg-white/5 rounded mb-1" />
+                        <div className="h-3 w-3/4 bg-white/5 rounded" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
 
             <div className="space-y-4">
@@ -673,18 +719,13 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                 return (
                   <div key={item.id} className={`card-surface rounded-xl overflow-hidden transition-all ${action ? 'opacity-60' : ''}`}>
                     <div className="flex flex-col sm:flex-row">
-                      {/* Preview */}
+                      {/* Preview — unblurred for moderator review */}
                       <div className="relative flex-shrink-0 w-full sm:w-40 h-32 bg-bg-hover overflow-hidden">
                         {item.preview_url ? (
-                          <>
-                            <img src={item.preview_url} alt="" className="w-full h-full object-cover locked-blur" />
-                            <div className="absolute inset-0 flex items-center justify-center bg-bg-primary/60">
-                              <Lock className="w-6 h-6 text-gold opacity-60" />
-                            </div>
-                          </>
+                          <img src={item.preview_url} alt="" className="w-full h-full object-cover" />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center text-arc-muted">
-                            {TYPE_ICONS[item.content_type] ?? <FileText className="w-5 h-5" />}
+                            {TYPE_ICONS[item.content_type] ?? <FileText className="w-8 h-8" />}
                           </div>
                         )}
                         <div className="absolute top-2 left-2">
@@ -706,9 +747,13 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                               <span className={`text-xs px-2 py-0.5 rounded-full border ${
                                 item.access_type === 'locked'
                                   ? 'text-amber-400 bg-amber-400/10 border-amber-400/25'
+                                  : item.access_type === 'free'
+                                  ? 'text-arc-success bg-arc-success/10 border-arc-success/25'
                                   : 'text-gold bg-gold-muted border-gold-border'
                               }`}>
-                                {item.access_type === 'locked' ? `Locked · ${formatCurrency(item.price)}` : 'Subscribers only'}
+                                {item.access_type === 'locked' ? `Locked · ${formatCurrency(item.price)}`
+                                  : item.access_type === 'free' ? 'Free'
+                                  : 'Subscribers only'}
                               </span>
                             </div>
                             <h3 className="font-serif text-base text-white mb-1">{item.title}</h3>
@@ -724,10 +769,22 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
                         {activeRejection === item.id && (
                           <div className="mb-3">
+                            <label className="block text-[10px] text-arc-muted mb-1.5 font-medium uppercase tracking-wide">Rejection reason <span className="font-normal normal-case">(sent to creator)</span></label>
                             <textarea
                               value={rejectionReason}
                               onChange={(e) => setRejectionReason(e.target.value)}
-                              placeholder="Reason for rejection (sent to creator)…"
+                              placeholder="Explain clearly what policy this violated…"
+                              className="input-dark text-xs min-h-16 resize-none w-full"
+                            />
+                          </div>
+                        )}
+                        {activeChanges === item.id && (
+                          <div className="mb-3">
+                            <label className="block text-[10px] text-arc-muted mb-1.5 font-medium uppercase tracking-wide">Feedback for creator <span className="font-normal normal-case">(sent to creator)</span></label>
+                            <textarea
+                              value={changesReason}
+                              onChange={(e) => setChangesReason(e.target.value)}
+                              placeholder="What specifically needs to change before this can be approved…"
                               className="input-dark text-xs min-h-16 resize-none w-full"
                             />
                           </div>
@@ -771,42 +828,57 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                                   className="text-xs text-arc-muted hover:text-white transition-colors">Cancel</button>
                               </>
                             ) : (
-                              <button onClick={() => setActiveRejection(item.id)}
+                              <button onClick={() => { setActiveRejection(item.id); setActiveChanges(null); setChangesReason(''); setActiveRemove(null); }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors">
                                 <XCircle className="w-3.5 h-3.5" /> Reject
                               </button>
                             )}
 
-                            <ActionButton
-                              onAction={async () => {
-                                const res = await adminFetch(`/api/admin/content/${item.id}/request-changes`, { method: 'POST' });
-                                if (!res.ok) throw new Error();
-                              }}
-                              onSuccess={() => setContentActions(p => ({ ...p, [item.id]: { status: 'changes_requested' } }))}
-                              label={<><MessageSquare className="w-3.5 h-3.5" /> Request Changes</>}
-                              loadingLabel="Sending…"
-                              successLabel="Sent"
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10 transition-colors"
-                            />
+                            {activeChanges === item.id ? (
+                              <>
+                                <button onClick={() => handleContentAction(item.id, 'changes_requested', changesReason)}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 border border-amber-400/25 transition-colors">
+                                  <MessageSquare className="w-3.5 h-3.5" /> Send Feedback
+                                </button>
+                                <button onClick={() => { setActiveChanges(null); setChangesReason(''); }}
+                                  className="text-xs text-arc-muted hover:text-white transition-colors">Cancel</button>
+                              </>
+                            ) : (
+                              <button onClick={() => { setActiveChanges(item.id); setActiveRejection(null); setRejectionReason(''); setActiveRemove(null); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-arc-secondary hover:text-white border border-white/10 transition-colors">
+                                <MessageSquare className="w-3.5 h-3.5" /> Request Changes
+                              </button>
+                            )}
 
-                            <ActionButton
-                              onAction={async () => {
-                                const res = await adminFetch(`/api/admin/content/${item.id}/remove`, { method: 'POST' });
-                                if (!res.ok) throw new Error();
-                              }}
-                              onSuccess={() => setContentActions(p => ({ ...p, [item.id]: { status: 'removed' } }))}
-                              label="Remove"
-                              loadingLabel="Removing…"
-                              successLabel="Removed"
-                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-red-600/10 text-red-500 hover:bg-red-600/20 border border-red-600/25 transition-colors"
-                            />
+                            {activeRemove === item.id ? (
+                              <>
+                                <button onClick={() => handleContentAction(item.id, 'removed')}
+                                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-red-600/15 text-red-400 hover:bg-red-600/25 border border-red-600/30 transition-colors ml-auto">
+                                  <AlertTriangle className="w-3.5 h-3.5" /> Confirm Remove
+                                </button>
+                                <button onClick={() => setActiveRemove(null)}
+                                  className="text-xs text-arc-muted hover:text-white transition-colors">Cancel</button>
+                              </>
+                            ) : (
+                              <button onClick={() => { setActiveRemove(item.id); setActiveRejection(null); setRejectionReason(''); setActiveChanges(null); setChangesReason(''); }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-red-500/70 hover:text-red-400 hover:bg-red-600/10 border border-transparent hover:border-red-600/20 transition-colors ml-auto">
+                                <AlertTriangle className="w-3 h-3" /> Remove
+                              </button>
+                            )}
                           </div>
                         )}
 
-                        {action?.status === 'changes_requested' && (
-                          <p className="text-xs text-amber-400 mt-2 flex items-center gap-1.5">
-                            <MessageSquare className="w-3.5 h-3.5" />
-                            Changes requested — creator has been notified.
+                        {action && (
+                          <p className={`text-xs mt-2 flex items-center gap-1.5 ${
+                            action.status === 'approved' ? 'text-arc-success' :
+                            action.status === 'rejected' ? 'text-arc-error' :
+                            action.status === 'changes_requested' ? 'text-amber-400' :
+                            'text-arc-muted'
+                          }`}>
+                            {action.status === 'approved' && <><CheckCircle className="w-3.5 h-3.5 flex-shrink-0" /> Approved — content is now live.</>}
+                            {action.status === 'rejected' && <><XCircle className="w-3.5 h-3.5 flex-shrink-0" /> Rejected — creator has been notified.</>}
+                            {action.status === 'changes_requested' && <><MessageSquare className="w-3.5 h-3.5 flex-shrink-0" /> Changes requested — creator has been notified.</>}
+                            {action.status === 'removed' && <><AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" /> Removed from platform.</>}
                           </p>
                         )}
                       </div>
@@ -817,8 +889,11 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
               {!contentQueueLoading && contentQueue.length === 0 && (
                 <div className="text-center py-20">
-                  <CheckCircle className="w-10 h-10 text-arc-success mx-auto mb-3" />
-                  <p className="text-arc-secondary">No content in the review queue.</p>
+                  <div className="w-16 h-16 rounded-full bg-arc-success/10 flex items-center justify-center mx-auto mb-4">
+                    <CheckCircle className="w-8 h-8 text-arc-success" />
+                  </div>
+                  <p className="font-serif text-base text-white mb-1">Queue is clear</p>
+                  <p className="text-sm text-arc-muted">All submitted content has been reviewed. New submissions will appear here.</p>
                 </div>
               )}
             </div>

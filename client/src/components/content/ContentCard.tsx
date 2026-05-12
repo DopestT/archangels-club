@@ -146,7 +146,7 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
                 style={{ opacity: hovered ? 0 : 1, transition: 'opacity 0.25s ease' }}
               >
                 <div className="w-10 h-10 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
-                  <Lock className="w-4.5 h-4.5 text-gold" />
+                  <Lock className="w-5 h-5 text-gold" />
                 </div>
                 <span className="text-[10px] font-sans text-arc-muted uppercase tracking-widest">Members Only</span>
                 {content.access_type === 'locked' && content.price > 0 && (

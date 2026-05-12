@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight, Star, CheckCircle, XCircle, ShieldCheck, Crown, ExternalLink, Zap, LayoutDashboard, Copy, Link2, Trash2, Plus, Eye, Share2, BarChart2, Lock, ArrowRight, UserCircle } from 'lucide-react';
+import {
+  Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight,
+  Star, CheckCircle, XCircle, Crown, ExternalLink, Zap, Copy, Check,
+  LayoutGrid, AlertCircle, Eye, Sparkles, LayoutDashboard, Link2, Trash2,
+  Plus, Share2, BarChart2, Lock, ArrowRight, UserCircle,
+} from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
 import { setViewMode } from '../lib/viewMode';
 import ActionButton from '../components/ui/ActionButton';
-
+import First100Tracker from '../components/creator/First100Tracker';
+import EmptyState from '../components/ui/EmptyState';
+import CreatorOnboardingChecklist from '../components/creator/CreatorOnboardingChecklist';
+import CreatorNextAction from '../components/creator/CreatorNextAction';
+import { useCreatorProgress } from '../hooks/useCreatorProgress';
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
 interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number; content_count: number }
@@ -15,31 +24,66 @@ interface Transaction { id: string; ref_type: string; amount: number; net_amount
 interface CustomRequest { id: string; description: string; offered_price: number; status: string; fan_name: string; created_at: string }
 interface PromoStats { views: { total: number; last_7d: number; last_30d: number }; by_source: Record<string, number>; subscribers: number; unlocks: number; conversion_rate: number }
 interface InviteLink { id: string; invite_code: string; label: string; click_count: number; created_at: string }
+interface ContentCounts { published: number; pending: number; issues: number }
+
+function getGreeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+const ACT_COLORS: Record<string, string> = {
+  unlock:  '#D4AF37',
+  sub:     '#10B981',
+  tip:     '#D4AF37',
+  request: '#8B5CF6',
+};
 
 export default function CreatorDashboard() {
   const { user, token, refreshUser } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => { document.title = 'Creator Studio — Archangels Club'; }, []);
-  // Persist mode on mount
   useEffect(() => { setViewMode('creator'); }, []);
+
   const [statusLoading, setStatusLoading] = useState(true);
   const [stripeStatus, setStripeStatus] = useState<StripeStatus | null>(null);
   const [stripeLoading, setStripeLoading] = useState(false);
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [stats, setStats] = useState<CreatorStats | null>(null);
+  const [profileSetupNeeded, setProfileSetupNeeded] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [requests, setRequests] = useState<CustomRequest[]>([]);
   const [promoStats, setPromoStats] = useState<PromoStats | null>(null);
   const [inviteLinks, setInviteLinks] = useState<InviteLink[]>([]);
   const [newInviteLabel, setNewInviteLabel] = useState('');
   const [creatingInvite, setCreatingInvite] = useState(false);
+  const [contentCounts, setContentCounts] = useState<ContentCounts | null>(null);
+  const [profileLinkCopied, setProfileLinkCopied] = useState(false);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
+  const firstName = (user?.display_name ?? '').split(' ')[0] || user?.display_name || 'Creator';
+
+  function copyProfileLink() {
+    const link = `${window.location.origin}/creator/${user?.username ?? ''}`;
+    navigator.clipboard.writeText(link).catch(() => {});
+    setProfileLinkCopied(true);
+    setTimeout(() => setProfileLinkCopied(false), 2000);
+  }
+
+  const progress = useCreatorProgress(
+    stats,
+    transactions,
+    requests,
+    stripeStatus?.onboarded ?? false,
+    user?.avatar_url,
+    contentCounts?.published ?? null,
+  );
+
   useEffect(() => {
     if (!token) { setStatusLoading(false); return; }
-    // Refresh user to pick up latest creator approval status
     refreshUser().finally(() => setStatusLoading(false));
     fetch(`${API_BASE}/api/stripe/connect/status`, { headers: authHeaders })
       .then((r) => r.json())
@@ -47,7 +91,13 @@ export default function CreatorDashboard() {
       .catch(() => { setStripeStatus({ has_account: false, onboarded: false, account_id: null }); });
     fetch(`${API_BASE}/api/creators/my/stats`, { headers: authHeaders })
       .then((r) => r.json())
-      .then((d) => { if (!d.error) setStats(d); })
+      .then((d) => {
+        if (d.error) {
+          setProfileSetupNeeded(true);
+        } else {
+          setStats(d);
+        }
+      })
       .catch(() => {});
     fetch(`${API_BASE}/api/creators/my/transactions`, { headers: authHeaders })
       .then((r) => r.json())
@@ -65,9 +115,20 @@ export default function CreatorDashboard() {
       .then((r) => r.json())
       .then((d) => { if (Array.isArray(d)) setInviteLinks(d); })
       .catch(() => {});
+    fetch(`${API_BASE}/api/creators/my/content`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d)) {
+          setContentCounts({
+            published: d.filter((c: any) => c.status === 'approved').length,
+            pending:   d.filter((c: any) => c.status === 'pending_review').length,
+            issues:    d.filter((c: any) => ['rejected', 'changes_requested', 'failed_processing'].includes(c.status)).length,
+          });
+        }
+      })
+      .catch(() => {});
   }, [token]);
 
-  // After Stripe redirects back with ?stripe=return, verify onboarding
   useEffect(() => {
     if (searchParams.get('stripe') !== 'return' || !token) return;
     setSearchParams({}, { replace: true });
@@ -134,70 +195,163 @@ export default function CreatorDashboard() {
     if (data.url) window.open(data.url, '_blank');
   }
 
+  async function handleCustomRequest(id: string, status: 'accepted' | 'rejected') {
+    try {
+      const res = await fetch(`${API_BASE}/api/messages/custom-request/${id}`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) return;
+      setRequests((prev) => prev.map((r) => r.id === id ? { ...r, status } : r));
+    } catch {}
+  }
+
+  const pendingRequests = requests.filter((r) => r.status === 'pending').length;
+
+  type ActivityType = 'unlock' | 'sub' | 'tip' | 'request';
+  type ActivityItem = { type: ActivityType; text: string; time: string; amount: string };
+
+  const activityFeed: ActivityItem[] = [
+    ...transactions.slice(0, 6).map((txn): ActivityItem => ({
+      type: txn.ref_type === 'subscription' ? 'sub'
+          : txn.ref_type === 'tip' ? 'tip'
+          : 'unlock',
+      text: txn.ref_type === 'subscription'
+        ? `${txn.payer_name} joined your audience`
+        : txn.ref_type === 'tip'
+        ? `${txn.payer_name} sent a tip`
+        : `${txn.payer_name} unlocked ${txn.content_title ?? 'your content'}`,
+      time: timeAgo(txn.created_at),
+      amount: `+${formatCurrency(Number(txn.net_amount))}`,
+    })),
+    ...requests
+      .filter((r) => r.status === 'pending')
+      .slice(0, 2)
+      .map((req): ActivityItem => ({
+        type: 'request',
+        text: `Custom request from ${req.fan_name}${req.description ? `: "${req.description.slice(0, 50)}${req.description.length > 50 ? '…' : ''}"` : ''}`,
+        time: timeAgo(req.created_at),
+        amount: formatCurrency(Number(req.offered_price)),
+      })),
+  ];
+
   return (
     <div className="min-h-screen bg-bg-primary py-10">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-10">
-          <div>
-            <p className="section-eyebrow mb-2">Creator Studio</p>
-            <h1 className="font-serif text-3xl text-white">{user?.display_name ?? 'Creator'}</h1>
-            <p className="text-arc-secondary text-sm mt-1">@{user?.username}</p>
+        {/* ── Hero ─────────────────────────────────────────────────────────────── */}
+        <div className="mb-8">
+
+          {/* Identity row */}
+          <div className="flex items-start gap-4 mb-4">
+            {/* Avatar / initials */}
+            <div className="flex-shrink-0">
+              {user?.avatar_url ? (
+                <img
+                  src={user.avatar_url}
+                  alt={firstName}
+                  className="w-14 h-14 rounded-full object-cover border-2 border-gold/30"
+                />
+              ) : (
+                <div className="w-14 h-14 rounded-full bg-gold/10 border-2 border-gold/25 flex items-center justify-center">
+                  <span className="font-serif text-2xl text-gold">{firstName[0]?.toUpperCase() ?? '?'}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Name + handle + status badge */}
+            <div className="flex-1 min-w-0">
+              <p className="section-eyebrow mb-1">Creator Studio</p>
+              <h1 className="font-serif text-2xl sm:text-3xl text-white leading-tight">
+                {getGreeting()},{' '}
+                <em className="not-italic text-gold">{firstName}.</em>
+              </h1>
+              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                <span className="text-xs text-arc-muted">@{user?.username}</span>
+                {user?.is_verified_creator ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-arc-success/10 border border-arc-success/25 text-arc-success">
+                    <CheckCircle className="w-3 h-3" />
+                    Studio Open
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/25 text-amber-400">
+                    <Clock className="w-3 h-3" />
+                    Under Review
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
+
+          {/* Tagline */}
+          <p className="text-sm text-arc-secondary mb-4 max-w-lg leading-relaxed">
+            {user?.is_verified_creator
+              ? 'Build your collection, publish drops, and grow your private audience.'
+              : 'Set up your profile and prepare your first drop while our team reviews your application.'}
+          </p>
+
+          {/* Action row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link to="/upload" className="btn-gold text-sm flex items-center gap-1.5">
+              <Upload className="w-4 h-4" />
+              Create a Drop
+            </Link>
+            <Link
+              to="/settings"
+              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+            >
+              Customize Profile
+            </Link>
+            <Link
+              to={`/creator/${user?.username ?? ''}`}
+              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              View Profile
+            </Link>
+            <button
+              onClick={copyProfileLink}
+              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+            >
+              {profileLinkCopied
+                ? <Check className="w-3.5 h-3.5 text-arc-success" />
+                : <Copy className="w-3.5 h-3.5" />}
+              {profileLinkCopied ? 'Copied!' : 'Share'}
+            </button>
             <Link
               to="/dashboard"
               onClick={() => setViewMode('member')}
-              className="btn-outline text-sm"
+              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
             >
-              <LayoutDashboard className="w-4 h-4" />
+              <LayoutDashboard className="w-3.5 h-3.5" />
               Member View
-            </Link>
-            <Link to="/upload" className="btn-gold text-sm">
-              <Upload className="w-4 h-4" />
-              Upload Content
             </Link>
           </div>
         </div>
 
-        {/* Creator status — compact pill for approved, banner for pending */}
+        {/* Under-review banner — shown before approval */}
         {!statusLoading && !user?.is_verified_creator && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 mb-6">
+          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 mb-5">
             <Clock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
             <div className="flex-1 min-w-0">
               <p className="text-xs font-medium text-amber-300">Creator Application Under Review</p>
               <p className="text-xs text-arc-muted mt-0.5 leading-relaxed">
-                Your application is being reviewed. Expect a response within <strong className="text-amber-200">48–72 hours</strong>.
+                Your studio is being prepared. Our team typically responds within <strong className="text-amber-200">48–72 hours</strong>.
               </p>
             </div>
           </div>
         )}
 
-        {/* Get Started — quick action row */}
+        {/* Quick Actions — verified creators only */}
         {user?.is_verified_creator && (
           <div className="mb-8">
             <p className="text-[11px] font-bold tracking-widest uppercase text-arc-muted mb-3">Quick Actions</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                {
-                  to: '/upload',
-                  icon: <Upload className="w-5 h-5 text-gold" />,
-                  label: 'Upload a Drop',
-                  desc: 'Set a price and publish instantly.',
-                },
-                {
-                  to: `/creator/${user?.username}`,
-                  icon: <UserCircle className="w-5 h-5 text-gold" />,
-                  label: 'View Your Profile',
-                  desc: 'See how members see your page.',
-                },
-                {
-                  to: '/messages',
-                  icon: <MessageCircle className="w-5 h-5 text-gold" />,
-                  label: 'Custom Requests',
-                  desc: 'Accept and manage fan requests.',
-                },
+                { to: '/upload',         icon: <Upload className="w-5 h-5 text-gold" />,         label: 'Upload a Drop',       desc: 'Set a price and publish instantly.' },
+                { to: `/creator/${user?.username}`, icon: <UserCircle className="w-5 h-5 text-gold" />, label: 'View Your Profile',   desc: 'See how members see your page.' },
+                { to: '/messages',       icon: <MessageCircle className="w-5 h-5 text-gold" />, label: 'Custom Requests',     desc: 'Accept and manage fan requests.' },
               ].map(({ to, icon, label, desc }) => (
                 <Link
                   key={to}
@@ -218,16 +372,31 @@ export default function CreatorDashboard() {
           </div>
         )}
 
-        {/* Stripe Connect Banner */}
+        {/* ── Profile setup card ───────────────────────────────────────────────── */}
+        {profileSetupNeeded && (
+          <div className="card-surface p-6 rounded-xl mb-6 border border-gold/20">
+            <p className="section-eyebrow mb-2">Your Studio Awaits</p>
+            <h2 className="font-serif text-xl text-white mb-2">Finish setting up your studio</h2>
+            <p className="text-sm text-arc-secondary leading-relaxed mb-4">
+              Complete your creator profile to unlock drops, collections, and your first audience.
+            </p>
+            <Link to="/creator/onboarding" className="btn-gold text-sm inline-flex items-center gap-2">
+              <Crown className="w-4 h-4" />
+              Complete Profile Setup
+            </Link>
+          </div>
+        )}
+
+        {/* ── Enable payouts CTA ───────────────────────────────────────────────── */}
         {stripeStatus !== null && !stripeStatus.onboarded && (
-          <div className="flex items-start gap-4 p-5 rounded-xl bg-bg-surface border border-gold/30 mb-8">
+          <div className="flex items-start gap-4 p-5 rounded-xl bg-bg-surface border border-gold/30 mb-5">
             <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/25 flex items-center justify-center flex-shrink-0">
               <Zap className="w-4 h-4 text-gold" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-white mb-0.5">Set up payouts to start earning</p>
+              <p className="text-sm font-medium text-white mb-0.5">Enable payouts to start earning</p>
               <p className="text-xs text-arc-secondary leading-relaxed">
-                Connect your bank account via Stripe. Once set up, 80% of every payment goes directly to you — automatically.
+                Connect your bank via Stripe. You keep 80% of every payment — handled automatically.
               </p>
               {stripeError && (
                 <p className="text-xs text-amber-400 mt-2">{stripeError}</p>
@@ -246,26 +415,59 @@ export default function CreatorDashboard() {
               ) : (
                 <ExternalLink className="w-3.5 h-3.5" />
               )}
-              {stripeLoading ? 'Opening…' : 'Set Up Payouts'}
+              {stripeLoading ? 'Connecting…' : 'Enable Payouts'}
             </button>
           </div>
         )}
 
+        {/* ── Payouts active confirmation ──────────────────────────────────────── */}
         {stripeStatus?.onboarded && (
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-arc-success/8 border border-arc-success/25 mb-8">
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-arc-success/8 border border-arc-success/25 mb-5">
             <CheckCircle className="w-4 h-4 text-arc-success flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-arc-success">Payouts connected</p>
-              <p className="text-xs text-arc-muted mt-0.5">Your Stripe account is set up. You'll receive 80% of every sale automatically.</p>
+              <p className="text-xs font-medium text-arc-success">Payouts active</p>
+              <p className="text-xs text-arc-muted mt-0.5">You keep 80% of every sale — deposited automatically each week.</p>
             </div>
-            <button onClick={openStripeDashboard} className="text-xs text-gold hover:underline flex items-center gap-1">
+            <button onClick={openStripeDashboard} className="text-xs text-gold hover:underline flex items-center gap-1 flex-shrink-0">
               <ExternalLink className="w-3 h-3" />
               Stripe Dashboard
             </button>
           </div>
         )}
 
-        {/* ── Empty state — no content yet ─────────────────────────────── */}
+        {/* ── Content issues alert ─────────────────────────────────────────────── */}
+        {contentCounts !== null && contentCounts.issues > 0 && (
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-arc-error/8 border border-arc-error/20 mb-5">
+            <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-medium text-arc-error">
+                {contentCounts.issues} drop{contentCounts.issues !== 1 ? 's' : ''} need{contentCounts.issues === 1 ? 's' : ''} your attention
+              </p>
+              <p className="text-xs text-arc-muted mt-0.5">Review the feedback and resubmit from your media library.</p>
+            </div>
+            <Link to="/creator/media" className="text-xs text-gold hover:underline flex items-center gap-1 flex-shrink-0">
+              Review <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+        )}
+
+        {/* ── Launch checklist — new + early creators ──────────────────────────── */}
+        {user && (progress.level === 'new' || progress.level === 'early') && (
+          <CreatorOnboardingChecklist
+            items={progress.checklistItems}
+            completePct={progress.checklistCompletePct}
+            allComplete={progress.checklistAllComplete}
+            userId={user.id}
+            onStripeSetup={startStripeOnboarding}
+          />
+        )}
+
+        {/* ── Contextual next-action card ─────────────────────────────────────── */}
+        {progress.nextAction && (
+          <CreatorNextAction action={progress.nextAction} />
+        )}
+
+        {/* ── Empty state — no content yet ─────────────────────────────────────── */}
         {stats !== null && stats.content_count === 0 && (
           <div className="mb-10">
             <div
@@ -288,117 +490,114 @@ export default function CreatorDashboard() {
           </div>
         )}
 
-        {/* Stats */}
-        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
-          <StatCard
-            label="Total Earnings"
-            value={stats ? formatCurrency(stats.total_earnings) : '—'}
-            sub="lifetime net"
-            icon={<DollarSign className="w-5 h-5" />}
-          />
-          <StatCard
-            label="Subscribers"
-            value={stats ? stats.subscriber_count.toLocaleString() : '—'}
-            sub="active subscribers"
-            icon={<Users className="w-5 h-5" />}
-          />
-          <StatCard
-            label="Content Unlocks"
-            value={stats ? stats.content_unlocks.toLocaleString() : '—'}
-            sub="total purchases"
-            icon={<TrendingUp className="w-5 h-5" />}
-          />
-          <StatCard
-            label="Tips Received"
-            value={stats ? formatCurrency(stats.tips_total) : '—'}
-            sub="lifetime tips"
-            icon={<Star className="w-5 h-5" />}
-          />
+        {/* ── Content stats — your collection ─────────────────────────────────── */}
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
+          {[
+            {
+              label: 'Live Drops',
+              value: contentCounts ? contentCounts.published.toLocaleString() : '—',
+              sub: 'in your collection',
+              highlight: false,
+            },
+            {
+              label: 'In Review',
+              value: contentCounts ? contentCounts.pending.toLocaleString() : '—',
+              sub: 'being reviewed',
+              highlight: false,
+            },
+            {
+              label: 'Requests',
+              value: String(pendingRequests),
+              sub: pendingRequests > 0 ? 'awaiting your response' : 'custom requests',
+              highlight: pendingRequests > 0,
+              highlightColor: 'text-violet-300',
+            },
+            {
+              label: 'Needs Review',
+              value: contentCounts ? contentCounts.issues.toLocaleString() : '—',
+              sub: 'drops with feedback',
+              highlight: contentCounts !== null && contentCounts.issues > 0,
+              highlightColor: 'text-arc-error',
+            },
+          ].map(({ label, value, sub, highlight, highlightColor }) => (
+            <div key={label} className="card-surface p-5 rounded-xl">
+              <p className="text-xs font-medium tracking-wider uppercase text-arc-secondary mb-2">{label}</p>
+              <p className={`font-serif text-2xl mb-1 ${highlight ? highlightColor : 'text-white'}`}>{value}</p>
+              <p className="text-xs text-arc-muted">{sub}</p>
+            </div>
+          ))}
         </div>
 
+        {/* ── Audience & earnings row ──────────────────────────────────────────── */}
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
+          <StatCard label="Earnings"  value={stats ? formatCurrency(stats.total_earnings)    : '—'} sub="lifetime net"       icon={<DollarSign className="w-5 h-5" />} />
+          <StatCard label="Audience"  value={stats ? stats.subscriber_count.toLocaleString() : '—'} sub="active subscribers" icon={<Users      className="w-5 h-5" />} />
+          <StatCard label="Unlocks"   value={stats ? stats.content_unlocks.toLocaleString()  : '—'} sub="total unlocks"      icon={<TrendingUp className="w-5 h-5" />} />
+          <StatCard label="Tips"      value={stats ? formatCurrency(stats.tips_total)        : '—'} sub="lifetime tips"      icon={<Star       className="w-5 h-5" />} />
+        </div>
+
+        {/* ── Two-column layout ────────────────────────────────────────────────── */}
         <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
-          {/* Left — transactions + requests */}
+
+          {/* Left col */}
           <div className="lg:col-span-2 space-y-8">
 
-            {/* Earnings summary */}
-            <div className="card-surface p-6 rounded-xl">
-              <h2 className="font-serif text-lg text-white mb-5">Earnings Overview</h2>
-              {stats && stats.total_earnings > 0 ? (
-                <div className="grid grid-cols-3 gap-4">
-                  {[
-                    { label: 'Lifetime Earnings', value: formatCurrency(stats.total_earnings) },
-                    { label: 'You Keep (80%)', value: formatCurrency(stats.total_earnings * 0.8) },
-                    { label: 'Active Subscribers', value: stats.subscriber_count.toString() },
-                  ].map(({ label, value }) => (
-                    <div key={label} className="p-4 rounded-xl bg-bg-hover border border-white/5 text-center">
-                      <p className="text-xs text-arc-muted mb-1.5">{label}</p>
-                      <p className="font-serif text-xl text-gold">{value}</p>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <div className="w-10 h-10 rounded-xl bg-gold/8 border border-gold/15 flex items-center justify-center mb-3">
-                    <DollarSign className="w-5 h-5 text-gold/50" />
-                  </div>
-                  <p className="text-sm text-arc-secondary mb-1">No earnings yet</p>
-                  <p className="text-xs text-arc-muted mb-4">Upload your first drop to start earning. You keep 80% of every sale.</p>
-                  <Link to="/upload" className="btn-gold text-xs px-5 py-2 inline-flex items-center gap-2">
-                    <Upload className="w-3.5 h-3.5" />
-                    Upload First Drop
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Recent transactions */}
-            <div className="card-surface p-6 rounded-xl">
-              <h2 className="font-serif text-lg text-white mb-5">Recent Transactions</h2>
-              {transactions.length > 0 ? (
-                <div className="space-y-0">
-                  {transactions.map((txn, i) => (
+            {/* Studio Activity */}
+            <div className="card-surface rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-4 border-b border-white/5">
+                <h2 className="font-serif text-lg text-white">Studio Activity</h2>
+                {transactions.length > 0 && (
+                  <span className="text-xs text-arc-muted">{transactions.length} events</span>
+                )}
+              </div>
+              {activityFeed.length > 0 ? (
+                <div>
+                  {activityFeed.slice(0, 7).map((a, i) => (
                     <div
-                      key={txn.id}
-                      className={`flex items-center justify-between py-3.5 gap-4 ${
-                        i < transactions.length - 1 ? 'border-b border-white/5' : ''
-                      }`}
+                      key={i}
+                      className={`flex items-start gap-3 px-6 py-3.5 ${i < Math.min(activityFeed.length, 7) - 1 ? 'border-b border-white/4' : ''}`}
                     >
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gold-muted border border-gold-border flex items-center justify-center">
-                          <DollarSign className="w-4 h-4 text-gold" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-white capitalize">{txn.ref_type.replace('_', ' ')}</p>
-                          <p className="text-xs text-arc-muted">from {txn.payer_name}</p>
-                        </div>
+                      <div
+                        className="w-2 h-2 rounded-full mt-[7px] flex-shrink-0"
+                        style={{ backgroundColor: ACT_COLORS[a.type] ?? '#D4AF37' }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white leading-snug">{a.text}</p>
+                        <p className="text-xs text-arc-muted mt-0.5">{a.time}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-serif text-arc-success">+{formatCurrency(Number(txn.net_amount))}</p>
-                        <p className="text-xs text-arc-muted">{timeAgo(txn.created_at)}</p>
-                      </div>
+                      {a.amount && (
+                        <span
+                          className="text-xs font-medium flex-shrink-0 tabular-nums"
+                          style={{ color: ACT_COLORS[a.type] ?? '#D4AF37' }}
+                        >
+                          {a.amount}
+                        </span>
+                      )}
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <div className="w-10 h-10 rounded-xl bg-gold/8 border border-gold/15 flex items-center justify-center mb-3">
-                    <DollarSign className="w-5 h-5 text-gold/50" />
-                  </div>
-                  <p className="text-sm text-arc-secondary mb-1">No earnings yet</p>
-                  <p className="text-xs text-arc-muted">Transactions appear here once members unlock or subscribe.</p>
+                <div className="px-6 py-8">
+                  <EmptyState
+                    icon={<Sparkles className="w-6 h-6" />}
+                    title="Your first drop starts the story."
+                    description="Publish a locked drop, share your profile, and give members something worth unlocking."
+                  />
                 </div>
               )}
             </div>
 
             {/* Custom requests */}
-            <div className="card-surface p-6 rounded-xl">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="font-serif text-lg text-white">Custom Requests</h2>
-                <span className="text-xs text-arc-muted">
-                  {requests.filter((r) => r.status === 'pending').length} pending
-                </span>
-              </div>
-              {requests.length > 0 ? (
+            {requests.length > 0 && (
+              <div className="card-surface p-6 rounded-xl">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="font-serif text-lg text-white">Custom Requests</h2>
+                  {pendingRequests > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/25 text-violet-300">
+                      {pendingRequests} new
+                    </span>
+                  )}
+                </div>
                 <div className="space-y-4">
                   {requests.map((req) => (
                     <div key={req.id} className="p-4 rounded-xl bg-bg-hover border border-white/5">
@@ -408,8 +607,8 @@ export default function CreatorDashboard() {
                           {formatCurrency(Number(req.offered_price))}
                         </span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className={`text-xs px-2.5 py-0.5 rounded-full border ${
                             req.status === 'pending'
                               ? 'text-amber-400 bg-amber-400/10 border-amber-400/25'
@@ -417,7 +616,7 @@ export default function CreatorDashboard() {
                               ? 'text-arc-success bg-arc-success/10 border-arc-success/25'
                               : 'text-arc-error bg-arc-error/10 border-arc-error/25'
                           }`}>
-                            {req.status}
+                            {req.status === 'pending' ? 'new' : req.status}
                           </span>
                           <span className="text-xs text-arc-muted">{timeAgo(req.created_at)}</span>
                           <span className="text-xs text-arc-muted">from {req.fan_name}</span>
@@ -477,40 +676,170 @@ export default function CreatorDashboard() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <div className="w-10 h-10 rounded-xl bg-white/4 border border-white/8 flex items-center justify-center mb-3">
-                    <MessageCircle className="w-5 h-5 text-arc-muted" />
+              </div>
+            )}
+
+            {/* Earnings overview */}
+            <div className="card-surface p-6 rounded-xl">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="font-serif text-lg text-white">Earnings Overview</h2>
+                <select className="input-dark w-auto text-xs py-1.5 px-3">
+                  <option>Last 30 days</option>
+                  <option>Last 90 days</option>
+                  <option>This year</option>
+                </select>
+              </div>
+              {stats !== null && stats.total_earnings > 0 ? (
+                <>
+                  <div className="flex items-end gap-px h-32 opacity-60">
+                    {[40,65,45,80,60,90,75,95,55,70,85,100,72,88,60,95,80,70,65,90,75,100,85,78,92,68,84,76,88,95].map((h, i) => (
+                      <div key={i} className="flex-1 rounded-sm" style={{
+                        height: `${h}%`,
+                        background: i === 29
+                          ? 'linear-gradient(180deg, #D4AF37, #B8962E)'
+                          : 'rgba(212,175,55,0.25)',
+                      }} />
+                    ))}
                   </div>
-                  <p className="text-sm text-arc-secondary mb-1">No requests yet</p>
-                  <p className="text-xs text-arc-muted">Custom requests from members will appear here.</p>
+                  <div className="flex justify-between mt-2 text-xs text-arc-muted">
+                    <span>30 days ago</span><span>15 days ago</span><span>Today</span>
+                  </div>
+                </>
+              ) : (
+                <div className="h-32 flex items-center justify-center rounded-xl border border-dashed border-white/8">
+                  <p className="text-xs text-arc-muted">Your revenue chart will appear once you make your first sale.</p>
                 </div>
               )}
+              <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-3 gap-4">
+                {[
+                  { label: 'Lifetime Net',  value: stats ? formatCurrency(stats.total_earnings) : '—' },
+                  { label: 'Audience',      value: stats ? stats.subscriber_count.toString()    : '—' },
+                  { label: 'From Tips',     value: stats ? formatCurrency(stats.tips_total)     : '—' },
+                ].map(({ label, value }) => (
+                  <div key={label} className="text-center">
+                    <p className="text-xs text-arc-muted mb-1">{label}</p>
+                    <p className="text-sm font-serif text-gold">{value}</p>
+                  </div>
+                ))}
+              </div>
             </div>
+
           </div>
 
-          {/* Right — quick actions */}
+          {/* Right sidebar */}
           <div className="space-y-5">
-            {/* Monetization model */}
+
+            {/* Quick Actions */}
+            <div className="card-surface rounded-xl overflow-hidden">
+              <div className="px-5 pt-5 pb-3">
+                <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-3">Your Studio</p>
+                <div className="space-y-1.5">
+                  {[
+                    {
+                      to: '/upload',
+                      icon: <Upload className="w-4 h-4" />,
+                      label: 'Create a Drop',
+                      sub: 'Add a new drop to your collection',
+                      primary: true,
+                    },
+                    {
+                      to: '/creator/media',
+                      icon: <LayoutGrid className="w-4 h-4" />,
+                      label: 'Media Library',
+                      sub: contentCounts ? `${contentCounts.published} live · all drops` : 'Manage your drops',
+                    },
+                    {
+                      to: `/creator/${user?.username ?? ''}`,
+                      icon: <Eye className="w-4 h-4" />,
+                      label: 'View Profile',
+                      sub: 'See your public creator page',
+                    },
+                    {
+                      to: '/messages',
+                      icon: <MessageCircle className="w-4 h-4" />,
+                      label: 'Messages',
+                      sub: pendingRequests > 0
+                        ? `${pendingRequests} request${pendingRequests !== 1 ? 's' : ''} waiting`
+                        : 'Inbox & custom requests',
+                    },
+                  ].map(({ to, icon, label, sub, primary }) => (
+                    <Link
+                      key={to + label}
+                      to={to}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all group ${
+                        primary
+                          ? 'bg-gold/8 border border-gold/25 text-gold hover:bg-gold/14 hover:border-gold/40'
+                          : 'text-arc-secondary hover:text-white hover:bg-bg-hover border border-transparent'
+                      }`}
+                    >
+                      <span className={`flex-shrink-0 ${primary ? 'text-gold' : 'text-gold/60 group-hover:text-gold/90'}`}>
+                        {icon}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-xs font-medium leading-tight ${primary ? 'text-gold' : 'text-white'}`}>{label}</p>
+                        <p className="text-[11px] text-arc-muted truncate mt-0.5">{sub}</p>
+                      </div>
+                      <ChevronRight className="w-3.5 h-3.5 opacity-30 group-hover:opacity-60 flex-shrink-0 transition-opacity" />
+                    </Link>
+                  ))}
+
+                  {/* Share profile */}
+                  <button
+                    onClick={copyProfileLink}
+                    className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm text-arc-secondary hover:text-white hover:bg-bg-hover border border-transparent transition-all group"
+                  >
+                    <span className={`flex-shrink-0 ${profileLinkCopied ? 'text-arc-success' : 'text-gold/60 group-hover:text-gold/90'}`}>
+                      {profileLinkCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                    </span>
+                    <div className="flex-1 min-w-0 text-left">
+                      <p className={`text-xs font-medium leading-tight ${profileLinkCopied ? 'text-arc-success' : 'text-white'}`}>
+                        {profileLinkCopied ? 'Link copied!' : 'Share Profile'}
+                      </p>
+                      <p className="text-[11px] text-arc-muted mt-0.5">Copy your public profile link</p>
+                    </div>
+                    {!profileLinkCopied && (
+                      <ChevronRight className="w-3.5 h-3.5 opacity-30 group-hover:opacity-60 flex-shrink-0 transition-opacity" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Creator Training */}
+            <Link
+              to="/creator/onboarding"
+              className="block rounded-xl overflow-hidden border border-gold/35 hover:border-gold/60 transition-all group"
+              style={{
+                background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(10,10,15,0.97) 65%)',
+                boxShadow: '0 0 24px rgba(212,175,55,0.08)',
+              }}
+            >
+              <div className="p-5">
+                <p className="section-eyebrow mb-3">Start Here</p>
+                <div className="flex items-start gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-gold/12 border border-gold/30 flex items-center justify-center flex-shrink-0">
+                    <Crown className="w-5 h-5 text-gold" />
+                  </div>
+                  <div>
+                    <p className="font-serif text-base text-white">Creator Training</p>
+                    <p className="text-xs text-arc-secondary mt-0.5">5-minute guide to your first earnings</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 text-sm font-medium text-gold group-hover:gap-2.5 transition-all">
+                  Start Training
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            </Link>
+
+            {/* How You Earn */}
             <div className="card-surface p-5 rounded-xl">
               <h3 className="font-serif text-base text-white mb-4">How You Earn</h3>
               <div className="space-y-3">
                 {[
-                  {
-                    icon: <Lock className="w-4 h-4 text-gold" />,
-                    label: 'Locked Content',
-                    desc: 'One-time pay-per-unlock. Set any price per drop.',
-                  },
-                  {
-                    icon: <Crown className="w-4 h-4 text-gold" />,
-                    label: 'Subscriptions',
-                    desc: 'Monthly recurring. Subscribers get exclusive posts and discounts.',
-                  },
-                  {
-                    icon: <MessageCircle className="w-4 h-4 text-gold" />,
-                    label: 'Custom Requests',
-                    desc: 'Fans send direct offers. You set the terms.',
-                  },
+                  { icon: <Lock className="w-4 h-4 text-gold" />, label: 'Locked Content', desc: 'One-time pay-per-unlock. Set any price per drop.' },
+                  { icon: <Crown className="w-4 h-4 text-gold" />, label: 'Subscriptions', desc: 'Monthly recurring. Subscribers get exclusive posts and discounts.' },
+                  { icon: <MessageCircle className="w-4 h-4 text-gold" />, label: 'Custom Requests', desc: 'Fans send direct offers. You set the terms.' },
                 ].map(({ icon, label, desc }) => (
                   <div key={label} className="flex items-start gap-3">
                     <div className="w-7 h-7 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -525,60 +854,29 @@ export default function CreatorDashboard() {
               </div>
             </div>
 
-            <div className="card-surface p-5 rounded-xl">
-              <h3 className="font-serif text-base text-white mb-4">Creator Tools</h3>
-              <div className="space-y-2">
-                {[
-                  { to: '/upload', icon: <Upload className="w-4 h-4" />, label: 'Upload New Content' },
-                  { to: '/messages', icon: <MessageCircle className="w-4 h-4" />, label: 'Messages' },
-                ].map(({ to, icon, label }) => (
-                  <Link
-                    key={to + label}
-                    to={to}
-                    className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-arc-secondary hover:text-white hover:bg-bg-hover transition-all"
-                  >
-                    <span className="text-gold">{icon}</span>
-                    {label}
-                    <ChevronRight className="w-3.5 h-3.5 ml-auto opacity-40" />
-                  </Link>
-                ))}
-              </div>
-            </div>
+            {/* First $100 tracker */}
+            {stats !== null && stats.total_earnings < 100 && (
+              <First100Tracker currentEarnings={stats.total_earnings} />
+            )}
 
-            {/* Platform fee info */}
-            <div className="card-surface p-5 rounded-xl border-gold-border/60">
-              <h3 className="font-serif text-base text-gold mb-3">Platform Fee</h3>
-              <p className="text-xs text-arc-secondary leading-relaxed mb-3">
-                Archangels Club retains a 20% platform fee on all transactions. You receive 80% of all income.
+            {/* Payout note */}
+            <div className="card-surface p-4 rounded-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <Zap className="w-3.5 h-3.5 text-gold" />
+                <p className="text-xs font-medium text-white">Your Payout</p>
+              </div>
+              <p className="text-xs text-arc-secondary leading-relaxed">
+                You keep 80% of every sale — subscriptions, unlocks, tips, and custom requests. Fees are handled automatically.
               </p>
-              <div className="space-y-2 text-xs">
-                {[
-                  ['Subscriptions', '80% to you'],
-                  ['Content Unlocks', '80% to you'],
-                  ['Tips', '80% to you'],
-                  ['Custom Requests', '80% to you'],
-                ].map(([type, payout]) => (
-                  <div key={type} className="flex justify-between">
-                    <span className="text-arc-muted">{type}</span>
-                    <span className="text-arc-success">{payout}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="p-4 rounded-xl bg-amber-500/8 border border-amber-500/20">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Clock className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-xs font-medium text-amber-300">Payout Schedule</span>
-              </div>
-              <p className="text-xs text-arc-muted leading-relaxed">
-                Payouts processed weekly. Minimum payout: $50. Bank transfer or crypto available.
+              <p className="text-[11px] text-arc-muted mt-2">
+                Processed weekly · min. $50 · bank or crypto
               </p>
             </div>
+
           </div>
         </div>
 
-        {/* ── Promote Your Profile ───────────────────────────────────────── */}
+        {/* ── Promote Your Profile ───────────────────────────────────────────── */}
         {(() => {
           if (stats !== null && stats.content_count === 0) return null;
           const profileUrl = `${window.location.origin}/creator/${user?.username}`;
@@ -586,21 +884,16 @@ export default function CreatorDashboard() {
           const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(profileUrl)}&size=150x150&color=D4AF37&bgcolor=09090B&margin=12`;
 
           const captions = [
-            { key: 'cap-profile', label: 'Profile Drop', text: `My exclusive content is now live on Archangels Club — link in bio.\n${profileUrl}` },
-            { key: 'cap-sub', label: 'Subscriber CTA', text: `Subscribers get full access to every private drop I post — cancel anytime.\n${subscribeUrl}` },
-            { key: 'cap-drop', label: 'Drop Alert', text: `New drop just went live. Limited unlocks only — first come, first served.\n${profileUrl}` },
-            { key: 'cap-fomo', label: 'FOMO Push', text: `This is only available for a limited time. Once the spots are gone, it's gone.\n${profileUrl}` },
-            { key: 'cap-general', label: 'General', text: `Exclusive content you won't find anywhere else. Everything posted on Archangels Club.\n${profileUrl}` },
+            { key: 'cap-profile', label: 'Profile Drop',    text: `My exclusive content is now live on Archangels Club — link in bio.\n${profileUrl}` },
+            { key: 'cap-sub',     label: 'Subscriber CTA',  text: `Subscribers get full access to every private drop I post — cancel anytime.\n${subscribeUrl}` },
+            { key: 'cap-drop',    label: 'Drop Alert',       text: `New drop just went live. Limited unlocks only — first come, first served.\n${profileUrl}` },
+            { key: 'cap-fomo',    label: 'FOMO Push',        text: `This is only available for a limited time. Once the spots are gone, it's gone.\n${profileUrl}` },
+            { key: 'cap-general', label: 'General',          text: `Exclusive content you won't find anywhere else. Everything posted on Archangels Club.\n${profileUrl}` },
           ];
 
           const sourceLabels: Record<string, string> = {
-            invite: 'Invite Links',
-            social: 'Social',
-            explore: 'Explore Page',
-            recommendation: 'Recommendations',
-            drop: 'Drop Links',
-            direct: 'Direct',
-            profile: 'Profile Link',
+            invite: 'Invite Links', social: 'Social', explore: 'Explore Page',
+            recommendation: 'Recommendations', drop: 'Drop Links', direct: 'Direct', profile: 'Profile Link',
           };
 
           return (
@@ -610,7 +903,6 @@ export default function CreatorDashboard() {
                 <h2 className="font-serif text-2xl text-white">Promote Your Profile</h2>
               </div>
 
-              {/* Share links + stats */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
                 {/* Share Links + QR */}
@@ -619,10 +911,9 @@ export default function CreatorDashboard() {
                     <Link2 className="w-4 h-4 text-gold" />
                     <h3 className="font-serif text-lg text-white">Share Links</h3>
                   </div>
-
                   {[
                     { key: 'link-profile', label: 'Creator Profile', url: profileUrl },
-                    { key: 'link-sub', label: 'Subscribe Page', url: subscribeUrl },
+                    { key: 'link-sub',     label: 'Subscribe Page',  url: subscribeUrl },
                   ].map(({ key, label, url }) => (
                     <div key={key}>
                       <p className="text-xs text-arc-muted mb-1.5">{label}</p>
@@ -639,14 +930,8 @@ export default function CreatorDashboard() {
                       </div>
                     </div>
                   ))}
-
-                  {/* QR Code */}
                   <div className="flex items-center gap-5 pt-2 border-t border-white/5">
-                    <img
-                      src={qrUrl}
-                      alt="Profile QR code"
-                      className="w-[72px] h-[72px] rounded-lg border border-gold/20 flex-shrink-0"
-                    />
+                    <img src={qrUrl} alt="Profile QR code" className="w-[72px] h-[72px] rounded-lg border border-gold/20 flex-shrink-0" />
                     <div>
                       <p className="text-sm font-sans text-white mb-0.5">QR Code</p>
                       <p className="text-xs text-arc-secondary mb-2">Links directly to your creator profile.</p>
@@ -663,13 +948,12 @@ export default function CreatorDashboard() {
                     <BarChart2 className="w-4 h-4 text-gold" />
                     <h3 className="font-serif text-lg text-white">Your Reach</h3>
                   </div>
-
                   <div className="grid grid-cols-2 gap-4 mb-5">
                     {[
-                      { label: 'Profile Views', value: promoStats?.views.total ?? '—', sub: 'all time' },
-                      { label: 'Last 7 Days', value: promoStats?.views.last_7d ?? '—', sub: 'profile views' },
-                      { label: 'Subscribers', value: promoStats?.subscribers ?? stats?.subscriber_count ?? '—', sub: 'active' },
-                      { label: 'Content Unlocks', value: promoStats?.unlocks ?? '—', sub: 'total purchases' },
+                      { label: 'Profile Views',    value: promoStats?.views.total ?? '—',                              sub: 'all time' },
+                      { label: 'Last 7 Days',      value: promoStats?.views.last_7d ?? '—',                            sub: 'profile views' },
+                      { label: 'Subscribers',      value: promoStats?.subscribers ?? stats?.subscriber_count ?? '—',   sub: 'active' },
+                      { label: 'Content Unlocks',  value: promoStats?.unlocks ?? '—',                                  sub: 'total purchases' },
                     ].map(({ label, value, sub }) => (
                       <div key={label} className="p-3 rounded-xl bg-bg-hover border border-white/5">
                         <p className="text-xs text-arc-muted mb-0.5">{label}</p>
@@ -678,7 +962,6 @@ export default function CreatorDashboard() {
                       </div>
                     ))}
                   </div>
-
                   <div className="pt-4 border-t border-white/5">
                     <div className="flex items-center justify-between mb-2">
                       <p className="text-xs text-arc-muted">Conversion Rate</p>
@@ -751,7 +1034,6 @@ export default function CreatorDashboard() {
                     </button>
                   </div>
                 </div>
-
                 {inviteLinks.length > 0 ? (
                   <div className="space-y-2">
                     {inviteLinks.map((link) => {

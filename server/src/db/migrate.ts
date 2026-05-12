@@ -308,6 +308,8 @@ const DDL = `
     event_id TEXT PRIMARY KEY,
     processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  ALTER TABLE content ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 `;
 
 export async function runMigrations(): Promise<void> {

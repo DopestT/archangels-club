@@ -473,11 +473,24 @@ export default function LockedContentPage() {
 
         {/* Payment success banner */}
         {paymentSuccess && unlocked && (
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-arc-success/10 border border-arc-success/30 mb-6">
-            <CheckCircle className="w-5 h-5 text-arc-success flex-shrink-0" />
+          <div
+            className="flex items-center gap-4 p-5 rounded-xl mb-6"
+            style={{
+              background: 'linear-gradient(135deg, rgba(212,175,55,0.12) 0%, rgba(10,10,15,0.6) 100%)',
+              border: '1px solid rgba(212,175,55,0.35)',
+            }}
+          >
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0"
+              style={{ background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.35)' }}
+            >
+              <Crown className="w-5 h-5 text-gold" />
+            </div>
             <div>
-              <p className="text-sm font-medium text-arc-success">Payment successful — access unlocked</p>
-              <p className="text-xs text-arc-secondary mt-0.5">You now have full access to this content.</p>
+              <p className="text-sm font-medium text-gold">Access Granted</p>
+              <p className="text-xs text-arc-secondary mt-0.5">
+                This drop is now yours. It stays in your collection permanently.
+              </p>
             </div>
           </div>
         )}
@@ -576,9 +589,17 @@ export default function LockedContentPage() {
 
           {unlocked && (
             <div className="absolute top-4 left-4">
-              <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-arc-success/15 border border-arc-success/30 text-xs text-arc-success font-sans">
-                <Unlock className="w-3 h-3" />
-                Unlocked
+              <span
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide"
+                style={{
+                  background: 'linear-gradient(90deg, rgba(212,175,55,0.18) 0%, rgba(212,175,55,0.08) 100%)',
+                  border: '1px solid rgba(212,175,55,0.4)',
+                  color: '#D4AF37',
+                  backdropFilter: 'blur(8px)',
+                }}
+              >
+                <CheckCircle className="w-3.5 h-3.5" />
+                Access Granted
               </span>
             </div>
           )}

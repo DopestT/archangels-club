@@ -221,6 +221,58 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
   }
 });
 
+// PATCH /api/content/:id — creator edits their own rejected/changes_requested content and resubmits
+router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const { title, description, access_type, price } = req.body;
+
+    if (!title || String(title).trim().length === 0) {
+      res.status(400).json({ error: 'title is required.' });
+      return;
+    }
+
+    const profile = await queryOne<{ id: string }>(
+      'SELECT id FROM creator_profiles WHERE user_id = $1',
+      [req.auth!.userId]
+    );
+    if (!profile) { res.status(403).json({ error: 'Creator profile not found.' }); return; }
+
+    const existing = await queryOne<{ id: string; creator_id: string; status: string; access_type: string }>(
+      'SELECT id, creator_id, status, access_type FROM content WHERE id = $1',
+      [req.params.id]
+    );
+    if (!existing) { res.status(404).json({ error: 'Content not found.' }); return; }
+    if (existing.creator_id !== profile.id) {
+      res.status(403).json({ error: 'You do not own this content.' });
+      return;
+    }
+
+    const editableStatuses = ['rejected', 'changes_requested', 'draft', 'failed_processing'];
+    if (!editableStatuses.includes(existing.status)) {
+      res.status(409).json({ error: `Content with status "${existing.status}" cannot be edited.` });
+      return;
+    }
+
+    const resolvedAccessType = access_type ?? existing.access_type;
+    const parsedPrice = parseFloat(price) || 0;
+    await execute(
+      `UPDATE content
+         SET title = $1, description = $2, access_type = $3, price = $4,
+             status = 'pending_review', rejection_reason = NULL
+       WHERE id = $5`,
+      [String(title).trim(), String(description ?? '').trim(),
+       resolvedAccessType, parsedPrice, req.params.id]
+    );
+
+    const updated = await queryOne<any>('SELECT * FROM content WHERE id = $1', [req.params.id]);
+    console.log(`[content/patch] resubmitted | contentId=${req.params.id} userId=${req.auth!.userId}`);
+    res.json({ success: true, resubmitted: true, content: updated });
+  } catch (err) {
+    console.error('[content/patch] error:', err);
+    res.status(500).json({ error: 'Failed to update content.' });
+  }
+});
+
 // POST /api/content/:id/unlock — approved fans unlock paid content
 router.post('/:id/unlock', requireAuth, requireApproved, async (req, res) => {
   try {

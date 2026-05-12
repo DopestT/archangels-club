@@ -366,11 +366,15 @@ router.post('/content/:id/approve', async (req, res) => {
 
 router.post('/content/:id/reject', async (req, res) => {
   try {
+    const { rejection_reason } = req.body;
     const row = await queryOne<{ creator_id: string; title: string }>(
       `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
-    await execute(`UPDATE content SET status = 'rejected' WHERE id = $1`, [req.params.id]);
+    await execute(
+      `UPDATE content SET status = 'rejected', rejection_reason = $2 WHERE id = $1`,
+      [req.params.id, rejection_reason ?? null]
+    );
     const user = await queryOne<{ email: string; display_name: string }>(
       `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
       [row.creator_id]
@@ -384,11 +388,15 @@ router.post('/content/:id/reject', async (req, res) => {
 
 router.post('/content/:id/request-changes', async (req, res) => {
   try {
+    const { rejection_reason } = req.body;
     const row = await queryOne<{ creator_id: string; title: string }>(
       `SELECT creator_id, title FROM content WHERE id = $1`, [req.params.id]
     );
     if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
-    await execute(`UPDATE content SET status = 'changes_requested' WHERE id = $1`, [req.params.id]);
+    await execute(
+      `UPDATE content SET status = 'changes_requested', rejection_reason = $2 WHERE id = $1`,
+      [req.params.id, rejection_reason ?? null]
+    );
     const user = await queryOne<{ email: string; display_name: string }>(
       `SELECT u.email, u.display_name FROM users u JOIN creator_profiles cp ON cp.user_id = u.id WHERE cp.id = $1`,
       [row.creator_id]
