@@ -88,9 +88,9 @@ export default function CreatorApplicationPage() {
             <Clock className="w-9 h-9 text-amber-400" />
           </div>
           <span className="section-eyebrow mb-4 block">Application Submitted</span>
-          <h1 className="font-serif text-3xl text-white mb-4">Under Review</h1>
+          <h1 className="font-serif text-3xl text-white mb-4">Application Received</h1>
           <p className="text-arc-secondary leading-relaxed mb-6">
-            Your creator application has been submitted. Our team reviews all applications manually. You'll receive an email within <strong className="text-white">48–72 hours</strong>.
+            Your creator application has been submitted. Our team reviews all applications personally. You'll receive a confirmation email once a decision is made.
           </p>
           <div className="card-surface p-5 rounded-xl text-left mb-6 space-y-3">
             <p className="text-xs font-medium text-gold">What happens next:</p>
@@ -239,7 +239,7 @@ export default function CreatorApplicationPage() {
               </div>
             </div>
             <p className="text-xs text-arc-muted mt-4">
-              Platform fee: 20% · Payouts processed weekly · Minimum payout $50
+              Platform fee: 30% · Creator receives 70% · Payouts processed weekly · Minimum payout $50
             </p>
           </div>
 

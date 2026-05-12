@@ -16,6 +16,7 @@ import First100Tracker from '../components/creator/First100Tracker';
 import EmptyState from '../components/ui/EmptyState';
 import CreatorOnboardingChecklist from '../components/creator/CreatorOnboardingChecklist';
 import CreatorNextAction from '../components/creator/CreatorNextAction';
+import CreatorWelcomeReveal from '../components/creator/CreatorWelcomeReveal';
 import { useCreatorProgress } from '../hooks/useCreatorProgress';
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
@@ -237,6 +238,14 @@ export default function CreatorDashboard() {
   ];
 
   return (
+    <>
+      {user && (
+        <CreatorWelcomeReveal
+          userId={user.id}
+          firstName={firstName}
+          isVerifiedCreator={user.is_verified_creator ?? false}
+        />
+      )}
     <div className="min-h-screen bg-bg-primary py-10">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -285,48 +294,34 @@ export default function CreatorDashboard() {
           </div>
 
           {/* Tagline */}
-          <p className="text-sm text-arc-secondary mb-4 max-w-lg leading-relaxed">
+          <p className="text-sm text-arc-secondary mb-5 max-w-lg leading-relaxed">
             {user?.is_verified_creator
-              ? 'Build your collection, publish drops, and grow your private audience.'
-              : 'Set up your profile and prepare your first drop while our team reviews your application.'}
+              ? 'Upload drops, grow your audience, and collect earnings — this is your command center.'
+              : 'Prepare your first drop and complete your profile while your application is reviewed.'}
           </p>
 
-          {/* Action row */}
-          <div className="flex flex-wrap items-center gap-2">
-            <Link to="/upload" className="btn-gold text-sm flex items-center gap-1.5">
+          {/* Action row — primary CTA dominates */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Link to="/upload" className="btn-gold flex items-center gap-2 px-6 py-3">
               <Upload className="w-4 h-4" />
               Create a Drop
             </Link>
             <Link
-              to="/settings"
-              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
-            >
-              Customize Profile
-            </Link>
-            <Link
               to={`/creator/${user?.username ?? ''}`}
-              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+              className="text-xs px-4 py-2.5 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
             >
               <Eye className="w-3.5 h-3.5" />
               View Profile
             </Link>
             <button
               onClick={copyProfileLink}
-              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+              className="text-xs px-4 py-2.5 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
             >
               {profileLinkCopied
                 ? <Check className="w-3.5 h-3.5 text-arc-success" />
                 : <Copy className="w-3.5 h-3.5" />}
               {profileLinkCopied ? 'Copied!' : 'Share'}
             </button>
-            <Link
-              to="/dashboard"
-              onClick={() => setViewMode('member')}
-              className="text-xs px-4 py-2 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              Member View
-            </Link>
           </div>
         </div>
 
@@ -683,31 +678,15 @@ export default function CreatorDashboard() {
             <div className="card-surface p-6 rounded-xl">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="font-serif text-lg text-white">Earnings Overview</h2>
-                <select className="input-dark w-auto text-xs py-1.5 px-3">
-                  <option>Last 30 days</option>
-                  <option>Last 90 days</option>
-                  <option>This year</option>
-                </select>
               </div>
               {stats !== null && stats.total_earnings > 0 ? (
-                <>
-                  <div className="flex items-end gap-px h-32 opacity-60">
-                    {[40,65,45,80,60,90,75,95,55,70,85,100,72,88,60,95,80,70,65,90,75,100,85,78,92,68,84,76,88,95].map((h, i) => (
-                      <div key={i} className="flex-1 rounded-sm" style={{
-                        height: `${h}%`,
-                        background: i === 29
-                          ? 'linear-gradient(180deg, #D4AF37, #B8962E)'
-                          : 'rgba(212,175,55,0.25)',
-                      }} />
-                    ))}
-                  </div>
-                  <div className="flex justify-between mt-2 text-xs text-arc-muted">
-                    <span>30 days ago</span><span>15 days ago</span><span>Today</span>
-                  </div>
-                </>
+                <div className="h-32 flex flex-col items-center justify-center rounded-xl border border-dashed border-white/8 gap-2">
+                  <p className="font-serif text-2xl text-gold">{formatCurrency(stats.total_earnings)}</p>
+                  <p className="text-xs text-arc-muted">lifetime earnings · detailed charts coming soon</p>
+                </div>
               ) : (
                 <div className="h-32 flex items-center justify-center rounded-xl border border-dashed border-white/8">
-                  <p className="text-xs text-arc-muted">Your revenue chart will appear once you make your first sale.</p>
+                  <p className="text-xs text-arc-muted">Your earnings will appear here once you make your first sale.</p>
                 </div>
               )}
               <div className="mt-4 pt-4 border-t border-white/5 grid grid-cols-3 gap-4">
@@ -832,23 +811,20 @@ export default function CreatorDashboard() {
               </div>
             </Link>
 
-            {/* How You Earn */}
+            {/* Revenue streams — compact */}
             <div className="card-surface p-5 rounded-xl">
-              <h3 className="font-serif text-base text-white mb-4">How You Earn</h3>
-              <div className="space-y-3">
+              <h3 className="font-serif text-base text-white mb-3">Revenue Streams</h3>
+              <div className="space-y-2">
                 {[
-                  { icon: <Lock className="w-4 h-4 text-gold" />, label: 'Locked Content', desc: 'One-time pay-per-unlock. Set any price per drop.' },
-                  { icon: <Crown className="w-4 h-4 text-gold" />, label: 'Subscriptions', desc: 'Monthly recurring. Subscribers get exclusive posts and discounts.' },
-                  { icon: <MessageCircle className="w-4 h-4 text-gold" />, label: 'Custom Requests', desc: 'Fans send direct offers. You set the terms.' },
-                ].map(({ icon, label, desc }) => (
-                  <div key={label} className="flex items-start gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                      {icon}
-                    </div>
-                    <div>
-                      <p className="text-xs font-medium text-white">{label}</p>
-                      <p className="text-xs text-arc-muted mt-0.5">{desc}</p>
-                    </div>
+                  { icon: <Lock className="w-3.5 h-3.5" />, label: 'Locked drops', value: stats ? stats.content_unlocks.toLocaleString() : '—', unit: 'unlocks' },
+                  { icon: <Crown className="w-3.5 h-3.5" />, label: 'Subscriptions', value: stats ? stats.subscriber_count.toLocaleString() : '—', unit: 'active' },
+                  { icon: <Star className="w-3.5 h-3.5" />, label: 'Tips', value: stats ? formatCurrency(stats.tips_total) : '—', unit: 'lifetime' },
+                ].map(({ icon, label, value, unit }) => (
+                  <div key={label} className="flex items-center gap-2.5 py-1.5">
+                    <span className="text-gold/60 flex-shrink-0">{icon}</span>
+                    <span className="text-xs text-arc-secondary flex-1">{label}</span>
+                    <span className="text-xs font-medium text-white tabular-nums">{value}</span>
+                    <span className="text-[10px] text-arc-muted">{unit}</span>
                   </div>
                 ))}
               </div>
@@ -1079,5 +1055,6 @@ export default function CreatorDashboard() {
 
       </div>
     </div>
+    </>
   );
 }

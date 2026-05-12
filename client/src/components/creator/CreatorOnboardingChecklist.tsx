@@ -47,7 +47,7 @@ export default function CreatorOnboardingChecklist({
       <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
         <div className="flex items-center gap-3">
           <div>
-            <p className="section-eyebrow">Launch Your Studio</p>
+            <p className="section-eyebrow">Your Studio Launch</p>
           </div>
           <span className="text-xs text-arc-muted">
             {completedCount} of {items.length} complete
@@ -106,7 +106,7 @@ export default function CreatorOnboardingChecklist({
                 <Check className="w-3 h-3 text-arc-success" />
               </div>
               <p className="text-sm text-arc-success font-medium">
-                Studio setup complete. You're ready to earn.
+                Your studio is live. Every drop you publish now works for you.
               </p>
             </div>
           ) : (
