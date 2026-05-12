@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, SlidersHorizontal, Lock, TrendingUp, Sparkles, Crown, ChevronRight, ChevronLeft } from 'lucide-react';
 import CreatorCard from '../components/creators/CreatorCard';
@@ -8,6 +8,8 @@ import type { CreatorProfile, Content } from '../types';
 import { API_BASE } from '../lib/api';
 
 const FEED_PAGE_SIZE = 12;
+const MAX_MOBILE_RECYCLES = 3;
+const MOBILE_RECYCLE_BATCH = 12;
 
 const ALL_TAGS = ['All', 'Lifestyle', 'Art', 'Fashion', 'Photography', 'Editorial', 'Cinematic', 'Dark Aesthetic', 'Visual Art', 'Wellness', 'Beauty', 'Fine Art', 'Music', 'Audio'];
 
@@ -95,6 +97,16 @@ export default function ExplorePage() {
   const feedLoadingRef = useRef(false);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
+  // ── Mobile unified feed ───────────────────────────────────────────────────
+  const isMobileRef = useRef(false);
+  const [mobileRecycledItems, setMobileRecycledItems] = useState<Content[]>([]);
+  const [mobileRecycling, setMobileRecycling] = useState(false);
+  const [mobileRecycleExhausted, setMobileRecycleExhausted] = useState(false);
+  const mobileRecycleCountRef = useRef(0);
+  const mobileRecyclingRef = useRef(false);
+  const mobileSentinelRef = useRef<HTMLDivElement>(null);
+  const allContentRef = useRef<Content[]>([]);
+
   // ── You might like ────────────────────────────────────────────────────────
   const [suggestedContent, setSuggestedContent] = useState<Content[]>([]);
   const [suggestedCreatorName, setSuggestedCreatorName] = useState('');
@@ -109,6 +121,15 @@ export default function ExplorePage() {
   const [showCreators, setShowCreators] = useState(false);
 
   useEffect(() => { document.title = 'Explore Creators — Archangels Club'; }, []);
+
+  // ── Mobile breakpoint detection ────────────────────────────────────────────
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    isMobileRef.current = mq.matches;
+    const handler = (e: MediaQueryListEvent) => { isMobileRef.current = e.matches; };
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
 
   // ── Load trending + rising on mount ───────────────────────────────────────
   useEffect(() => {
@@ -168,7 +189,7 @@ export default function ExplorePage() {
     loadFeed();
   }, [loadFeed]);
 
-  // IntersectionObserver sentinel
+  // Desktop IntersectionObserver sentinel
   useEffect(() => {
     const sentinel = sentinelRef.current;
     if (!sentinel) return;
@@ -181,6 +202,61 @@ export default function ExplorePage() {
     obs.observe(sentinel);
     return () => obs.disconnect();
   }, [loadFeed]);
+
+  // Keep recycle pool reference current
+  useEffect(() => {
+    allContentRef.current = [...trendingContent, ...risingContent, ...feedItems];
+  }, [trendingContent, risingContent, feedItems]);
+
+  // Mobile recycle: shuffle existing approved content to extend the feed
+  const doMobileRecycle = useCallback(() => {
+    if (mobileRecyclingRef.current) return;
+    if (mobileRecycleCountRef.current >= MAX_MOBILE_RECYCLES) {
+      setMobileRecycleExhausted(true);
+      return;
+    }
+    const pool = allContentRef.current;
+    if (pool.length === 0) return;
+
+    mobileRecyclingRef.current = true;
+    setMobileRecycling(true);
+
+    setTimeout(() => {
+      setMobileRecycledItems((prev) => {
+        const recentIds = new Set(prev.slice(-6).map((c) => c.id));
+        const batch = [...pool]
+          .sort(() => Math.random() - 0.5)
+          .filter((c) => !recentIds.has(c.id))
+          .slice(0, MOBILE_RECYCLE_BATCH);
+        mobileRecycleCountRef.current += 1;
+        if (mobileRecycleCountRef.current >= MAX_MOBILE_RECYCLES) {
+          setMobileRecycleExhausted(true);
+        }
+        mobileRecyclingRef.current = false;
+        return [...prev, ...batch];
+      });
+      setMobileRecycling(false);
+    }, 700);
+  }, []);
+
+  // Mobile sentinel observer — triggers real load then recycling
+  useEffect(() => {
+    const sentinel = mobileSentinelRef.current;
+    if (!sentinel) return;
+    const obs = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        if (feedHasMoreRef.current) {
+          loadFeed();
+        } else {
+          doMobileRecycle();
+        }
+      },
+      { rootMargin: '300px' }
+    );
+    obs.observe(sentinel);
+    return () => obs.disconnect();
+  }, [loadFeed, doMobileRecycle]);
 
   // ── Creator directory fetch ───────────────────────────────────────────────
   const fetchCreators = useCallback(() => {
@@ -206,6 +282,33 @@ export default function ExplorePage() {
   }, [fetchCreators, query]);
 
   const lockedDrops = trendingContent.filter((c) => c.access_type === 'locked');
+
+  // Merged mobile feed: deduplicated, ordered, with section labels on first item of each group
+  const mobileItems = useMemo(() => {
+    const seen = new Set<string>();
+    const result: Array<{ content: Content; label?: string }> = [];
+
+    function addGroup(items: Content[], label?: string) {
+      let needsLabel = Boolean(label);
+      for (const c of items) {
+        if (seen.has(c.id)) continue;
+        seen.add(c.id);
+        result.push({ content: c, label: needsLabel ? label : undefined });
+        needsLabel = false;
+      }
+    }
+
+    addGroup(trendingContent, trendingContent.length > 0 ? 'Trending Now' : undefined);
+    addGroup(risingContent, risingContent.length > 0 ? 'New & Rising' : undefined);
+    const allDropsLabel =
+      (trendingContent.length > 0 || risingContent.length > 0) && feedItems.length > 0
+        ? 'All Drops'
+        : undefined;
+    addGroup(feedItems, allDropsLabel);
+    addGroup(mobileRecycledItems);
+
+    return result;
+  }, [trendingContent, risingContent, feedItems, mobileRecycledItems]);
 
   return (
     <div className="min-h-screen bg-bg-primary">
@@ -239,9 +342,9 @@ export default function ExplorePage() {
         </div>
       </section>
 
-      {/* ── Trending Now strip ────────────────────────────────────────────── */}
+      {/* ── Trending Now strip — desktop only ────────────────────────────── */}
       {trendingContent.length > 0 && (
-        <section className="py-10 border-b border-white/5">
+        <section className="hidden sm:block py-10 border-b border-white/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <SectionHeader
               icon={<TrendingUp className="w-4 h-4 text-gold" />}
@@ -253,9 +356,9 @@ export default function ExplorePage() {
         </section>
       )}
 
-      {/* ── Locked Drops strip ───────────────────────────────────────────── */}
+      {/* ── Locked Drops strip — desktop only ────────────────────────────── */}
       {lockedDrops.length > 0 && (
-        <section className="py-10 border-b border-white/5 bg-bg-surface/20">
+        <section className="hidden sm:block py-10 border-b border-white/5 bg-bg-surface/20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <SectionHeader
               icon={<Lock className="w-4 h-4 text-gold" />}
@@ -268,9 +371,9 @@ export default function ExplorePage() {
         </section>
       )}
 
-      {/* ── New & Rising strip ───────────────────────────────────────────── */}
+      {/* ── New & Rising strip — desktop only ────────────────────────────── */}
       {risingContent.length > 0 && (
-        <section className="py-10 border-b border-white/5">
+        <section className="hidden sm:block py-10 border-b border-white/5">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <SectionHeader
               icon={<Sparkles className="w-4 h-4 text-gold" />}
@@ -282,8 +385,57 @@ export default function ExplorePage() {
         </section>
       )}
 
-      {/* ── Infinite-scroll feed ─────────────────────────────────────────── */}
-      <section className="py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      {/* ── Mobile unified vertical feed ─────────────────────────────────── */}
+      <section className="sm:hidden px-4 pt-4 pb-2">
+        {/* True empty state */}
+        {mobileItems.length === 0 && !feedLoading && (
+          <div className="text-center py-20">
+            <div className="w-14 h-14 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center mx-auto mb-5">
+              <Crown className="w-6 h-6 text-gold" />
+            </div>
+            <h3 className="font-serif text-xl text-white mb-2">No drops yet</h3>
+            <p className="text-arc-secondary text-sm mb-6 max-w-xs mx-auto">
+              Creators publish exclusively here. Be first when they launch.
+            </p>
+          </div>
+        )}
+
+        {/* Feed items */}
+        <div className="space-y-4">
+          {mobileItems.map(({ content, label }, idx) => (
+            <div key={`${content.id}-m${idx}`}>
+              {label && (
+                <div className="flex items-center gap-3 pt-2 pb-1">
+                  <p className="section-eyebrow">{label}</p>
+                  <div className="flex-1 h-px bg-white/5" />
+                </div>
+              )}
+              <FeedCard content={content} />
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile sentinel */}
+        <div ref={mobileSentinelRef} className="h-4 mt-4" />
+
+        {/* Loading indicators */}
+        {(feedLoading || mobileRecycling) && (
+          <div className="flex items-center justify-center gap-2 py-8">
+            <div className="w-5 h-5 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
+            <span className="text-xs text-arc-muted">Loading more drops…</span>
+          </div>
+        )}
+
+        {/* End of all content */}
+        {!feedLoading && !mobileRecycling && mobileRecycleExhausted && mobileItems.length > 0 && (
+          <p className="text-center text-xs text-arc-muted py-8">
+            You've explored everything · Check back tomorrow for new drops
+          </p>
+        )}
+      </section>
+
+      {/* ── Infinite-scroll feed — desktop only ─────────────────────────── */}
+      <section className="hidden sm:block py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between mb-7">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
@@ -337,9 +489,9 @@ export default function ExplorePage() {
         )}
       </section>
 
-      {/* ── You might like ───────────────────────────────────────────────── */}
+      {/* ── You might like — desktop only ────────────────────────────────── */}
       {suggestedContent.length > 0 && (
-        <section className="py-10 border-t border-white/5 bg-bg-surface/20">
+        <section className="hidden sm:block py-10 border-t border-white/5 bg-bg-surface/20">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <SectionHeader
               icon={<Crown className="w-4 h-4 text-gold" />}
