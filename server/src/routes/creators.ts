@@ -127,7 +127,8 @@ router.get('/my/stats', requireAuth, requireCreator, async (req, res) => {
 
     const [subs, unlocks, tips, posts] = await Promise.all([
       queryOne<{ n: string }>(
-        `SELECT COUNT(*) as n FROM subscriptions WHERE creator_id = $1 AND status = 'active'`,
+        `SELECT COUNT(*) as n FROM subscriptions
+         WHERE creator_id = $1 AND expires_at > NOW() AND status IN ('active','cancelled')`,
         [profile.id]
       ),
       queryOne<{ n: string; total: string }>(

@@ -361,25 +361,38 @@ async function handleChargeRefunded(
         [piId]
       );
       if (origTxn) {
+        const refundAmount = (charge.amount_refunded ?? 0) / 100;
+        const platformFeeOnRefund = Math.round(refundAmount * 0.3 * 100) / 100;
+        const netRefund = Math.round((refundAmount - platformFeeOnRefund) * 100) / 100;
+
         // Mark original as refunded
         await execute(
           `UPDATE transactions SET status = 'refunded', updated_at = NOW() WHERE id = $1`,
           [origTxn.id]
         );
-        // Create reversal record
-        const refundAmount = (charge.amount_refunded ?? 0) / 100;
+
         if (refundAmount > 0) {
+          // Create reversal record
           await execute(
             `INSERT INTO transactions
                (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
                 status, stripe_payment_intent_id, currency)
-             VALUES ($1, $2, $3, $4, $5, $6, 0, $6, 'refunded', $7, $8)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'refunded', $9, $10)`,
             [crypto.randomUUID(), origTxn.payee_id, origTxn.payer_id,
-             origTxn.ref_type, origTxn.ref_id, refundAmount, piId,
-             charge.currency ?? 'usd']
+             origTxn.ref_type, origTxn.ref_id, refundAmount, platformFeeOnRefund, netRefund,
+             piId, charge.currency ?? 'usd']
+          );
+
+          // Correct creator earnings — find which creator_profile earned from this transaction
+          await execute(
+            `UPDATE creator_profiles
+               SET total_earnings = GREATEST(0, total_earnings - $1)
+             WHERE user_id = $2`,
+            [netRefund, origTxn.payee_id]
           );
         }
-        console.log('[webhook] charge.refunded: original txn=%s refund_amount=%s', origTxn.id, refundAmount);
+        console.log('[webhook] charge.refunded: original txn=%s refund_amount=%s net_refund=%s',
+          origTxn.id, refundAmount, netRefund);
       }
     }
     await markEventProcessed(eventRowId);

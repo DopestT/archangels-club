@@ -5,7 +5,7 @@ import { query, queryOne, execute, withTransaction } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator } from '../middleware/auth.js';
 import { triggerCreatorFirstPost, triggerCreatorFirstSale, triggerPurchaseConfirmation } from '../services/triggers.js';
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'archangels_dev_secret_change_in_production';
+const JWT_SECRET = process.env.JWT_SECRET ?? 'archangels_dev_secret_change_in_production'; // only used for optional auth on draft content
 
 const router = Router();
 
@@ -572,19 +572,18 @@ router.post('/:id/cancel-schedule', requireAuth, requireCreator, async (req, res
   }
 });
 
-// POST /api/content/:id/unlock — approved fans unlock paid content
-router.post('/:id/unlock', requireAuth, requireApproved, async (req, res) => {
+// POST /api/content/:id/unlock — admin-only manual unlock (no payment required)
+// All user-facing unlocks go through /api/checkout/create → Stripe → webhook → fulfillment.
+// This route is retained for admin support purposes only.
+router.post('/:id/unlock', requireAuth, async (req, res) => {
+  if (req.auth!.role !== 'admin') {
+    res.status(403).json({ error: 'Payment required. Use the checkout flow to unlock content.' });
+    return;
+  }
+
   try {
     const content = await queryOne<any>('SELECT * FROM content WHERE id = $1', [req.params.id]);
     if (!content) { res.status(404).json({ error: 'Content not found' }); return; }
-
-    // Only publicly visible content can be unlocked
-    const isPubliclyVisible =
-      content.status === 'approved' ||
-      (content.status === 'scheduled' && content.publish_at && new Date(content.publish_at) <= new Date());
-    if (!isPubliclyVisible && req.auth!.role !== 'admin') {
-      res.status(404).json({ error: 'Content not found' }); return;
-    }
 
     if (content.access_type === 'free') { res.json({ unlocked: true }); return; }
 

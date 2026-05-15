@@ -98,7 +98,7 @@ router.post(
       return;
     }
 
-    if (!process.env.CLOUDINARY_CLOUD_NAME) {
+    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
       safeDel(file.path);
       console.error(`[media/upload] storage not configured | creator=${creatorId}`);
       res.status(503).json({ success: false, error: 'Media storage is temporarily unavailable. Your draft is still safe.' });

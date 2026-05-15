@@ -75,6 +75,10 @@ router.post('/login', async (req, res) => {
       res.status(403).json({ error: 'Your membership is still pending approval.' });
       return;
     }
+    if (user.status === 'suspended') {
+      res.status(403).json({ error: 'Your account has been suspended. Contact support.' });
+      return;
+    }
     if (user.status === 'rejected' || user.status === 'banned') {
       res.status(403).json({ error: 'Access denied.' });
       return;
