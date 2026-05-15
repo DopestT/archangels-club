@@ -430,6 +430,12 @@ router.post('/stripe', async (req, res) => {
 
   let event: Stripe.Event;
 
+  if (process.env.NODE_ENV === 'production' && !secret) {
+    console.error('[webhook] STRIPE_WEBHOOK_SECRET not set — rejecting unverified event');
+    res.status(500).send('Webhook secret not configured');
+    return;
+  }
+
   if (secret && sig) {
     try {
       event = getStripe().webhooks.constructEvent(req.body, sig, secret);
