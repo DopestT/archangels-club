@@ -2,6 +2,9 @@ import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
 import { queryOne } from '../db/schema.js';
 
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required in production');
+}
 const JWT_SECRET = process.env.JWT_SECRET ?? 'archangels_dev_secret_change_in_production';
 
 export interface AuthPayload {

@@ -384,7 +384,7 @@ export default function CreatorProfilePage() {
       )}
 
       {/* Cover */}
-      <div className="relative h-64 sm:h-80 overflow-hidden">
+      <div className="relative h-64 sm:h-80 xl:h-[420px] 2xl:h-[480px] overflow-hidden">
         {creator.cover_image_url ? (
           <img src={creator.cover_image_url} alt="" className="w-full h-full object-cover" />
         ) : (
@@ -393,7 +393,7 @@ export default function CreatorProfilePage() {
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-bg-primary/30 to-bg-primary" />
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1300px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
         {/* Profile header */}
         <div className="relative -mt-16 sm:-mt-20 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-5">
@@ -412,7 +412,7 @@ export default function CreatorProfilePage() {
               </div>
               <div className="mb-2">
                 <div className="flex items-center gap-2 mb-1">
-                  <h1 className="font-serif text-2xl sm:text-3xl text-white">{creator.display_name}</h1>
+                  <h1 className="font-serif text-2xl sm:text-3xl xl:text-4xl text-white">{creator.display_name}</h1>
                   {creator.is_verified_creator && (
                     <span className="text-xs text-blue-400 border border-blue-400/30 px-2 py-0.5 rounded-full">Verified</span>
                   )}
@@ -674,7 +674,7 @@ export default function CreatorProfilePage() {
           {(activeTab === 'posts' || activeTab === 'drops') && (
             <div>
               {(activeTab === 'posts' ? posts : drops).length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
                   {(activeTab === 'posts' ? posts : drops).map((item) => (
                     <ContentCard key={item.id} content={item} showCreator={false} />
                   ))}

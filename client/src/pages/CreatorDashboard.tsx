@@ -246,8 +246,8 @@ export default function CreatorDashboard() {
           isVerifiedCreator={isVerifiedCreator}
         />
       )}
-    <div className="min-h-screen bg-bg-primary py-10">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-bg-primary py-10 xl:py-14">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
 
         {/* ── Hero ─────────────────────────────────────────────────────────────── */}
         <div className="mb-8">
@@ -272,7 +272,7 @@ export default function CreatorDashboard() {
             {/* Name + handle + status badge */}
             <div className="flex-1 min-w-0">
               <p className="section-eyebrow mb-1">Creator Studio</p>
-              <h1 className="font-serif text-2xl sm:text-3xl text-white leading-tight">
+              <h1 className="font-serif text-2xl sm:text-3xl xl:text-4xl text-white leading-tight">
                 {getGreeting()},{' '}
                 <em className="not-italic text-gold">{firstName}.</em>
               </h1>
@@ -326,19 +326,6 @@ export default function CreatorDashboard() {
             </button>
           </div>
         </div>
-
-        {/* Pre-approval notice — gated fully on fresh data */}
-        {!statusLoading && !isVerifiedCreator && (
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-white/4 border border-white/10 mb-5">
-            <Clock className="w-4 h-4 text-arc-muted flex-shrink-0 mt-0.5" />
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-medium text-white">Application Received</p>
-              <p className="text-xs text-arc-muted mt-0.5 leading-relaxed">
-                Your studio is being prepared. You'll receive an email once your creator access is enabled.
-              </p>
-            </div>
-          </div>
-        )}
 
         {/* Quick Actions — verified creators only */}
         {isVerifiedCreator && (
@@ -488,7 +475,7 @@ export default function CreatorDashboard() {
         )}
 
         {/* ── Content stats — your collection ─────────────────────────────────── */}
-        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5 mb-4 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
           {[
             {
               label: 'Live Drops',
@@ -526,7 +513,7 @@ export default function CreatorDashboard() {
         </div>
 
         {/* ── Audience & earnings row ──────────────────────────────────────────── */}
-        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
+        <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5 mb-10 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
           <StatCard label="Earnings"  value={stats ? formatCurrency(stats.total_earnings)    : '—'} sub="lifetime net"       icon={<DollarSign className="w-5 h-5" />} />
           <StatCard label="Audience"  value={stats ? stats.subscriber_count.toLocaleString() : '—'} sub="active subscribers" icon={<Users      className="w-5 h-5" />} />
           <StatCard label="Unlocks"   value={stats ? stats.content_unlocks.toLocaleString()  : '—'} sub="total unlocks"      icon={<TrendingUp className="w-5 h-5" />} />
@@ -534,10 +521,10 @@ export default function CreatorDashboard() {
         </div>
 
         {/* ── Two-column layout ────────────────────────────────────────────────── */}
-        <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
+        <div className={`grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-8 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
 
           {/* Left col */}
-          <div className="lg:col-span-2 space-y-8">
+          <div className="lg:col-span-2 xl:col-span-3 space-y-8">
 
             {/* Studio Activity */}
             <div className="card-surface rounded-xl overflow-hidden">

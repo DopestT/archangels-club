@@ -16,13 +16,13 @@ const ALL_TAGS = ['All', 'Lifestyle', 'Art', 'Fashion', 'Photography', 'Editoria
 // Section header used in multiple places
 function SectionHeader({ icon, title, sub, count }: { icon: React.ReactNode; title: string; sub: string; count?: number }) {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center flex-shrink-0">
+    <div className="flex items-center justify-between mb-6 xl:mb-8">
+      <div className="flex items-center gap-3 xl:gap-4">
+        <div className="w-9 h-9 xl:w-11 xl:h-11 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center flex-shrink-0">
           {icon}
         </div>
         <div>
-          <h2 className="font-serif text-xl text-white">{title}</h2>
+          <h2 className="font-serif text-xl xl:text-2xl text-white">{title}</h2>
           <p className="text-xs text-arc-muted">{sub}</p>
         </div>
       </div>
@@ -31,6 +31,14 @@ function SectionHeader({ icon, title, sub, count }: { icon: React.ReactNode; tit
           {count} drop{count !== 1 ? 's' : ''}
         </span>
       )}
+    </div>
+  );
+}
+
+function FeedCardSkeleton() {
+  return (
+    <div className="rounded-2xl overflow-hidden bg-bg-surface border border-white/5 aspect-[3/4]">
+      <div className="w-full h-full bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-white/[0.04] animate-pulse" />
     </div>
   );
 }
@@ -62,7 +70,7 @@ function FeedStrip({ items }: { items: Content[] }) {
         style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
       >
         {items.map((item) => (
-          <div key={item.id} className="flex-none w-[260px] snap-start">
+          <div key={item.id} className="flex-none w-[260px] xl:w-[300px] snap-start">
             <FeedCard content={item} />
           </div>
         ))}
@@ -252,7 +260,7 @@ export default function ExplorePage() {
           doMobileRecycle();
         }
       },
-      { rootMargin: '300px' }
+      { rootMargin: '600px' }
     );
     obs.observe(sentinel);
     return () => obs.disconnect();
@@ -314,20 +322,20 @@ export default function ExplorePage() {
     <div className="min-h-screen bg-bg-primary">
 
       {/* ── Hero ─────────────────────────────────────────────────────────── */}
-      <section className="py-16 bg-bg-surface border-b border-gold-border/40 relative overflow-hidden">
+      <section className="py-16 lg:py-24 xl:py-32 bg-bg-surface border-b border-gold-border/40 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] h-[280px] bg-gold/4 blur-3xl rounded-full" />
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] lg:w-[1000px] xl:w-[1400px] h-[280px] xl:h-[420px] bg-gold/4 blur-3xl rounded-full" />
         </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="inline-flex items-center gap-2 members-pill mb-4">
+        <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 text-center">
+          <div className="inline-flex items-center gap-2 members-pill mb-4 xl:mb-6">
             <Lock className="w-3 h-3" />
             Private · Verified · Exclusive
           </div>
-          <h1 className="font-serif text-4xl sm:text-5xl text-white mb-3">Explore</h1>
-          <p className="text-arc-secondary max-w-md mx-auto mb-7 text-sm">
+          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl xl:text-7xl text-white mb-3 xl:mb-5">Explore</h1>
+          <p className="text-arc-secondary max-w-md lg:max-w-xl mx-auto mb-7 text-sm lg:text-base">
             Every creator is hand-selected. Every drop is gated. Unlock and own exclusive content instantly.
           </p>
-          <div className="flex items-center justify-center gap-8 text-xs text-arc-muted">
+          <div className="flex items-center justify-center gap-8 xl:gap-12 text-xs xl:text-sm text-arc-muted">
             {[
               `${trendingContent.length + risingContent.length > 0 ? (trendingContent.length + risingContent.length) + '+' : '…'} drops`,
               'Age-verified creators',
@@ -344,8 +352,8 @@ export default function ExplorePage() {
 
       {/* ── Trending Now strip — desktop only ────────────────────────────── */}
       {trendingContent.length > 0 && (
-        <section className="hidden sm:block py-10 border-b border-white/5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="hidden sm:block py-10 xl:py-14 border-b border-white/5">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
             <SectionHeader
               icon={<TrendingUp className="w-4 h-4 text-gold" />}
               title="Trending Now"
@@ -358,8 +366,8 @@ export default function ExplorePage() {
 
       {/* ── Locked Drops strip — desktop only ────────────────────────────── */}
       {lockedDrops.length > 0 && (
-        <section className="hidden sm:block py-10 border-b border-white/5 bg-bg-surface/20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="hidden sm:block py-10 xl:py-14 border-b border-white/5 bg-bg-surface/20">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
             <SectionHeader
               icon={<Lock className="w-4 h-4 text-gold" />}
               title="Locked Drops"
@@ -373,8 +381,8 @@ export default function ExplorePage() {
 
       {/* ── New & Rising strip — desktop only ────────────────────────────── */}
       {risingContent.length > 0 && (
-        <section className="hidden sm:block py-10 border-b border-white/5">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="hidden sm:block py-10 xl:py-14 border-b border-white/5">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
             <SectionHeader
               icon={<Sparkles className="w-4 h-4 text-gold" />}
               title="New & Rising"
@@ -387,6 +395,15 @@ export default function ExplorePage() {
 
       {/* ── Mobile unified vertical feed ─────────────────────────────────── */}
       <section className="sm:hidden px-4 pt-4 pb-2">
+        {/* Initial skeleton — before any items arrive */}
+        {mobileItems.length === 0 && feedLoading && (
+          <div className="space-y-4">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <FeedCardSkeleton key={`init-sk-${i}`} />
+            ))}
+          </div>
+        )}
+
         {/* True empty state */}
         {mobileItems.length === 0 && !feedLoading && (
           <div className="text-center py-20">
@@ -418,11 +435,12 @@ export default function ExplorePage() {
         {/* Mobile sentinel */}
         <div ref={mobileSentinelRef} className="h-4 mt-4" />
 
-        {/* Loading indicators */}
+        {/* Skeleton loading cards */}
         {(feedLoading || mobileRecycling) && (
-          <div className="flex items-center justify-center gap-2 py-8">
-            <div className="w-5 h-5 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
-            <span className="text-xs text-arc-muted">Loading more drops…</span>
+          <div className="space-y-4 mt-4">
+            {[0, 1, 2].map((i) => (
+              <FeedCardSkeleton key={`sk-${i}`} />
+            ))}
           </div>
         )}
 
@@ -435,10 +453,10 @@ export default function ExplorePage() {
       </section>
 
       {/* ── Infinite-scroll feed — desktop only ─────────────────────────── */}
-      <section className="hidden sm:block py-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between mb-7">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
+      <section className="hidden sm:block py-10 xl:py-14 max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
+        <div className="flex items-center justify-between mb-7 xl:mb-9">
+          <div className="flex items-center gap-3 xl:gap-4">
+            <div className="w-9 h-9 xl:w-11 xl:h-11 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center">
               <svg className="w-4 h-4 text-gold" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <rect x="3" y="3" width="7" height="7" rx="1" />
                 <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -447,7 +465,7 @@ export default function ExplorePage() {
               </svg>
             </div>
             <div>
-              <h2 className="font-serif text-xl text-white">All Drops</h2>
+              <h2 className="font-serif text-xl xl:text-2xl text-white">All Drops</h2>
               <p className="text-xs text-arc-muted">Scroll to discover · New content added daily</p>
             </div>
           </div>
@@ -457,7 +475,7 @@ export default function ExplorePage() {
         </div>
 
         {feedItems.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 xl:gap-5">
             {feedItems.map((item) => (
               <FeedCard key={item.id} content={item} />
             ))}
@@ -491,8 +509,8 @@ export default function ExplorePage() {
 
       {/* ── You might like — desktop only ────────────────────────────────── */}
       {suggestedContent.length > 0 && (
-        <section className="hidden sm:block py-10 border-t border-white/5 bg-bg-surface/20">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <section className="hidden sm:block py-10 xl:py-14 border-t border-white/5 bg-bg-surface/20">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
             <SectionHeader
               icon={<Crown className="w-4 h-4 text-gold" />}
               title="You Might Like"
@@ -504,7 +522,7 @@ export default function ExplorePage() {
       )}
 
       {/* ── Creator directory (collapsible) ──────────────────────────────── */}
-      <section className="py-10 border-t border-white/5 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-10 xl:py-14 border-t border-white/5 max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
         <button
           onClick={() => { setShowCreators((v) => !v); }}
           className="flex items-center gap-3 w-full text-left group"
@@ -563,7 +581,7 @@ export default function ExplorePage() {
             {!creatorLoading && creatorError && <p className="text-arc-error text-sm text-center py-10">{creatorError}</p>}
 
             {!creatorLoading && !creatorError && creators.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 xl:gap-7">
                 {creators.map((creator) => <CreatorCard key={creator.id} creator={creator} />)}
               </div>
             )}

@@ -476,7 +476,7 @@ export default function LockedContentPage() {
         </div>
       )}
 
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-3xl xl:max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <Link
           to={content.creator_username ? `/creator/${content.creator_username}` : '/explore'}
           className="inline-flex items-center gap-2 text-sm text-arc-secondary hover:text-white mb-8 transition-colors"
@@ -784,7 +784,7 @@ export default function LockedContentPage() {
                 View all →
               </Link>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 xl:grid-cols-3 gap-4">
               {moreContent.map(item => (
                 <ContentCard key={item.id} content={item} showCreator={false} />
               ))}

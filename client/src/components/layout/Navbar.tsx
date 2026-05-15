@@ -33,8 +33,8 @@ export default function Navbar() {
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-bg-primary/96 backdrop-blur-md border-b border-gold-border/50' : 'bg-transparent'}`}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16 lg:h-18">
+      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
+        <div className="flex items-center justify-between h-16 lg:h-20">
 
           {/* Logo — icon on mobile, wordmark on desktop */}
           <Link to="/" className="flex-shrink-0 opacity-90 hover:opacity-100 transition-opacity">
@@ -43,9 +43,9 @@ export default function Navbar() {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-1 xl:gap-2">
             {navLinks.map(({ to, label }) => (
-              <Link key={to} to={to} className={`px-4 py-2 text-sm font-sans rounded transition-colors ${location.pathname === to ? 'text-gold' : 'text-arc-secondary hover:text-white'}`}>
+              <Link key={to} to={to} className={`px-4 py-2 xl:px-5 text-sm font-sans rounded transition-colors ${location.pathname === to ? 'text-gold' : 'text-arc-secondary hover:text-white'}`}>
                 {label}
               </Link>
             ))}
