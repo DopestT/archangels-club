@@ -49,9 +49,9 @@
   }
 
   .btn-gold:active {
-    transform: scale(0.96);
-    box-shadow: 0 0 12px rgba(212, 175, 55, 0.2);
-    transition: transform 80ms cubic-bezier(.2,.8,.2,1), box-shadow 80ms cubic-bezier(.2,.8,.2,1);
+    transform: scale(0.95);
+    box-shadow: 0 0 8px rgba(212, 175, 55, 0.15);
+    transition: transform 70ms cubic-bezier(.2,.8,.2,1), box-shadow 70ms cubic-bezier(.2,.8,.2,1);
   }
 
   .btn-outline {
@@ -80,12 +80,13 @@
 
   .card-surface {
     @apply bg-bg-surface border border-gold-border rounded-xl;
-    transition: all 0.25s ease;
+    transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms ease, border-color 220ms ease;
   }
 
   .card-surface:hover {
-    border-color: rgba(212, 175, 55, 0.4);
-    box-shadow: 0 0 24px rgba(212, 175, 55, 0.1);
+    border-color: rgba(212, 175, 55, 0.35);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 0 20px rgba(212,175,55,0.1);
+    transform: translateY(-2px);
   }
 
   .glow-gold {
@@ -162,6 +163,22 @@
   }
   .arc-pressable:active {
     transform: scale(0.92);
+  }
+
+  /* ── Feed card: stronger hover lift for content grids ── */
+  .arc-card-feed {
+    transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms ease;
+    will-change: transform;
+  }
+  .arc-card-feed:hover {
+    transform: translateY(-4px) scale(1.01);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.55), 0 0 16px rgba(212,175,55,0.07);
+  }
+
+  /* ── Luxury section separator ── */
+  .arc-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(212,175,55,0.2) 30%, rgba(212,175,55,0.2) 70%, transparent 100%);
   }
 }
 

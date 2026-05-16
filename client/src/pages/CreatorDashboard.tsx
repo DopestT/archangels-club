@@ -249,112 +249,112 @@ export default function CreatorDashboard() {
     <div className="min-h-screen bg-bg-primary py-10 xl:py-14">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 2xl:px-16">
 
-        {/* ── Hero ─────────────────────────────────────────────────────────────── */}
-        <div className="mb-8">
-
-          {/* Identity row */}
-          <div className="flex items-start gap-4 mb-4">
-            {/* Avatar / initials */}
-            <div className="flex-shrink-0">
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt={firstName}
-                  className="w-14 h-14 rounded-full object-cover border-2 border-gold/30"
-                />
-              ) : (
-                <div className="w-14 h-14 rounded-full bg-gold/10 border-2 border-gold/25 flex items-center justify-center">
-                  <span className="font-serif text-2xl text-gold">{firstName[0]?.toUpperCase() ?? '?'}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Name + handle + status badge */}
-            <div className="flex-1 min-w-0">
-              <p className="section-eyebrow mb-1">Creator Studio</p>
-              <h1 className="font-serif text-2xl sm:text-3xl xl:text-4xl text-white leading-tight">
-                {getGreeting()},{' '}
-                <em className="not-italic text-gold">{firstName}.</em>
-              </h1>
-              <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                <span className="text-xs text-arc-muted">@{user?.username}</span>
-                {!statusLoading && (
-                  isVerifiedCreator ? (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-arc-success/10 border border-arc-success/25 text-arc-success">
-                      <CheckCircle className="w-3 h-3" />
-                      Studio Active
-                    </span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-medium tracking-wide px-2 py-0.5 rounded-full bg-white/6 border border-white/10 text-arc-muted">
-                      <Clock className="w-3 h-3" />
-                      Application Received
-                    </span>
-                  )
+        {/* ── Cinematic Hero ───────────────────────────────────────────────────── */}
+        <div
+          className="relative mb-12 rounded-2xl overflow-hidden"
+          style={{
+            background: 'linear-gradient(135deg, rgba(212,175,55,0.07) 0%, rgba(10,10,15,0.98) 65%)',
+            border: '1px solid rgba(212,175,55,0.14)',
+          }}
+        >
+          <div
+            aria-hidden="true"
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: 'radial-gradient(ellipse 55% 80% at 15% 50%, rgba(212,175,55,0.09) 0%, transparent 70%)',
+            }}
+          />
+          <div className="relative px-8 py-10 sm:px-12 sm:py-14 xl:px-16">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-7 mb-8">
+              {/* Avatar */}
+              <div className="relative flex-shrink-0">
+                {user?.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt={firstName}
+                    className="w-20 h-20 xl:w-24 xl:h-24 rounded-full object-cover"
+                    style={{ border: '2px solid rgba(212,175,55,0.35)', boxShadow: '0 0 36px rgba(212,175,55,0.18)' }}
+                  />
+                ) : (
+                  <div
+                    className="w-20 h-20 xl:w-24 xl:h-24 rounded-full flex items-center justify-center"
+                    style={{ background: 'rgba(212,175,55,0.08)', border: '2px solid rgba(212,175,55,0.25)', boxShadow: '0 0 36px rgba(212,175,55,0.12)' }}
+                  >
+                    <span className="font-serif text-3xl xl:text-4xl text-gold">{firstName[0]?.toUpperCase() ?? '?'}</span>
+                  </div>
+                )}
+                {!statusLoading && isVerifiedCreator && (
+                  <div
+                    className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gold flex items-center justify-center"
+                    style={{ border: '2px solid #0A0A0F' }}
+                    title="Approved Creator"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5 text-bg-primary" />
+                  </div>
                 )}
               </div>
+
+              {/* Greeting */}
+              <div className="flex-1 min-w-0">
+                <p className="section-eyebrow mb-3">
+                  {!statusLoading && isVerifiedCreator ? 'Approved Creator' : 'Creator Studio'}
+                </p>
+                <h1 className="font-serif text-4xl sm:text-5xl xl:text-6xl text-white leading-none mb-2">
+                  Welcome, <em className="not-italic text-gold">{firstName}.</em>
+                </h1>
+                <p
+                  className="font-serif text-lg xl:text-xl italic leading-snug"
+                  style={{ color: 'rgba(212,175,55,0.72)' }}
+                >
+                  Your studio awaits.
+                </p>
+              </div>
             </div>
-          </div>
 
-          {/* Tagline */}
-          <p className="text-sm text-arc-secondary mb-5 max-w-lg leading-relaxed">
-            {!statusLoading && (isVerifiedCreator
-              ? 'Upload drops, grow your audience, and collect earnings — this is your command center.'
-              : 'Set up your profile and prepare your first drop. You\'ll be notified as soon as your studio is ready.')}
-          </p>
+            {!statusLoading && (
+              <p className="text-sm text-arc-secondary leading-relaxed max-w-lg mb-8">
+                {isVerifiedCreator
+                  ? 'Upload drops, grow your audience, and collect earnings — this is your command center.'
+                  : 'Set up your profile and prepare your first drop. You\'ll be notified as soon as your studio is ready.'}
+              </p>
+            )}
 
-          {/* Action row — primary CTA dominates */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            <Link to="/upload" className="btn-gold flex items-center gap-2 px-6 py-3">
-              <Upload className="w-4 h-4" />
-              Create a Drop
-            </Link>
-            <Link
-              to={`/creator/${user?.username ?? ''}`}
-              className="text-xs px-4 py-2.5 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+            <div
+              className="flex flex-wrap items-center gap-3 pt-6"
+              style={{ borderTop: '1px solid rgba(212,175,55,0.1)' }}
             >
-              <Eye className="w-3.5 h-3.5" />
-              View Profile
-            </Link>
-            <button
-              onClick={copyProfileLink}
-              className="text-xs px-4 py-2.5 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
-            >
-              {profileLinkCopied
-                ? <Check className="w-3.5 h-3.5 text-arc-success" />
-                : <Copy className="w-3.5 h-3.5" />}
-              {profileLinkCopied ? 'Copied!' : 'Share'}
-            </button>
+              <Link to="/upload" className="btn-gold flex items-center gap-2 px-6 py-3">
+                <Upload className="w-4 h-4" />
+                Create a Drop
+              </Link>
+              <Link
+                to={`/creator/${user?.username ?? ''}`}
+                className="text-xs px-4 py-2.5 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+              >
+                <Eye className="w-3.5 h-3.5" />
+                View Profile
+              </Link>
+              <button
+                onClick={copyProfileLink}
+                className="text-xs px-4 py-2.5 rounded-xl border border-white/12 text-arc-secondary hover:text-white hover:border-white/25 transition-all flex items-center gap-1.5"
+              >
+                {profileLinkCopied
+                  ? <Check className="w-3.5 h-3.5 text-arc-success" />
+                  : <Copy className="w-3.5 h-3.5" />}
+                {profileLinkCopied ? 'Copied!' : 'Share'}
+              </button>
+              {user?.username && (
+                <span className="hidden xl:flex items-center gap-1.5 text-xs text-arc-muted ml-auto">
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: isVerifiedCreator ? '#10B981' : 'rgba(255,255,255,0.2)', boxShadow: isVerifiedCreator ? '0 0 6px rgba(16,185,129,0.5)' : 'none' }}
+                  />
+                  {isVerifiedCreator ? 'Studio live · archangelsclub.com/creator/' + user.username : '@' + user.username}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-
-        {/* Quick Actions — verified creators only */}
-        {isVerifiedCreator && (
-          <div className="mb-8">
-            <p className="text-[11px] font-bold tracking-widest uppercase text-arc-muted mb-3">Quick Actions</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                { to: '/upload',         icon: <Upload className="w-5 h-5 text-gold" />,         label: 'Upload a Drop',       desc: 'Set a price and publish instantly.' },
-                { to: `/creator/${user?.username}`, icon: <UserCircle className="w-5 h-5 text-gold" />, label: 'View Your Profile',   desc: 'See how members see your page.' },
-                { to: '/messages',       icon: <MessageCircle className="w-5 h-5 text-gold" />, label: 'Custom Requests',     desc: 'Accept and manage fan requests.' },
-              ].map(({ to, icon, label, desc }) => (
-                <Link
-                  key={to}
-                  to={to}
-                  className="flex items-center gap-3 p-4 rounded-xl bg-bg-surface border border-white/8 hover:border-gold/30 transition-all group"
-                >
-                  <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0 group-hover:bg-gold/15 transition-colors">
-                    {icon}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white">{label}</p>
-                    <p className="text-xs text-arc-muted">{desc}</p>
-                  </div>
-                  <ChevronRight className="w-4 h-4 text-arc-muted group-hover:text-gold transition-colors flex-shrink-0" />
-                </Link>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* ── Profile setup card ───────────────────────────────────────────────── */}
         {profileSetupNeeded && (
@@ -521,7 +521,7 @@ export default function CreatorDashboard() {
         </div>
 
         {/* ── Two-column layout ────────────────────────────────────────────────── */}
-        <div className={`grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-8 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
+        <div className={`grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-4 gap-10 xl:gap-12 ${stats !== null && stats.content_count === 0 ? 'hidden' : ''}`}>
 
           {/* Left col */}
           <div className="lg:col-span-2 xl:col-span-3 space-y-8">
@@ -800,10 +800,10 @@ export default function CreatorDashboard() {
               </div>
             </Link>
 
-            {/* Revenue streams — compact */}
+            {/* Revenue streams + payout — unified card */}
             <div className="card-surface p-5 rounded-xl">
               <h3 className="font-serif text-base text-white mb-3">Revenue Streams</h3>
-              <div className="space-y-2">
+              <div className="space-y-2 mb-5">
                 {[
                   { icon: <Lock className="w-3.5 h-3.5" />, label: 'Locked drops', value: stats ? stats.content_unlocks.toLocaleString() : '—', unit: 'unlocks' },
                   { icon: <Crown className="w-3.5 h-3.5" />, label: 'Subscriptions', value: stats ? stats.subscriber_count.toLocaleString() : '—', unit: 'active' },
@@ -817,26 +817,21 @@ export default function CreatorDashboard() {
                   </div>
                 ))}
               </div>
+              <div className="pt-4 border-t border-white/5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Zap className="w-3 h-3 text-gold/70" />
+                  <p className="text-[11px] font-medium text-arc-secondary">70% to you · weekly · min $50</p>
+                </div>
+                <p className="text-[10px] text-arc-muted leading-relaxed">
+                  Processed automatically through Stripe on all unlocks, subscriptions, tips, and requests.
+                </p>
+              </div>
             </div>
 
             {/* First $100 tracker */}
             {stats !== null && stats.total_earnings < 100 && (
               <First100Tracker currentEarnings={stats.total_earnings} />
             )}
-
-            {/* Payout note */}
-            <div className="card-surface p-4 rounded-xl">
-              <div className="flex items-center gap-2 mb-2">
-                <Zap className="w-3.5 h-3.5 text-gold" />
-                <p className="text-xs font-medium text-white">Your Payout</p>
-              </div>
-              <p className="text-xs text-arc-secondary leading-relaxed">
-                Creators receive 70% of unlocks, subscriptions, tips, and custom requests. Payouts are processed automatically through Stripe.
-              </p>
-              <p className="text-[11px] text-arc-muted mt-2">
-                Processed weekly · minimum $50
-              </p>
-            </div>
 
           </div>
         </div>

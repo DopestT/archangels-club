@@ -70,7 +70,7 @@ function FeedStrip({ items }: { items: Content[] }) {
         style={{ WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
       >
         {items.map((item) => (
-          <div key={item.id} className="flex-none w-[260px] xl:w-[300px] snap-start">
+          <div key={item.id} className="flex-none w-[260px] xl:w-[300px] snap-start arc-card-feed">
             <FeedCard content={item} />
           </div>
         ))}
@@ -325,6 +325,8 @@ export default function ExplorePage() {
       <section className="py-16 lg:py-24 xl:py-32 bg-bg-surface border-b border-gold-border/40 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[700px] lg:w-[1000px] xl:w-[1400px] h-[280px] xl:h-[420px] bg-gold/4 blur-3xl rounded-full" />
+          <div className="absolute bottom-0 left-1/4 w-[500px] h-[200px] xl:h-[300px] bg-gold/[0.025] blur-3xl rounded-full" />
+          <div className="absolute top-1/3 right-0 w-[300px] h-[300px] bg-gold/[0.02] blur-2xl rounded-full" />
         </div>
         <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 text-center">
           <div className="inline-flex items-center gap-2 members-pill mb-4 xl:mb-6">
@@ -477,10 +479,13 @@ export default function ExplorePage() {
         {feedItems.length > 0 ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 xl:gap-5">
             {feedItems.map((item) => (
-              <FeedCard key={item.id} content={item} />
+              <div key={item.id} className="arc-card-feed">
+                <FeedCard content={item} />
+              </div>
             ))}
           </div>
         ) : !feedLoading ? (
+
           <div className="text-center py-20">
             <div className="w-14 h-14 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center mx-auto mb-5">
               <Crown className="w-6 h-6 text-gold" />

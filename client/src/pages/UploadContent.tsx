@@ -306,30 +306,17 @@ export default function UploadContent() {
 
           <div className="mb-8">
             <p className="section-eyebrow mb-2">Creator Studio</p>
-            <h1 className="font-serif text-3xl text-white">Upload Content</h1>
-            <p className="text-arc-secondary text-sm mt-1">Submissions enter a review queue — content goes live only after moderation approval.</p>
+            <h1 className="font-serif text-3xl xl:text-4xl text-white">Create a Drop</h1>
+            <p className="text-arc-secondary text-sm mt-1">Upload your content. Set your price. Go live.</p>
           </div>
 
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 mb-4">
-            <Clock className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-medium text-amber-300 mb-0.5">Content Review Required</p>
-              <p className="text-xs text-arc-muted leading-relaxed">
-                All uploads are reviewed before going live. Submissions are typically reviewed within <strong className="text-amber-200">24 hours</strong>.
-                You'll be notified if changes are required or if content is rejected.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/8 border border-amber-500/20 mb-8">
-            <AlertCircle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-xs font-medium text-amber-300 mb-0.5">Content Moderation Policy</p>
-              <p className="text-xs text-arc-muted leading-relaxed">
-                Content must follow our community guidelines. Prohibited: illegal material, minors in any context, and non-consensual imagery.
-                Violations result in permanent account removal.
-              </p>
-            </div>
+          <div
+            className="flex flex-wrap items-center gap-4 sm:gap-6 px-5 py-3 rounded-xl mb-8 text-xs text-arc-muted"
+            style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}
+          >
+            <span className="flex items-center gap-1.5"><span className="text-gold">✓</span> Reviewed before publishing</span>
+            <span className="flex items-center gap-1.5"><span className="text-gold">✓</span> Usually within 24h</span>
+            <span className="flex items-center gap-1.5"><span className="text-gold">✓</span> Private by Design</span>
           </div>
 
           {/* Draft restore notice */}
