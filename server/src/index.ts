@@ -23,6 +23,9 @@ import mediaRoutes from './routes/media.js';
 import uploadRoutes from './routes/upload.js';
 import verificationRoutes from './routes/verification.js';
 import promoRoutes from './routes/promo.js';
+import eventsRoutes from './routes/events.js';
+import pulseRoutes from './routes/pulse.js';
+import recommendationsRoutes from './routes/recommendations.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -75,6 +78,9 @@ app.use('/api/media', mediaRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/verification', verificationRoutes);
 app.use('/api/promo', promoRoutes);
+app.use('/api/events', eventsRoutes);
+app.use('/api/pulse', pulseRoutes);
+app.use('/api/recommendations', recommendationsRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });

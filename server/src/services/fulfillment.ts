@@ -2,6 +2,7 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { withTransaction, queryOne, execute } from '../db/schema.js';
 import { triggerPurchaseConfirmation } from './triggers.js';
+import { recordSignal, logEvent } from './events.js';
 
 // PostgreSQL unique_violation error code — thrown when a UNIQUE constraint fires.
 // Used to detect concurrent fulfillment races and treat them as idempotent success.
@@ -171,6 +172,10 @@ export async function fulfillCheckoutSession(
       await markFulfillmentDone(fId, 'subscription', subId);
       console.log('[fulfillment] subscription activated: user=%s → creator=%s amount=%s session=%s',
         userId, creatorProfileId, grossAmount, sessionId);
+
+      // Record engagement signal + platform event (non-fatal)
+      recordSignal(userId, creatorProfileId, 'subscribe').catch(() => {});
+      logEvent({ userId, eventType: 'subscribe_creator', entityType: 'creator', entityId: creatorProfileId, metadata: { amount: grossAmount } }).catch(() => {});
     } catch (err) {
       // Unique violation on transactions(stripe_session_id) means a concurrent fulfillment
       // already committed this transaction. Mark as fulfilled, not failed.
@@ -243,6 +248,9 @@ export async function fulfillCheckoutSession(
       await markFulfillmentDone(fId, 'tip', txnId);
       console.log('[fulfillment] tip recorded: user=%s → creator=%s amount=%s session=%s',
         userId, creatorProfileId, grossAmount, sessionId);
+
+      recordSignal(userId, creatorProfileId, 'tip').catch(() => {});
+      logEvent({ userId, eventType: 'send_tip', entityType: 'creator', entityId: creatorProfileId, metadata: { amount: grossAmount } }).catch(() => {});
     } catch (err) {
       // Unique violation means concurrent fulfillment already committed this tip.
       if (isUniqueViolation(err)) {
@@ -335,6 +343,10 @@ export async function fulfillCheckoutSession(
       await markFulfillmentDone(fId, 'content', contentId);
       console.log('[fulfillment] unlock complete: user=%s content=%s amount=%s session=%s',
         userId, contentId, grossAmount, sessionId);
+
+      // Record engagement signal + platform event (non-fatal)
+      recordSignal(userId, creatorProfileId, 'unlock').catch(() => {});
+      logEvent({ userId, eventType: 'unlock_content', entityType: 'content', entityId: contentId, metadata: { amount: grossAmount, creator_id: creatorProfileId } }).catch(() => {});
 
       const content = await queryOne<{ title: string }>('SELECT title FROM content WHERE id = $1', [contentId]);
       if (content) {

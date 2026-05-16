@@ -24,6 +24,17 @@ export function signToken(payload: AuthPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
+// Attaches auth payload if a valid token is present; never blocks the request.
+export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
+  const header = req.headers.authorization;
+  if (header?.startsWith('Bearer ')) {
+    try {
+      req.auth = jwt.verify(header.slice(7), JWT_SECRET) as AuthPayload;
+    } catch { /* anonymous — req.auth stays undefined */ }
+  }
+  next();
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const adminKey = req.headers['x-admin-key'];
   if (adminKey && process.env.ADMIN_KEY && adminKey === process.env.ADMIN_KEY) {

@@ -414,6 +414,83 @@ const DDL = `
   -- No action needed on the constraint itself; NO ACTION is PostgreSQL's default.
   -- Adding the explicit index here so the FK lookup is fast at deletion check time.
   CREATE INDEX IF NOT EXISTS idx_content_unlocks_content ON content_unlocks(content_id);
+
+  -- ── ABMIE-X: Platform Events (behavioral signal foundation) ─────────────────
+  -- Lightweight append-only event log. Powers recommendations, creator health
+  -- scoring, Pulse analytics, and future predictive intelligence layers.
+  CREATE TABLE IF NOT EXISTS platform_events (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+    session_id TEXT,
+    event_type TEXT NOT NULL,
+    entity_type TEXT,
+    entity_id TEXT,
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_platform_events_type ON platform_events(event_type, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_platform_events_user ON platform_events(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_platform_events_entity ON platform_events(entity_type, entity_id, created_at DESC);
+
+  -- ── ABMIE-X: Engagement Signals (creator-user affinity) ─────────────────────
+  -- Aggregated per (user, creator) pair. Updated on unlock/subscribe/view/message.
+  -- Weight encodes signal strength; decays are applied at read time.
+  CREATE TABLE IF NOT EXISTS engagement_signals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    creator_id TEXT NOT NULL REFERENCES creator_profiles(id) ON DELETE CASCADE,
+    signal_type TEXT NOT NULL CHECK(signal_type IN ('view','unlock','subscribe','message','tip','save','custom_request')),
+    weight NUMERIC(6,3) NOT NULL DEFAULT 1.0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_signals_user_creator ON engagement_signals(user_id, creator_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_signals_creator ON engagement_signals(creator_id, signal_type, created_at DESC);
+
+  -- ── ABMIE-X: Creator Health Scores ──────────────────────────────────────────
+  -- Computed scores; recomputed nightly or on demand.
+  -- Scores 0–100 where 100 = excellent health.
+  CREATE TABLE IF NOT EXISTS creator_health_scores (
+    creator_id TEXT PRIMARY KEY REFERENCES creator_profiles(id) ON DELETE CASCADE,
+    posting_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+    engagement_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+    revenue_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+    retention_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+    overall_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+    streak_days INTEGER NOT NULL DEFAULT 0,
+    last_post_at TIMESTAMPTZ,
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  -- ── ABMIE-X: Creator Daily Stats ─────────────────────────────────────────────
+  -- One row per (creator, date). Upserted nightly and on fulfillment events.
+  CREATE TABLE IF NOT EXISTS creator_daily_stats (
+    creator_id TEXT NOT NULL REFERENCES creator_profiles(id) ON DELETE CASCADE,
+    stat_date DATE NOT NULL,
+    views INTEGER NOT NULL DEFAULT 0,
+    unlocks INTEGER NOT NULL DEFAULT 0,
+    new_subscribers INTEGER NOT NULL DEFAULT 0,
+    revenue_cents BIGINT NOT NULL DEFAULT 0,
+    messages_received INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (creator_id, stat_date)
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_creator_daily_stats_date ON creator_daily_stats(stat_date DESC);
+
+  -- ── ABMIE-X: Platform Daily Stats ────────────────────────────────────────────
+  -- Platform-wide aggregates for admin Pulse view. One row per date.
+  CREATE TABLE IF NOT EXISTS platform_daily_stats (
+    stat_date DATE PRIMARY KEY,
+    new_users INTEGER NOT NULL DEFAULT 0,
+    new_creators INTEGER NOT NULL DEFAULT 0,
+    total_revenue_cents BIGINT NOT NULL DEFAULT 0,
+    total_unlocks INTEGER NOT NULL DEFAULT 0,
+    total_subscriptions INTEGER NOT NULL DEFAULT 0,
+    active_users INTEGER NOT NULL DEFAULT 0,
+    content_published INTEGER NOT NULL DEFAULT 0,
+    computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
 `;
 
 export async function runMigrations(): Promise<void> {
