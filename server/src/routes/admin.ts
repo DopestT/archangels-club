@@ -900,4 +900,63 @@ router.post('/promote-to-admin', async (req, res) => {
   }
 });
 
+// GET /api/admin/pulse — real-time platform health snapshot for Pulse tab
+router.get('/pulse', requireAuth, requireAdmin, async (_req, res) => {
+  try {
+    const [activity, topCreators, contentHealth, memberGrowth] = await Promise.all([
+      query<any>(
+        `SELECT t.ref_type, t.amount, t.created_at,
+           payer.display_name AS payer_name,
+           payee.display_name AS payee_name
+         FROM transactions t
+         JOIN users payer ON payer.id = t.payer_id
+         JOIN users payee ON payee.id = t.payee_id
+         WHERE t.status = 'completed' AND t.created_at > NOW() - INTERVAL '24 hours'
+         ORDER BY t.created_at DESC LIMIT 20`,
+        []
+      ),
+      query<any>(
+        `SELECT u.display_name, u.username, u.avatar_url,
+           (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active') AS subs,
+           (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.started_at > NOW() - INTERVAL '7 days') AS new_subs_7d,
+           (SELECT COUNT(*) FROM content_unlocks cu JOIN content c ON c.id = cu.content_id WHERE c.creator_id = cp.id AND cu.unlocked_at > NOW() - INTERVAL '7 days') AS unlocks_7d,
+           (SELECT COALESCE(SUM(net_amount),0) FROM transactions WHERE payee_id = u.id AND created_at > NOW() - INTERVAL '30 days' AND status = 'completed') AS revenue_30d
+         FROM creator_profiles cp
+         JOIN users u ON u.id = cp.user_id
+         WHERE cp.is_approved = 1
+         ORDER BY revenue_30d DESC
+         LIMIT 10`,
+        []
+      ),
+      queryOne<any>(
+        `SELECT
+           (SELECT COUNT(*) FROM content WHERE status = 'pending_review') AS pending_review,
+           (SELECT COUNT(*) FROM content WHERE status = 'approved' AND created_at > NOW() - INTERVAL '7 days') AS approved_7d,
+           (SELECT COUNT(*) FROM content WHERE status = 'rejected' AND updated_at > NOW() - INTERVAL '7 days') AS rejected_7d,
+           (SELECT COUNT(*) FROM reports WHERE status = 'open') AS open_reports`
+      ),
+      queryOne<any>(
+        `SELECT
+           (SELECT COUNT(*) FROM users WHERE status = 'approved') AS total_members,
+           (SELECT COUNT(*) FROM users WHERE status = 'approved' AND created_at > NOW() - INTERVAL '7 days') AS new_7d,
+           (SELECT COUNT(*) FROM users WHERE status = 'approved' AND created_at > NOW() - INTERVAL '30 days') AS new_30d,
+           (SELECT COUNT(*) FROM subscriptions WHERE status = 'active') AS active_subscriptions,
+           (SELECT COALESCE(SUM(platform_fee),0) FROM transactions WHERE status = 'completed' AND created_at > NOW() - INTERVAL '7 days') AS revenue_7d,
+           (SELECT COALESCE(SUM(platform_fee),0) FROM transactions WHERE status = 'completed' AND created_at > NOW() - INTERVAL '30 days') AS revenue_30d`
+      ),
+    ]);
+
+    res.json({
+      activity,
+      top_creators: topCreators,
+      content_health: contentHealth,
+      member_growth: memberGrowth,
+      generated_at: new Date().toISOString(),
+    });
+  } catch (err) {
+    console.error('[admin/pulse] error:', err);
+    res.status(500).json({ error: 'Failed to load Pulse data.' });
+  }
+});
+
 export default router;

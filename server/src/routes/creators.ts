@@ -468,4 +468,110 @@ router.patch('/profile', requireAuth, requireCreator, async (req, res) => {
   }
 });
 
+// GET /api/creators/my/health — rules-based creator health score
+router.get('/my/health', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const profile = await queryOne<any>(
+      `SELECT cp.*, u.display_name, u.avatar_url
+       FROM creator_profiles cp JOIN users u ON u.id = cp.user_id
+       WHERE cp.user_id = $1`,
+      [req.auth!.userId]
+    );
+    if (!profile) { res.status(404).json({ error: 'Creator profile not found.' }); return; }
+
+    const [subRow, contentRow, unlockRow, requestRow, recentUploadRow] = await Promise.all([
+      queryOne<{ total: string; new_30d: string }>(
+        `SELECT COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE started_at > NOW() - INTERVAL '30 days') AS new_30d
+         FROM subscriptions WHERE creator_id = $1 AND status = 'active'`,
+        [profile.id]
+      ),
+      queryOne<{ approved: string; total: string }>(
+        `SELECT COUNT(*) FILTER (WHERE status = 'approved') AS approved, COUNT(*) AS total
+         FROM content WHERE creator_id = $1`,
+        [profile.id]
+      ),
+      queryOne<{ n: string }>(
+        `SELECT COUNT(*) AS n FROM content_unlocks cu
+         JOIN content c ON c.id = cu.content_id
+         WHERE c.creator_id = $1`,
+        [profile.id]
+      ),
+      queryOne<{ total: string; responded: string }>(
+        `SELECT COUNT(*) AS total,
+           COUNT(*) FILTER (WHERE status IN ('accepted','rejected','completed')) AS responded
+         FROM custom_requests WHERE creator_id = $1`,
+        [profile.id]
+      ),
+      queryOne<{ last_at: string | null }>(
+        `SELECT MAX(created_at) AS last_at FROM content WHERE creator_id = $1 AND status = 'approved'`,
+        [profile.id]
+      ),
+    ]);
+
+    const subs = parseInt(subRow?.total ?? '0');
+    const newSubs30d = parseInt(subRow?.new_30d ?? '0');
+    const approvedContent = parseInt(contentRow?.approved ?? '0');
+    const totalContent = parseInt(contentRow?.total ?? '0');
+    const totalUnlocks = parseInt(unlockRow?.n ?? '0');
+    const totalRequests = parseInt(requestRow?.total ?? '0');
+    const respondedRequests = parseInt(requestRow?.responded ?? '0');
+
+    const daysSinceUpload = recentUploadRow?.last_at
+      ? (Date.now() - new Date(recentUploadRow.last_at).getTime()) / (1000 * 60 * 60 * 24)
+      : 999;
+
+    // Rules-based health score (0-100)
+    const subsScore = Math.min(subs / 50 * 25, 25);
+    const contentScore = Math.min(approvedContent / 10 * 20, 20);
+    const unlockScore = approvedContent > 0 ? Math.min((totalUnlocks / approvedContent) / 3 * 20, 20) : 0;
+    const requestScore = totalRequests > 0 ? (respondedRequests / totalRequests) * 15 : 10;
+    const recencyScore = daysSinceUpload < 7 ? 20 : daysSinceUpload < 14 ? 15 : daysSinceUpload < 30 ? 8 : 0;
+
+    const score = Math.round(subsScore + contentScore + unlockScore + requestScore + recencyScore);
+
+    const level = score >= 80 ? 'Elite' : score >= 60 ? 'Rising' : score >= 40 ? 'Active' : score >= 20 ? 'Building' : 'New';
+
+    const signals: { label: string; ok: boolean; note: string }[] = [
+      { label: 'Content Library', ok: approvedContent >= 3, note: approvedContent >= 3 ? `${approvedContent} approved drops` : `${approvedContent} approved — aim for 3+` },
+      { label: 'Audience Growth', ok: newSubs30d > 0, note: newSubs30d > 0 ? `+${newSubs30d} subscribers this month` : 'No new subscribers this month' },
+      { label: 'Upload Consistency', ok: daysSinceUpload < 14, note: daysSinceUpload < 7 ? 'Uploaded this week' : daysSinceUpload < 14 ? 'Uploaded recently' : `${Math.round(daysSinceUpload)} days since last drop` },
+      { label: 'Custom Requests', ok: totalRequests === 0 || respondedRequests / totalRequests > 0.5, note: totalRequests === 0 ? 'No requests yet' : `${respondedRequests}/${totalRequests} responded` },
+      { label: 'Payout Ready', ok: profile.stripe_onboarding_complete === 1, note: profile.stripe_onboarding_complete === 1 ? 'Stripe connected' : 'Connect Stripe to receive payouts' },
+    ];
+
+    res.json({ score, level, signals, subs, approvedContent, totalUnlocks });
+  } catch (err) {
+    console.error('[creators/my/health] error:', err);
+    res.status(500).json({ error: 'Failed to compute health score.' });
+  }
+});
+
+// GET /api/creators/trending — rules-based trending (most activity this week)
+router.get('/trending', async (_req, res) => {
+  try {
+    const rows = await query<any>(
+      `SELECT cp.id, u.display_name, u.username, u.avatar_url, u.is_verified_creator,
+         cp.subscription_price, cp.tags, cp.bio,
+         (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active') AS subscriber_count,
+         (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.started_at > NOW() - INTERVAL '7 days') AS new_subs_7d,
+         (SELECT COUNT(*) FROM content_unlocks cu JOIN content c ON c.id = cu.content_id WHERE c.creator_id = cp.id AND cu.unlocked_at > NOW() - INTERVAL '7 days') AS unlocks_7d,
+         (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))) AS content_count
+       FROM creator_profiles cp
+       JOIN users u ON u.id = cp.user_id
+       WHERE cp.is_approved = 1
+       ORDER BY (
+         (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.started_at > NOW() - INTERVAL '7 days') * 3 +
+         (SELECT COUNT(*) FROM content_unlocks cu JOIN content c ON c.id = cu.content_id WHERE c.creator_id = cp.id AND cu.unlocked_at > NOW() - INTERVAL '7 days')
+       ) DESC
+       LIMIT 12`,
+      []
+    );
+    res.json(rows.map(r => ({ ...r, tags: JSON.parse(r.tags ?? '[]') })));
+  } catch (err) {
+    console.error('[creators/trending] error:', err);
+    res.status(500).json({ error: 'Failed to fetch trending creators.' });
+  }
+});
+
 export default router;

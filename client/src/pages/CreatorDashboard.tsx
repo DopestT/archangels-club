@@ -64,6 +64,7 @@ export default function CreatorDashboard() {
   const [profileLinkCopied, setProfileLinkCopied] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<{ category: string; text: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
+  const [health, setHealth] = useState<{ score: number; level: string; signals: { label: string; ok: boolean; note: string }[] } | null>(null);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -140,6 +141,14 @@ export default function CreatorDashboard() {
       .then((data) => setStripeStatus((prev) => prev ? { ...prev, onboarded: data.onboarded } : null))
       .catch(() => {});
   }, [searchParams, token]);
+
+  useEffect(() => {
+    if (!token || !isVerifiedCreator) return;
+    fetch(`${API_BASE}/api/creators/my/health`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(d => { if (d.score !== undefined) setHealth(d); })
+      .catch(() => {});
+  }, [token, isVerifiedCreator]);
 
   useEffect(() => {
     if (!token || !isVerifiedCreator) return;
@@ -712,6 +721,49 @@ export default function CreatorDashboard() {
 
           {/* Right sidebar */}
           <div className="space-y-5">
+
+            {/* Creator Health Score */}
+            {health && (
+              <div className="card-surface p-5 rounded-xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-serif text-base text-white">Studio Health</h3>
+                  <span className={`text-xs font-medium px-2.5 py-1 rounded-full border ${
+                    health.score >= 80 ? 'text-arc-success bg-arc-success/10 border-arc-success/25'
+                    : health.score >= 60 ? 'text-gold bg-gold/10 border-gold/25'
+                    : health.score >= 40 ? 'text-amber-400 bg-amber-400/10 border-amber-400/25'
+                    : 'text-arc-secondary bg-white/5 border-white/10'
+                  }`}>{health.level}</span>
+                </div>
+                <div className="flex items-end gap-3 mb-4">
+                  <span className="font-serif text-4xl text-white">{health.score}</span>
+                  <span className="text-xs text-arc-muted mb-1">/100</span>
+                  <div className="flex-1 ml-1 mb-1">
+                    <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
+                      <div
+                        className="h-full rounded-full transition-all duration-700"
+                        style={{
+                          width: `${health.score}%`,
+                          background: health.score >= 80 ? '#10B981' : health.score >= 60 ? '#D4AF37' : health.score >= 40 ? '#F59E0B' : '#6B7280',
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {health.signals.map((s, i) => (
+                    <div key={i} className="flex items-start gap-2.5">
+                      <span className={`text-[11px] mt-0.5 flex-shrink-0 ${s.ok ? 'text-arc-success' : 'text-arc-muted'}`}>
+                        {s.ok ? '✓' : '○'}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-[11px] font-medium text-arc-secondary">{s.label}</p>
+                        <p className="text-[11px] text-arc-muted leading-snug">{s.note}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Quick Actions */}
             <div className="card-surface rounded-xl overflow-hidden">

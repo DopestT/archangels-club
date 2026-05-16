@@ -38,7 +38,7 @@ import { formatCurrency, timeAgo } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../lib/api';
 
-type Tab = 'overview' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'verifications';
+type Tab = 'overview' | 'pulse' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'verifications';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-3.5 h-3.5" />,
@@ -100,6 +100,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [aiInsights, setAiInsights] = useState<{ category: string; text: string; priority: string }[]>([]);
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
 
+  // Pulse data
+  const [pulseData, setPulseData] = useState<any>(null);
+  const [pulseLoading, setPulseLoading] = useState(false);
+
   // Verifications
   const [verifications, setVerifications] = useState<any[]>([]);
   const [creatorKyc, setCreatorKyc] = useState<any[]>([]);
@@ -146,7 +150,19 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     if (activeTab === 'flagged') loadFlaggedContent();
     if (activeTab === 'transactions') loadTransactions();
     if (activeTab === 'verifications') loadVerifications();
+    if (activeTab === 'pulse') loadPulse();
   }, [activeTab]);
+
+  async function loadPulse() {
+    setPulseLoading(true);
+    try {
+      const res = await adminFetch('/api/admin/pulse');
+      const data = await res.json();
+      if (!data.error) setPulseData(data);
+    } catch {} finally {
+      setPulseLoading(false);
+    }
+  }
 
   async function loadStats() {
     try {
@@ -299,6 +315,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'overview', label: 'Overview' },
+    { id: 'pulse', label: 'Pulse' },
     { id: 'access-requests', label: 'Access Requests', badge: pendingAccessCount },
     { id: 'creator-approvals', label: 'Creator Approvals', badge: pendingCreatorCount },
     { id: 'content-approvals', label: 'Content Approvals', badge: pendingContentCount },
@@ -356,6 +373,114 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
             ))}
           </div>
         </div>
+
+        {/* ── PULSE ──────────────────────────────────────────────────────────── */}
+        {activeTab === 'pulse' && (
+          <div>
+            <div className="mb-6">
+              <p className="section-eyebrow mb-1">Platform Intelligence</p>
+              <h2 className="font-serif text-2xl text-white">The Pulse</h2>
+              <p className="text-sm text-arc-secondary mt-1">Real-time platform health · Last 24 hours</p>
+            </div>
+
+            {pulseLoading && (
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                {[1,2,3,4].map(i => <div key={i} className="card-surface p-5 rounded-xl h-24 animate-pulse" />)}
+              </div>
+            )}
+
+            {pulseData && (
+              <div className="space-y-8">
+                {/* Member growth row */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {[
+                    { label: 'Total Members', value: pulseData.member_growth?.total_members ?? '—', sub: `+${pulseData.member_growth?.new_7d ?? 0} this week` },
+                    { label: 'Active Subs', value: pulseData.member_growth?.active_subscriptions ?? '—', sub: 'across all creators' },
+                    { label: 'Revenue (7d)', value: `$${parseFloat(pulseData.member_growth?.revenue_7d ?? 0).toFixed(0)}`, sub: 'platform fees' },
+                    { label: 'Revenue (30d)', value: `$${parseFloat(pulseData.member_growth?.revenue_30d ?? 0).toFixed(0)}`, sub: 'platform fees' },
+                  ].map(({ label, value, sub }) => (
+                    <div key={label} className="card-surface p-5 rounded-xl">
+                      <p className="text-xs text-arc-muted mb-2 uppercase tracking-widest font-medium">{label}</p>
+                      <p className="font-serif text-2xl text-white">{value}</p>
+                      <p className="text-xs text-arc-secondary mt-1">{sub}</p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Top creators this month */}
+                  <div className="card-surface p-6 rounded-xl">
+                    <h3 className="font-serif text-lg text-white mb-5">Top Creators (30d Revenue)</h3>
+                    {pulseData.top_creators?.length > 0 ? (
+                      <div className="space-y-3">
+                        {pulseData.top_creators.slice(0, 6).map((c: any, i: number) => (
+                          <div key={c.username} className="flex items-center gap-3">
+                            <span className="text-xs text-arc-muted w-4 flex-shrink-0 text-right">{i + 1}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white truncate">{c.display_name}</p>
+                              <p className="text-[11px] text-arc-muted">@{c.username} · {c.subs} subs · +{c.new_subs_7d} this week</p>
+                            </div>
+                            <span className="text-xs font-medium text-gold tabular-nums flex-shrink-0">
+                              ${parseFloat(c.revenue_30d).toFixed(0)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-arc-muted text-center py-6">No revenue data yet.</p>
+                    )}
+                  </div>
+
+                  {/* Content health + recent activity */}
+                  <div className="space-y-4">
+                    <div className="card-surface p-5 rounded-xl">
+                      <h3 className="font-serif text-base text-white mb-4">Content Health</h3>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        {[
+                          { label: 'In Queue', value: pulseData.content_health?.pending_review ?? 0, color: 'text-amber-400' },
+                          { label: 'Approved (7d)', value: pulseData.content_health?.approved_7d ?? 0, color: 'text-arc-success' },
+                          { label: 'Open Reports', value: pulseData.content_health?.open_reports ?? 0, color: 'text-arc-error' },
+                        ].map(({ label, value, color }) => (
+                          <div key={label}>
+                            <p className={`font-serif text-2xl ${color}`}>{value}</p>
+                            <p className="text-[10px] text-arc-muted mt-1">{label}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="card-surface p-5 rounded-xl">
+                      <h3 className="font-serif text-base text-white mb-4">Recent Transactions (24h)</h3>
+                      {pulseData.activity?.length > 0 ? (
+                        <div className="space-y-2.5">
+                          {pulseData.activity.slice(0, 5).map((a: any, i: number) => (
+                            <div key={i} className="flex items-center gap-2.5">
+                              <div
+                                className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                                style={{ backgroundColor: a.ref_type === 'subscription' ? '#10B981' : '#D4AF37' }}
+                              />
+                              <p className="text-xs text-arc-secondary flex-1 truncate">
+                                {a.payer_name} → {a.payee_name}
+                              </p>
+                              <span className="text-xs text-gold flex-shrink-0 tabular-nums">
+                                ${parseFloat(a.amount).toFixed(0)}
+                              </span>
+                            </div>
+                          ))}
+                          {pulseData.activity.length === 0 && (
+                            <p className="text-xs text-arc-muted text-center py-3">No transactions in the last 24h.</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-arc-muted text-center py-3">No transactions yet.</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── OVERVIEW ───────────────────────────────────────────────────────── */}
         {activeTab === 'overview' && (
