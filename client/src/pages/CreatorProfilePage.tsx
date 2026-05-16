@@ -8,6 +8,7 @@ import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../lib/utils';
 import type { CreatorProfile, Content } from '../types';
 import { API_BASE } from '../lib/api';
+import { logEvent } from '../lib/logEvent';
 
 // ─── Tip Panel ────────────────────────────────────────────────────────────────
 
@@ -220,6 +221,7 @@ export default function CreatorProfilePage() {
         } else {
           document.title = `${creatorData.display_name} — Archangels Club`;
           setCreator(creatorData);
+          logEvent({ event_type: 'creator_profile_view', entity_type: 'creator', entity_id: creatorData.id });
           setContent(Array.isArray(contentData) ? contentData : []);
 
           // Attribution tracking — fire and forget

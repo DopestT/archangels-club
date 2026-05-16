@@ -6,6 +6,7 @@ import FeedCard from '../components/content/FeedCard';
 import LiveActivity from '../components/explore/LiveActivity';
 import type { CreatorProfile, Content } from '../types';
 import { API_BASE } from '../lib/api';
+import { logEvent } from '../lib/logEvent';
 import { useT } from '../context/LanguageContext';
 
 const FEED_PAGE_SIZE = 12;
@@ -288,7 +289,12 @@ export default function ExplorePage() {
   }, [query, activeTag, sortBy, showCreators]);
 
   useEffect(() => {
-    const t = setTimeout(fetchCreators, query ? 300 : 0);
+    const t = setTimeout(() => {
+      fetchCreators();
+      if (query.trim().length >= 2) {
+        logEvent({ event_type: 'explore_search', metadata: { q: query.trim() } });
+      }
+    }, query ? 300 : 0);
     return () => clearTimeout(t);
   }, [fetchCreators, query]);
 

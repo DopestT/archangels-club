@@ -11,6 +11,7 @@ import ContentCard from '../components/content/ContentCard';
 import type { Content as GlobalContent } from '../types';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
+import { logEvent } from '../lib/logEvent';
 
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -224,7 +225,12 @@ export default function LockedContentPage() {
     if (!id) { setLoading(false); return; }
     fetch(`${API_BASE}/api/content/${id}`)
       .then(r => r.json())
-      .then(data => { if (!data.error) setContent(data); })
+      .then(data => {
+        if (!data.error) {
+          setContent(data);
+          logEvent({ event_type: 'content_view', entity_type: 'content', entity_id: data.id });
+        }
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
