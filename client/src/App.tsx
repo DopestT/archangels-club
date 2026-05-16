@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SavedProvider } from './context/SavedContext';
 import { ToastProvider } from './components/ui/Toast';
+import { LanguageProvider } from './context/LanguageContext';
 import AppShell from './components/layout/AppShell';
 import SplashScreen from './components/brand/SplashScreen';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -50,7 +51,18 @@ function ProtectedRoute({
   requireCreator?: boolean;
   requireAdmin?: boolean;
 }) {
-  const { isAuthenticated, isCreator, isAdmin, userStatus } = useAuth();
+  const { isAuthenticated, isCreator, isAdmin, userStatus, refreshUser } = useAuth();
+  // For creator-gated routes: try refreshing stale session once before blocking.
+  // This lets newly-approved creators reach the studio without re-login.
+  const [creatorCheckDone, setCreatorCheckDone] = useState(
+    !requireCreator || isCreator || isAdmin
+  );
+
+  useEffect(() => {
+    if (requireCreator && !isCreator && !isAdmin) {
+      refreshUser().finally(() => setCreatorCheckDone(true));
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -59,6 +71,11 @@ function ProtectedRoute({
   // Admin bypasses all status gates
   if (isAdmin) {
     return <>{children}</>;
+  }
+
+  // Waiting for creator session refresh before making the gate decision
+  if (requireCreator && !creatorCheckDone) {
+    return <SplashScreen />;
   }
 
   // Status gates (apply to all non-admin users)
@@ -162,6 +179,11 @@ function AppRoutes() {
             <CreatorDashboard />
           </ProtectedRoute>
         } />
+        <Route path="studio" element={
+          <ProtectedRoute requireCreator>
+            <CreatorDashboard />
+          </ProtectedRoute>
+        } />
         <Route path="upload" element={
           <ProtectedRoute requireCreator>
             <UploadContent />
@@ -259,7 +281,9 @@ export default function App() {
         <SavedProvider>
           <ToastProvider>
             <ErrorBoundary>
-              <AppWithSplash />
+              <LanguageProvider>
+                <AppWithSplash />
+              </LanguageProvider>
             </ErrorBoundary>
           </ToastProvider>
         </SavedProvider>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { ArrowLeft, Crown, Clock, Check, AlertCircle, Image, Video, Music, FileText } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { formatCurrency } from '../lib/utils';
@@ -27,6 +27,11 @@ export default function CreatorApplicationPage() {
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+
+  // Already a creator — send them directly to the studio (after hooks)
+  if (user?.role === 'creator' || user?.role === 'both') {
+    return <Navigate to="/creator" replace />;
+  }
 
   function toggleCategory(id: string) {
     setCategories((prev) =>

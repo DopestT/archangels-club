@@ -58,12 +58,22 @@ export function requireAdmin(req: Request, res: Response, next: NextFunction) {
   next();
 }
 
-export function requireCreator(req: Request, res: Response, next: NextFunction) {
-  if (!['creator', 'both', 'admin'].includes(req.auth?.role ?? '')) {
-    res.status(403).json({ error: 'Creator access required' });
-    return;
+export async function requireCreator(req: Request, res: Response, next: NextFunction) {
+  if (req.auth?.role === 'admin') { next(); return; }
+  // Re-query DB role so newly-approved creators can access endpoints before re-login
+  try {
+    const user = await queryOne<{ role: string; status: string }>(
+      'SELECT role, status FROM users WHERE id = $1',
+      [req.auth!.userId]
+    );
+    if (!user || !['creator', 'both'].includes(user.role) || user.status !== 'approved') {
+      res.status(403).json({ error: 'Creator access required' });
+      return;
+    }
+    next();
+  } catch (err) {
+    next(err);
   }
-  next();
 }
 
 export async function requireApproved(req: Request, res: Response, next: NextFunction) {
