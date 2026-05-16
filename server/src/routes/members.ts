@@ -9,7 +9,9 @@ router.get('/my/stats', requireAuth, requireApproved, async (req, res) => {
   try {
     const [unlocked, subscriptions, messages, spent] = await Promise.all([
       queryOne<{ n: string }>(
-        'SELECT COUNT(*) as n FROM content_unlocks WHERE user_id = $1',
+        `SELECT COUNT(*) as n FROM content_unlocks cu
+         JOIN content c ON c.id = cu.content_id
+         WHERE cu.user_id = $1 AND c.status != 'removed'`,
         [req.auth!.userId]
       ),
       queryOne<{ n: string }>(
@@ -55,6 +57,7 @@ router.get('/my/unlocked', requireAuth, requireApproved, async (req, res) => {
       JOIN creator_profiles cp ON cp.id = c.creator_id
       JOIN users u ON u.id = cp.user_id
       WHERE cu.user_id = $1
+        AND c.status != 'removed'
       ORDER BY cu.unlocked_at DESC
       LIMIT $2 OFFSET $3
     `, [req.auth!.userId, limit, offset]);

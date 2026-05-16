@@ -398,6 +398,22 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_content_status ON content(status);
   CREATE INDEX IF NOT EXISTS idx_content_publish_at ON content(publish_at) WHERE publish_at IS NOT NULL;
   CREATE INDEX IF NOT EXISTS idx_content_updated_at ON content(updated_at DESC);
+
+  -- ── Payment idempotency constraints ─────────────────────────────────────────
+  -- Prevents double transaction insertion when webhook + session-verify fire concurrently.
+  -- The partial index covers non-null session IDs only (tips, unlocks, subscriptions).
+  -- Without this, two concurrent fulfillment calls both seeing dup=null would both
+  -- INSERT and double-credit creator earnings for tips and subscriptions.
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_stripe_session
+    ON transactions(stripe_session_id)
+    WHERE stripe_session_id IS NOT NULL;
+
+  -- Protect content_unlocks FK from cascade failures when content is removed.
+  -- Restricts hard-deletion of content that has been purchased — correct behavior.
+  -- (Creators can only soft-delete via status='removed'; this guards admin hard-delete.)
+  -- No action needed on the constraint itself; NO ACTION is PostgreSQL's default.
+  -- Adding the explicit index here so the FK lookup is fast at deletion check time.
+  CREATE INDEX IF NOT EXISTS idx_content_unlocks_content ON content_unlocks(content_id);
 `;
 
 export async function runMigrations(): Promise<void> {

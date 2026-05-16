@@ -3,6 +3,12 @@ import crypto from 'crypto';
 import { withTransaction, queryOne, execute } from '../db/schema.js';
 import { triggerPurchaseConfirmation } from './triggers.js';
 
+// PostgreSQL unique_violation error code — thrown when a UNIQUE constraint fires.
+// Used to detect concurrent fulfillment races and treat them as idempotent success.
+function isUniqueViolation(err: unknown): boolean {
+  return (err as any)?.code === '23505';
+}
+
 // ── Fulfillment record helpers ───────────────────────────────────────────────
 
 async function initFulfillmentRecord(
@@ -144,23 +150,35 @@ export async function fulfillCheckoutSession(
       );
 
       const txnId = crypto.randomUUID();
-      await execute(
-        `INSERT INTO transactions
-           (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
-            status, stripe_payment_intent_id, stripe_session_id, stripe_subscription_id, currency)
-         VALUES ($1, $2, $3, 'subscription', $4, $5, $6, $7, 'completed', $8, $9, $10, 'usd')`,
-        [txnId, userId, creator.user_id, subId, grossAmount, platformFee, creatorEarnings,
-         paymentIntentId, sessionId, stripeSubId]
-      );
-      await execute(
-        'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
-        [creatorEarnings, creatorProfileId]
-      );
+      // Atomic: transaction insert + earnings update succeed or fail together.
+      // The UNIQUE constraint on transactions(stripe_session_id) prevents double-insert
+      // when webhook and session-verify fire concurrently.
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO transactions
+             (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
+              status, stripe_payment_intent_id, stripe_session_id, stripe_subscription_id, currency)
+           VALUES ($1, $2, $3, 'subscription', $4, $5, $6, $7, 'completed', $8, $9, $10, 'usd')`,
+          [txnId, userId, creator.user_id, subId, grossAmount, platformFee, creatorEarnings,
+           paymentIntentId, sessionId, stripeSubId]
+        );
+        await client.query(
+          'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
+          [creatorEarnings, creatorProfileId]
+        );
+      });
 
       await markFulfillmentDone(fId, 'subscription', subId);
       console.log('[fulfillment] subscription activated: user=%s → creator=%s amount=%s session=%s',
         userId, creatorProfileId, grossAmount, sessionId);
     } catch (err) {
+      // Unique violation on transactions(stripe_session_id) means a concurrent fulfillment
+      // already committed this transaction. Mark as fulfilled, not failed.
+      if (isUniqueViolation(err)) {
+        console.log('[fulfillment] subscription: concurrent fulfillment race — transaction already exists, marking fulfilled session=%s', sessionId);
+        await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       await markFulfillmentFailed(fId, msg);
       throw err;
@@ -206,23 +224,32 @@ export async function fulfillCheckoutSession(
       const creatorEarnings = Math.round((grossAmount - platformFee) * 100) / 100;
       const txnId           = crypto.randomUUID();
 
-      await execute(
-        `INSERT INTO transactions
-           (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
-            status, stripe_payment_intent_id, stripe_session_id, currency)
-         VALUES ($1, $2, $3, 'tip', $4, $5, $6, $7, 'completed', $8, $9, 'usd')`,
-        [txnId, userId, creator.user_id, paymentIntentId ?? txnId, grossAmount, platformFee,
-         creatorEarnings, paymentIntentId, sessionId]
-      );
-      await execute(
-        'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
-        [creatorEarnings, creatorProfileId]
-      );
+      // Atomic: transaction insert + earnings update succeed or fail together.
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO transactions
+             (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
+              status, stripe_payment_intent_id, stripe_session_id, currency)
+           VALUES ($1, $2, $3, 'tip', $4, $5, $6, $7, 'completed', $8, $9, 'usd')`,
+          [txnId, userId, creator.user_id, paymentIntentId ?? txnId, grossAmount, platformFee,
+           creatorEarnings, paymentIntentId, sessionId]
+        );
+        await client.query(
+          'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
+          [creatorEarnings, creatorProfileId]
+        );
+      });
 
       await markFulfillmentDone(fId, 'tip', txnId);
       console.log('[fulfillment] tip recorded: user=%s → creator=%s amount=%s session=%s',
         userId, creatorProfileId, grossAmount, sessionId);
     } catch (err) {
+      // Unique violation means concurrent fulfillment already committed this tip.
+      if (isUniqueViolation(err)) {
+        console.log('[fulfillment] tip: concurrent fulfillment race — transaction already exists, marking fulfilled session=%s', sessionId);
+        await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+        return;
+      }
       const msg = err instanceof Error ? err.message : String(err);
       await markFulfillmentFailed(fId, msg);
       throw err;
@@ -314,6 +341,19 @@ export async function fulfillCheckoutSession(
         triggerPurchaseConfirmation(userId, content.title, contentId).catch(console.error);
       }
     } catch (err) {
+      // Unique violation on transactions(stripe_session_id) or content_unlocks(user_id, content_id)
+      // means a concurrent fulfillment already committed. Verify the unlock exists and mark done.
+      if (isUniqueViolation(err)) {
+        const existingNow = await queryOne(
+          'SELECT id FROM content_unlocks WHERE user_id = $1 AND content_id = $2',
+          [userId, contentId]
+        );
+        if (existingNow) {
+          console.log('[fulfillment] unlock: concurrent fulfillment race — unlock already exists, marking fulfilled session=%s', sessionId);
+          await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+          return;
+        }
+      }
       const msg = err instanceof Error ? err.message : String(err);
       await markFulfillmentFailed(fId, msg);
       throw err;

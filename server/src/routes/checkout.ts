@@ -26,11 +26,16 @@ router.get('/session/:sessionId', requireAuth, async (req, res) => {
       return;
     }
 
-    // Trigger fulfillment if paid — safe to call multiple times (idempotent)
+    // Await fulfillment synchronously so the response only returns after the DB unlock
+    // record exists. This eliminates the race where the client navigates to the content
+    // page before the webhook has had time to fire. Fulfillment is idempotent — safe to
+    // call from both here and the webhook handler concurrently.
     if (session.payment_status === 'paid' || session.status === 'complete') {
-      fulfillCheckoutSession(session).catch(err =>
-        console.error('[checkout/session] fulfillment error:', err)
-      );
+      try {
+        await fulfillCheckoutSession(session);
+      } catch (err) {
+        console.error('[checkout/session] fulfillment error (non-fatal, webhook will retry):', err);
+      }
     }
 
     res.json({
