@@ -43,6 +43,8 @@ export default function MemberDashboard() {
   const [loading, setLoading] = useState(true);
   const [aiRecs, setAiRecs] = useState<AiRecs | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [sqlRecs, setSqlRecs] = useState<{ username: string; display_name: string; avatar_url: string | null; subscription_price: number }[]>([]);
+  const [sqlRecsLoaded, setSqlRecsLoaded] = useState(false);
 
   useEffect(() => { document.title = 'My Dashboard — Archangels Club'; }, []);
   // Mark member mode when the dashboard is explicitly visited
@@ -68,6 +70,14 @@ export default function MemberDashboard() {
       .catch(() => {})
       .finally(() => setLoading(false));
 
+    // Fast SQL-based recs (load first)
+    fetch(`${API_BASE}/api/recommendations/creators?limit=4`, { headers })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.creators)) setSqlRecs(d.creators); })
+      .catch(() => {})
+      .finally(() => setSqlRecsLoaded(true));
+
+    // Slow AI recs (load async)
     setAiLoading(true);
     fetch(`${API_BASE}/api/ai/member-recommendations`, {
       method: 'POST',
@@ -261,52 +271,54 @@ export default function MemberDashboard() {
               </Link>
             </div>
 
-            {/* AI Picks */}
-            {(aiLoading || aiRecs) && (
+            {/* Picked for You */}
+            {(sqlRecsLoaded || aiLoading || aiRecs) && (
               <div className="card-surface p-5 rounded-xl">
                 <div className="flex items-center gap-2 mb-4">
                   <Sparkles className="w-4 h-4 text-gold/70" />
                   <h3 className="font-serif text-base text-white">Picked for You</h3>
-                  <span className="ml-auto text-[10px] text-arc-muted tracking-widest uppercase">AI</span>
                 </div>
-                {aiLoading ? (
-                  <div className="space-y-3">
-                    {[70, 85, 60].map(w => (
-                      <div key={w} className="h-3 rounded-full bg-white/5 animate-pulse" style={{ width: `${w}%` }} />
+
+                {/* SQL recs — appear immediately */}
+                {sqlRecs.length > 0 && (
+                  <div className="space-y-2 mb-4">
+                    {sqlRecs.map((c, i) => (
+                      <Link
+                        key={i}
+                        to={`/creator/${c.username}`}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-bg-hover border border-white/5 hover:border-gold/20 transition-all group"
+                      >
+                        <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-serif text-gold">{c.display_name[0]?.toUpperCase()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-white truncate">{c.display_name}</p>
+                          <p className="text-[11px] text-arc-muted">@{c.username} · {formatCurrency(c.subscription_price)}/mo</p>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-arc-muted opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
+                      </Link>
                     ))}
                   </div>
-                ) : (
-                  <div className="space-y-5">
-                    {aiRecs!.creator_picks.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-3">Creator Suggestions</p>
-                        <div className="space-y-3">
-                          {aiRecs!.creator_picks.map((c, i) => (
-                            <Link
-                              key={i}
-                              to={`/creator/${c.username}`}
-                              className="flex flex-col gap-0.5 px-3 py-2.5 rounded-xl bg-bg-hover border border-white/5 hover:border-gold/20 transition-all"
-                            >
-                              <p className="text-xs font-medium text-white">@{c.username}</p>
-                              <p className="text-[11px] text-arc-muted leading-snug">{c.reason}</p>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {aiRecs!.guidance.length > 0 && (
-                      <div>
-                        <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-3">Tips for You</p>
-                        <div className="space-y-2">
-                          {aiRecs!.guidance.map((g, i) => (
-                            <p key={i} className="text-xs text-arc-secondary leading-relaxed flex gap-2">
-                              <span className="text-gold flex-shrink-0 mt-0.5">·</span>
-                              {g.text}
-                            </p>
-                          ))}
-                        </div>
-                      </div>
-                    )}
+                )}
+
+                {/* AI guidance — loads after SQL recs */}
+                {aiLoading && !aiRecs && (
+                  <div className="space-y-2 mt-1">
+                    {[75, 55, 65].map(w => (
+                      <div key={w} className="h-2.5 rounded-full bg-white/5 animate-pulse" style={{ width: `${w}%` }} />
+                    ))}
+                  </div>
+                )}
+
+                {aiRecs?.guidance && aiRecs.guidance.length > 0 && (
+                  <div className={`space-y-2 ${sqlRecs.length > 0 ? 'pt-3 border-t border-white/5 mt-1' : ''}`}>
+                    <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-2">Tips</p>
+                    {aiRecs.guidance.map((g, i) => (
+                      <p key={i} className="text-xs text-arc-secondary leading-relaxed flex gap-2">
+                        <span className="text-gold flex-shrink-0 mt-0.5">·</span>
+                        {g.text}
+                      </p>
+                    ))}
                   </div>
                 )}
               </div>
