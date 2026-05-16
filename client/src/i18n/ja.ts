@@ -1,0 +1,69 @@
+import type { TranslationMap } from './types';
+
+const ja: TranslationMap = {
+  'nav.explore': '探索',
+  'nav.dashboard': 'ダッシュボード',
+  'nav.creator_studio': 'クリエイタースタジオ',
+  'nav.admin': '管理',
+  'nav.sign_in': 'サインイン',
+  'nav.request_access': 'アクセス申請',
+  'nav.sign_out': 'サインアウト',
+
+  'landing.access_only': 'プライベートアクセス限定',
+  'landing.hero_line1': 'アクセスは',
+  'landing.hero_line2': '承認された者へ。',
+  'landing.hero_body': 'プレミアムクリエイターコンテンツ、プライベートドロップ、カスタムリクエストのための会員制プラットフォーム。公開ではありません。誰でも入れるわけではありません。アクセスは獲得するものです。',
+  'landing.cta_primary': 'アクセスを申請する',
+  'landing.cta_secondary': 'クリエイターを探索',
+  'landing.cta_explore': 'プレビューを見る',
+  'landing.verified_creators': '認定クリエイター',
+  'landing.active_members': 'アクティブメンバー',
+
+  'auth.sign_in_title': 'サインイン',
+  'auth.create_account': 'アカウント作成',
+  'auth.email': 'メールアドレス',
+  'auth.password': 'パスワード',
+  'auth.display_name': '表示名',
+  'auth.username': 'ユーザー名',
+  'auth.sign_in_btn': 'サインイン',
+  'auth.sign_up_btn': 'アカウントを作成',
+  'auth.forgot_password': 'パスワードを忘れた方',
+  'auth.no_account': 'アカウントをお持ちでない方',
+  'auth.have_account': 'すでにアカウントをお持ちの方',
+  'auth.request_access': 'アクセスを申請',
+
+  'common.loading': '読み込み中…',
+  'common.save': '保存',
+  'common.cancel': 'キャンセル',
+  'common.back': '戻る',
+  'common.continue': '続ける',
+  'common.submit': '送信',
+  'common.unlock': 'アンロック',
+  'common.subscribe': '登録する',
+  'common.upload': 'アップロード',
+  'common.members_only': 'メンバー限定',
+
+  'explore.title': 'クリエイターを探索',
+  'explore.subtitle': '独占クリエイターとプライベートドロップを発見しましょう。',
+  'explore.search_placeholder': 'クリエイターを検索…',
+  'explore.no_creators': 'クリエイターが見つかりません。',
+
+  'access.locked': 'ロック済み',
+  'access.free': '無料',
+  'access.subscribers_only': 'サブスクライバー限定',
+  'access.unlock_now': '今すぐアンロック',
+  'access.checkout_preparing': 'チェックアウトを準備中…',
+
+  'creator.studio': 'クリエイタースタジオ',
+  'creator.upload': 'コンテンツをアップロード',
+  'creator.earnings': '収益',
+  'creator.subscribers': 'サブスクライバー',
+  'creator.enable_payouts': '支払いを有効化',
+
+  'member.dashboard': 'メンバーダッシュボード',
+  'member.vault': 'マイボルト',
+  'member.subscriptions': 'サブスクリプション',
+  'member.messages': 'メッセージ',
+};
+
+export default ja;

@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Menu, X, LogOut, LayoutDashboard, User } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useT } from '../../context/LanguageContext';
 import Avatar from '../ui/Avatar';
 import Logo from '../brand/Logo';
 import NotificationCenter from '../notifications/NotificationCenter';
+import LanguageSwitcher from '../ui/LanguageSwitcher';
 
 export default function Navbar() {
   const { user, isAuthenticated, isCreator, isAdmin, logout } = useAuth();
+  const t = useT();
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -25,10 +28,10 @@ export default function Navbar() {
   function handleLogout() { logout(); navigate('/'); }
 
   const navLinks = [
-    { to: '/explore', label: 'Explore' },
-    ...(isAuthenticated ? [{ to: '/dashboard', label: 'Dashboard' }] : []),
-    ...(isCreator ? [{ to: '/creator', label: 'Creator Studio' }] : []),
-    ...(isAdmin ? [{ to: '/admin', label: 'Admin' }] : []),
+    { to: '/explore',  label: t('nav.explore') },
+    ...(isAuthenticated ? [{ to: '/dashboard', label: t('nav.dashboard') }] : []),
+    ...(isCreator ? [{ to: '/creator', label: t('nav.creator_studio') }] : []),
+    ...(isAdmin ? [{ to: '/admin', label: t('nav.admin') }] : []),
   ];
 
   return (
@@ -53,6 +56,7 @@ export default function Navbar() {
 
           {/* Desktop right */}
           <div className="hidden md:flex items-center gap-3">
+            <LanguageSwitcher />
             {isAuthenticated ? (
               <>
                 <NotificationCenter />
@@ -70,15 +74,15 @@ export default function Navbar() {
                       </div>
                       <div className="p-1.5">
                         <Link to="/dashboard" className="flex items-center gap-3 px-3 py-2 text-sm text-arc-secondary hover:text-white hover:bg-bg-hover rounded-lg transition-colors">
-                          <LayoutDashboard className="w-4 h-4" /> Dashboard
+                          <LayoutDashboard className="w-4 h-4" /> {t('nav.dashboard')}
                         </Link>
                         {isCreator && (
                           <Link to="/creator" className="flex items-center gap-3 px-3 py-2 text-sm text-arc-secondary hover:text-white hover:bg-bg-hover rounded-lg transition-colors">
-                            <User className="w-4 h-4" /> Creator Studio
+                            <User className="w-4 h-4" /> {t('nav.creator_studio')}
                           </Link>
                         )}
                         <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-2 text-sm text-arc-error hover:bg-arc-error/10 rounded-lg transition-colors">
-                          <LogOut className="w-4 h-4" /> Sign Out
+                          <LogOut className="w-4 h-4" /> {t('nav.sign_out')}
                         </button>
                       </div>
                     </div>
@@ -87,8 +91,8 @@ export default function Navbar() {
               </>
             ) : (
               <>
-                <Link to="/login" className="btn-ghost text-sm">Sign In</Link>
-                <Link to="/signup" className="btn-gold text-sm px-5 py-2.5">Request Access</Link>
+                <Link to="/login" className="btn-ghost text-sm">{t('nav.sign_in')}</Link>
+                <Link to="/signup" className="btn-gold text-sm px-5 py-2.5">{t('nav.request_access')}</Link>
               </>
             )}
           </div>
@@ -111,15 +115,18 @@ export default function Navbar() {
             ))}
           </nav>
           {isAuthenticated ? (
-            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-arc-error border border-arc-error/30 rounded-lg">
-              <LogOut className="w-4 h-4" /> Sign Out
+            <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm text-arc-error border border-arc-error/30 rounded-lg mb-2">
+              <LogOut className="w-4 h-4" /> {t('nav.sign_out')}
             </button>
           ) : (
-            <div className="flex flex-col gap-2">
-              <Link to="/login" className="btn-outline w-full text-center">Sign In</Link>
-              <Link to="/signup" className="btn-gold w-full text-center">Request Access</Link>
+            <div className="flex flex-col gap-2 mb-2">
+              <Link to="/login" className="btn-outline w-full text-center">{t('nav.sign_in')}</Link>
+              <Link to="/signup" className="btn-gold w-full text-center">{t('nav.request_access')}</Link>
             </div>
           )}
+          <div className="border-t border-white/5 pt-2">
+            <LanguageSwitcher compact />
+          </div>
         </div>
       )}
     </header>

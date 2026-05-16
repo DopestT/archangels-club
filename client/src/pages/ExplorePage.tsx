@@ -6,6 +6,7 @@ import FeedCard from '../components/content/FeedCard';
 import LiveActivity from '../components/explore/LiveActivity';
 import type { CreatorProfile, Content } from '../types';
 import { API_BASE } from '../lib/api';
+import { useT } from '../context/LanguageContext';
 
 const FEED_PAGE_SIZE = 12;
 const MAX_MOBILE_RECYCLES = 3;
@@ -92,6 +93,8 @@ function FeedStrip({ items }: { items: Content[] }) {
 }
 
 export default function ExplorePage() {
+  const t = useT();
+
   // ── Trending + New & Rising strips ────────────────────────────────────────
   const [trendingContent, setTrendingContent] = useState<Content[]>([]);
   const [risingContent, setRisingContent] = useState<Content[]>([]);
@@ -333,9 +336,9 @@ export default function ExplorePage() {
             <Lock className="w-3 h-3" />
             Private · Verified · Exclusive
           </div>
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl xl:text-7xl text-white mb-3 xl:mb-5">Explore</h1>
+          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl xl:text-7xl text-white mb-3 xl:mb-5">{t('explore.title')}</h1>
           <p className="text-arc-secondary max-w-md lg:max-w-xl mx-auto mb-7 text-sm lg:text-base">
-            Every creator is hand-selected. Every drop is gated. Unlock and own exclusive content instantly.
+            {t('explore.subtitle')}
           </p>
           <div className="flex items-center justify-center gap-8 xl:gap-12 text-xs xl:text-sm text-arc-muted">
             {[
@@ -550,7 +553,7 @@ export default function ExplorePage() {
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-arc-muted" />
                 <input
                   type="text"
-                  placeholder="Search by name, bio, or tag…"
+                  placeholder={t('explore.search_placeholder')}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   className="input-dark pl-11"

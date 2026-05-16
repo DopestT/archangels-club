@@ -30,12 +30,19 @@ interface Subscription {
   expires_at: string;
 }
 
+interface AiRecs {
+  creator_picks: { username: string; display_name: string; reason: string }[];
+  guidance: { text: string }[];
+}
+
 export default function MemberDashboard() {
   const { user, isCreator, token } = useAuth();
   const [stats, setStats] = useState<MemberStats | null>(null);
   const [unlocked, setUnlocked] = useState<Content[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [loading, setLoading] = useState(true);
+  const [aiRecs, setAiRecs] = useState<AiRecs | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => { document.title = 'My Dashboard — Archangels Club'; }, []);
   // Mark member mode when the dashboard is explicitly visited
@@ -60,6 +67,17 @@ export default function MemberDashboard() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    setAiLoading(true);
+    fetch(`${API_BASE}/api/ai/member-recommendations`, {
+      method: 'POST',
+      headers: { ...headers, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then(d => { if (d.creator_picks || d.guidance) setAiRecs(d); })
+      .catch(() => {})
+      .finally(() => setAiLoading(false));
   }, [token]);
 
   return (
@@ -242,6 +260,57 @@ export default function MemberDashboard() {
                 Browse Creators
               </Link>
             </div>
+
+            {/* AI Picks */}
+            {(aiLoading || aiRecs) && (
+              <div className="card-surface p-5 rounded-xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-4 h-4 text-gold/70" />
+                  <h3 className="font-serif text-base text-white">Picked for You</h3>
+                  <span className="ml-auto text-[10px] text-arc-muted tracking-widest uppercase">AI</span>
+                </div>
+                {aiLoading ? (
+                  <div className="space-y-3">
+                    {[70, 85, 60].map(w => (
+                      <div key={w} className="h-3 rounded-full bg-white/5 animate-pulse" style={{ width: `${w}%` }} />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {aiRecs!.creator_picks.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-3">Creator Suggestions</p>
+                        <div className="space-y-3">
+                          {aiRecs!.creator_picks.map((c, i) => (
+                            <Link
+                              key={i}
+                              to={`/creator/${c.username}`}
+                              className="flex flex-col gap-0.5 px-3 py-2.5 rounded-xl bg-bg-hover border border-white/5 hover:border-gold/20 transition-all"
+                            >
+                              <p className="text-xs font-medium text-white">@{c.username}</p>
+                              <p className="text-[11px] text-arc-muted leading-snug">{c.reason}</p>
+                            </Link>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {aiRecs!.guidance.length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-3">Tips for You</p>
+                        <div className="space-y-2">
+                          {aiRecs!.guidance.map((g, i) => (
+                            <p key={i} className="text-xs text-arc-secondary leading-relaxed flex gap-2">
+                              <span className="text-gold flex-shrink-0 mt-0.5">·</span>
+                              {g.text}
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

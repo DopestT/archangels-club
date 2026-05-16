@@ -1,0 +1,69 @@
+import type { TranslationMap } from './types';
+
+const de: TranslationMap = {
+  'nav.explore': 'Entdecken',
+  'nav.dashboard': 'Dashboard',
+  'nav.creator_studio': 'Creator Studio',
+  'nav.admin': 'Administration',
+  'nav.sign_in': 'Anmelden',
+  'nav.request_access': 'Zugang beantragen',
+  'nav.sign_out': 'Abmelden',
+
+  'landing.access_only': 'Nur privater Zugang',
+  'landing.hero_line1': 'Wo Zugang',
+  'landing.hero_line2': 'gewährt wird.',
+  'landing.hero_body': 'Eine exklusive Mitgliederplattform für Creator-Inhalte, private Drops und individuelle Anfragen. Nicht öffentlich. Nicht für jeden. Zugang wird verdient.',
+  'landing.cta_primary': 'Zugang beantragen',
+  'landing.cta_secondary': 'Creator entdecken',
+  'landing.cta_explore': 'Vorschau',
+  'landing.verified_creators': 'Verifizierte Creator',
+  'landing.active_members': 'Aktive Mitglieder',
+
+  'auth.sign_in_title': 'Anmelden',
+  'auth.create_account': 'Konto erstellen',
+  'auth.email': 'E-Mail-Adresse',
+  'auth.password': 'Passwort',
+  'auth.display_name': 'Anzeigename',
+  'auth.username': 'Benutzername',
+  'auth.sign_in_btn': 'Anmelden',
+  'auth.sign_up_btn': 'Konto erstellen',
+  'auth.forgot_password': 'Passwort vergessen?',
+  'auth.no_account': 'Noch kein Konto?',
+  'auth.have_account': 'Bereits ein Konto?',
+  'auth.request_access': 'Zugang beantragen',
+
+  'common.loading': 'Lädt…',
+  'common.save': 'Speichern',
+  'common.cancel': 'Abbrechen',
+  'common.back': 'Zurück',
+  'common.continue': 'Weiter',
+  'common.submit': 'Absenden',
+  'common.unlock': 'Freischalten',
+  'common.subscribe': 'Abonnieren',
+  'common.upload': 'Hochladen',
+  'common.members_only': 'Nur Mitglieder',
+
+  'explore.title': 'Creator entdecken',
+  'explore.subtitle': 'Entdecke exklusive Creator und ihre privaten Drops.',
+  'explore.search_placeholder': 'Creator suchen…',
+  'explore.no_creators': 'Keine Creator gefunden.',
+
+  'access.locked': 'Gesperrt',
+  'access.free': 'Kostenlos',
+  'access.subscribers_only': 'Nur Abonnenten',
+  'access.unlock_now': 'Jetzt freischalten',
+  'access.checkout_preparing': 'Zahlung wird vorbereitet…',
+
+  'creator.studio': 'Creator Studio',
+  'creator.upload': 'Inhalt hochladen',
+  'creator.earnings': 'Einnahmen',
+  'creator.subscribers': 'Abonnenten',
+  'creator.enable_payouts': 'Auszahlungen aktivieren',
+
+  'member.dashboard': 'Mitglieder-Dashboard',
+  'member.vault': 'Mein Tresor',
+  'member.subscriptions': 'Abonnements',
+  'member.messages': 'Nachrichten',
+};
+
+export default de;

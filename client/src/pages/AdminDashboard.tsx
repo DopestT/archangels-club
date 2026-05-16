@@ -96,6 +96,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [transactions, setTransactions] = useState<any[]>([]);
   const [transactionsLoading, setTransactionsLoading] = useState(false);
 
+  // AI insights
+  const [aiInsights, setAiInsights] = useState<{ category: string; text: string; priority: string }[]>([]);
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false);
+
   // Verifications
   const [verifications, setVerifications] = useState<any[]>([]);
   const [creatorKyc, setCreatorKyc] = useState<any[]>([]);
@@ -120,7 +124,20 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   useEffect(() => {
     loadStats();
     loadTransactions();
+    loadAiInsights();
   }, []);
+
+  async function loadAiInsights() {
+    if (!token) return;
+    setAiInsightsLoading(true);
+    try {
+      const res = await adminFetch('/api/ai/admin-insights', { method: 'POST' });
+      const data = await res.json();
+      if (Array.isArray(data.insights)) setAiInsights(data.insights);
+    } catch {} finally {
+      setAiInsightsLoading(false);
+    }
+  }
 
   useEffect(() => {
     if (activeTab === 'access-requests') loadAccessRequests();
@@ -440,6 +457,48 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                   ))}
                 </div>
               </div>
+
+              {/* AI Intelligence Report */}
+              {(aiInsightsLoading || aiInsights.length > 0) && (
+                <div className="card-surface p-5 rounded-xl">
+                  <div className="flex items-center gap-2 mb-4">
+                    <TrendingUp className="w-4 h-4 text-gold/70" />
+                    <h3 className="font-serif text-base text-white">Intelligence Report</h3>
+                    <span className="ml-auto text-[10px] text-arc-muted tracking-widest uppercase">AI</span>
+                  </div>
+                  {aiInsightsLoading ? (
+                    <div className="space-y-3">
+                      {[70, 85, 60, 90, 75].map(w => (
+                        <div key={w} className="flex flex-col gap-1.5">
+                          <div className="h-2 rounded-full bg-white/6 animate-pulse" style={{ width: `${w * 0.5}%` }} />
+                          <div className="h-3 rounded-full bg-white/4 animate-pulse" style={{ width: `${w}%` }} />
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {aiInsights.map((insight, i) => {
+                        const priorityColor = insight.priority === 'high'
+                          ? 'text-arc-error bg-arc-error/10 border-arc-error/25'
+                          : insight.priority === 'medium'
+                          ? 'text-amber-400 bg-amber-400/10 border-amber-400/25'
+                          : 'text-arc-secondary bg-white/5 border-white/10';
+                        return (
+                          <div key={i} className="flex flex-col gap-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-medium text-gold">{insight.category}</span>
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded-full border ${priorityColor}`}>
+                                {insight.priority}
+                              </span>
+                            </div>
+                            <p className="text-xs text-arc-secondary leading-relaxed">{insight.text}</p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}

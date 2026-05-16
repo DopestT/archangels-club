@@ -1,0 +1,69 @@
+import type { TranslationMap } from './types';
+
+const es: TranslationMap = {
+  'nav.explore': 'Explorar',
+  'nav.dashboard': 'Panel',
+  'nav.creator_studio': 'Estudio',
+  'nav.admin': 'Administración',
+  'nav.sign_in': 'Iniciar sesión',
+  'nav.request_access': 'Solicitar acceso',
+  'nav.sign_out': 'Cerrar sesión',
+
+  'landing.access_only': 'Solo acceso privado',
+  'landing.hero_line1': 'Donde el acceso',
+  'landing.hero_line2': 'se concede.',
+  'landing.hero_body': 'Una plataforma exclusiva para contenido de creadores, lanzamientos privados y pedidos personalizados. No es pública. No está abierta a todos. El acceso se gana.',
+  'landing.cta_primary': 'Solicitar acceso',
+  'landing.cta_secondary': 'Explorar creadores',
+  'landing.cta_explore': 'Vista previa',
+  'landing.verified_creators': 'Creadores verificados',
+  'landing.active_members': 'Miembros activos',
+
+  'auth.sign_in_title': 'Iniciar sesión',
+  'auth.create_account': 'Crear cuenta',
+  'auth.email': 'Correo electrónico',
+  'auth.password': 'Contraseña',
+  'auth.display_name': 'Nombre visible',
+  'auth.username': 'Usuario',
+  'auth.sign_in_btn': 'Iniciar sesión',
+  'auth.sign_up_btn': 'Crear cuenta',
+  'auth.forgot_password': '¿Olvidaste tu contraseña?',
+  'auth.no_account': '¿No tienes cuenta?',
+  'auth.have_account': '¿Ya tienes cuenta?',
+  'auth.request_access': 'Solicitar acceso',
+
+  'common.loading': 'Cargando…',
+  'common.save': 'Guardar',
+  'common.cancel': 'Cancelar',
+  'common.back': 'Volver',
+  'common.continue': 'Continuar',
+  'common.submit': 'Enviar',
+  'common.unlock': 'Desbloquear',
+  'common.subscribe': 'Suscribirse',
+  'common.upload': 'Subir',
+  'common.members_only': 'Solo miembros',
+
+  'explore.title': 'Explorar creadores',
+  'explore.subtitle': 'Descubre creadores exclusivos y sus lanzamientos privados.',
+  'explore.search_placeholder': 'Buscar creadores…',
+  'explore.no_creators': 'No se encontraron creadores.',
+
+  'access.locked': 'Bloqueado',
+  'access.free': 'Gratis',
+  'access.subscribers_only': 'Solo suscriptores',
+  'access.unlock_now': 'Desbloquear ahora',
+  'access.checkout_preparing': 'Preparando pago…',
+
+  'creator.studio': 'Estudio creativo',
+  'creator.upload': 'Subir contenido',
+  'creator.earnings': 'Ganancias',
+  'creator.subscribers': 'Suscriptores',
+  'creator.enable_payouts': 'Activar pagos',
+
+  'member.dashboard': 'Panel del miembro',
+  'member.vault': 'Mi bóveda',
+  'member.subscriptions': 'Suscripciones',
+  'member.messages': 'Mensajes',
+};
+
+export default es;

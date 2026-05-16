@@ -62,6 +62,8 @@ export default function CreatorDashboard() {
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [contentCounts, setContentCounts] = useState<ContentCounts | null>(null);
   const [profileLinkCopied, setProfileLinkCopied] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<{ category: string; text: string }[]>([]);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -138,6 +140,20 @@ export default function CreatorDashboard() {
       .then((data) => setStripeStatus((prev) => prev ? { ...prev, onboarded: data.onboarded } : null))
       .catch(() => {});
   }, [searchParams, token]);
+
+  useEffect(() => {
+    if (!token || !isVerifiedCreator) return;
+    setAiLoading(true);
+    fetch(`${API_BASE}/api/ai/creator-insights`, {
+      method: 'POST',
+      headers: { ...authHeaders, 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.suggestions)) setAiSuggestions(d.suggestions); })
+      .catch(() => {})
+      .finally(() => setAiLoading(false));
+  }, [token, isVerifiedCreator]);
 
   async function startStripeOnboarding() {
     if (!token) return;
@@ -831,6 +847,48 @@ export default function CreatorDashboard() {
             {/* First $100 tracker */}
             {stats !== null && stats.total_earnings < 100 && (
               <First100Tracker currentEarnings={stats.total_earnings} />
+            )}
+
+            {/* AI Studio Advisor */}
+            {isVerifiedCreator && (aiLoading || aiSuggestions.length > 0) && (
+              <div className="card-surface p-5 rounded-xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <Sparkles className="w-4 h-4 text-gold/70" />
+                  <h3 className="font-serif text-base text-white">Studio Advisor</h3>
+                  <span className="ml-auto text-[10px] text-arc-muted tracking-widest uppercase">AI · Read only</span>
+                </div>
+                {aiLoading ? (
+                  <div className="space-y-3">
+                    {[80, 65, 90, 55, 75].map(w => (
+                      <div key={w} className="flex flex-col gap-1.5">
+                        <div className="h-2.5 rounded-full bg-white/6 animate-pulse" style={{ width: `${w * 0.4}%` }} />
+                        <div className="h-3 rounded-full bg-white/4 animate-pulse" style={{ width: `${w}%` }} />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {aiSuggestions.map((s, i) => {
+                      const catColor: Record<string, string> = {
+                        Pricing: 'text-gold bg-gold/10 border-gold/25',
+                        Growth: 'text-arc-success bg-arc-success/10 border-arc-success/25',
+                        Content: 'text-blue-400 bg-blue-400/10 border-blue-400/25',
+                        Profile: 'text-arc-secondary bg-white/5 border-white/10',
+                        Bundles: 'text-amber-300 bg-amber-300/10 border-amber-300/25',
+                        'Custom Requests': 'text-violet-300 bg-violet-500/10 border-violet-500/25',
+                      };
+                      return (
+                        <div key={i} className="flex flex-col gap-1.5">
+                          <span className={`self-start text-[10px] font-medium px-2 py-0.5 rounded-full border ${catColor[s.category] ?? catColor.Profile}`}>
+                            {s.category}
+                          </span>
+                          <p className="text-xs text-arc-secondary leading-relaxed">{s.text}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
 
           </div>

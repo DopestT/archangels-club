@@ -1,0 +1,69 @@
+import type { TranslationMap } from './types';
+
+const fr: TranslationMap = {
+  'nav.explore': 'Explorer',
+  'nav.dashboard': 'Tableau de bord',
+  'nav.creator_studio': 'Studio créateur',
+  'nav.admin': 'Administration',
+  'nav.sign_in': 'Se connecter',
+  'nav.request_access': "Demander l'accès",
+  'nav.sign_out': 'Se déconnecter',
+
+  'landing.access_only': 'Accès privé uniquement',
+  'landing.hero_line1': "Là où l'accès",
+  'landing.hero_line2': 'est accordé.',
+  'landing.hero_body': "Une plateforme réservée aux membres pour du contenu exclusif, des drops privés et des demandes personnalisées. Pas public. Pas ouvert à tous. L'accès se mérite.",
+  'landing.cta_primary': "Demander l'accès",
+  'landing.cta_secondary': 'Explorer les créateurs',
+  'landing.cta_explore': 'Aperçu',
+  'landing.verified_creators': 'Créateurs vérifiés',
+  'landing.active_members': 'Membres actifs',
+
+  'auth.sign_in_title': 'Connexion',
+  'auth.create_account': 'Créer un compte',
+  'auth.email': 'Adresse e-mail',
+  'auth.password': 'Mot de passe',
+  'auth.display_name': "Nom d'affichage",
+  'auth.username': "Nom d'utilisateur",
+  'auth.sign_in_btn': 'Se connecter',
+  'auth.sign_up_btn': 'Créer un compte',
+  'auth.forgot_password': 'Mot de passe oublié ?',
+  'auth.no_account': 'Pas encore de compte ?',
+  'auth.have_account': 'Déjà un compte ?',
+  'auth.request_access': "Demander l'accès",
+
+  'common.loading': 'Chargement…',
+  'common.save': 'Enregistrer',
+  'common.cancel': 'Annuler',
+  'common.back': 'Retour',
+  'common.continue': 'Continuer',
+  'common.submit': 'Envoyer',
+  'common.unlock': 'Débloquer',
+  'common.subscribe': "S'abonner",
+  'common.upload': 'Téléverser',
+  'common.members_only': 'Membres uniquement',
+
+  'explore.title': 'Explorer les créateurs',
+  'explore.subtitle': 'Découvrez des créateurs exclusifs et leurs drops privés.',
+  'explore.search_placeholder': 'Rechercher des créateurs…',
+  'explore.no_creators': 'Aucun créateur trouvé.',
+
+  'access.locked': 'Verrouillé',
+  'access.free': 'Gratuit',
+  'access.subscribers_only': 'Abonnés seulement',
+  'access.unlock_now': 'Débloquer maintenant',
+  'access.checkout_preparing': 'Préparation du paiement…',
+
+  'creator.studio': 'Studio créateur',
+  'creator.upload': 'Publier du contenu',
+  'creator.earnings': 'Revenus',
+  'creator.subscribers': 'Abonnés',
+  'creator.enable_payouts': 'Activer les paiements',
+
+  'member.dashboard': 'Tableau de bord',
+  'member.vault': 'Mon coffre',
+  'member.subscriptions': 'Abonnements',
+  'member.messages': 'Messages',
+};
+
+export default fr;

@@ -1,0 +1,69 @@
+import type { TranslationMap } from './types';
+
+const en: TranslationMap = {
+  'nav.explore': 'Explore',
+  'nav.dashboard': 'Dashboard',
+  'nav.creator_studio': 'Creator Studio',
+  'nav.admin': 'Admin',
+  'nav.sign_in': 'Sign In',
+  'nav.request_access': 'Request Access',
+  'nav.sign_out': 'Sign Out',
+
+  'landing.access_only': 'Private Access Only',
+  'landing.hero_line1': 'Where Access',
+  'landing.hero_line2': 'Is Granted.',
+  'landing.hero_body': 'A members-only platform for exclusive creator content, private drops, and custom requests. Not public. Not open to everyone. Access is earned.',
+  'landing.cta_primary': 'Request Access',
+  'landing.cta_secondary': 'Explore Creators',
+  'landing.cta_explore': 'Explore Preview',
+  'landing.verified_creators': 'Verified Creators',
+  'landing.active_members': 'Active Members',
+
+  'auth.sign_in_title': 'Sign In',
+  'auth.create_account': 'Create Account',
+  'auth.email': 'Email',
+  'auth.password': 'Password',
+  'auth.display_name': 'Display Name',
+  'auth.username': 'Username',
+  'auth.sign_in_btn': 'Sign In',
+  'auth.sign_up_btn': 'Create Account',
+  'auth.forgot_password': 'Forgot password?',
+  'auth.no_account': "Don't have an account?",
+  'auth.have_account': 'Already have an account?',
+  'auth.request_access': 'Request Access',
+
+  'common.loading': 'Loading…',
+  'common.save': 'Save',
+  'common.cancel': 'Cancel',
+  'common.back': 'Back',
+  'common.continue': 'Continue',
+  'common.submit': 'Submit',
+  'common.unlock': 'Unlock',
+  'common.subscribe': 'Subscribe',
+  'common.upload': 'Upload',
+  'common.members_only': 'Members Only',
+
+  'explore.title': 'Explore Creators',
+  'explore.subtitle': 'Discover exclusive creators and their private drops.',
+  'explore.search_placeholder': 'Search creators…',
+  'explore.no_creators': 'No creators found.',
+
+  'access.locked': 'Locked',
+  'access.free': 'Free',
+  'access.subscribers_only': 'Subscribers Only',
+  'access.unlock_now': 'Unlock Now',
+  'access.checkout_preparing': 'Preparing checkout…',
+
+  'creator.studio': 'Creator Studio',
+  'creator.upload': 'Upload Content',
+  'creator.earnings': 'Earnings',
+  'creator.subscribers': 'Subscribers',
+  'creator.enable_payouts': 'Enable Payouts',
+
+  'member.dashboard': 'Member Dashboard',
+  'member.vault': 'My Vault',
+  'member.subscriptions': 'Subscriptions',
+  'member.messages': 'Messages',
+};
+
+export default en;

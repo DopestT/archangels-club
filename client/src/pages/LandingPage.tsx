@@ -7,6 +7,7 @@ import { VerifiedBadge } from '../components/ui/Badge';
 import Logo from '../components/brand/Logo';
 import { formatCurrency } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
+import { useT } from '../context/LanguageContext';
 
 interface PlatformStats { creator_count: number; member_count: number; content_count: number }
 interface LiveCreator { id: string; display_name: string; username: string; avatar_url: string; subscription_price: number; is_verified_creator: boolean; tags: string[] }
@@ -15,6 +16,7 @@ export default function LandingPage() {
   useEffect(() => { document.title = 'Archangels Club — Private Creator Access'; }, []);
 
   const { isAuthenticated } = useAuth();
+  const t = useT();
   const [videoKey, setVideoKey] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [stats, setStats] = useState<PlatformStats | null>(null);
@@ -66,33 +68,32 @@ export default function LandingPage() {
 
           <div className="inline-flex items-center gap-2 members-pill mb-8">
             <Lock className="w-3 h-3" />
-            Private Access Only
+            {t('landing.access_only')}
           </div>
 
           <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl text-white mb-6 leading-tight">
-            Where Access<br />
-            <em className="text-gradient-gold not-italic">Is Granted.</em>
+            {t('landing.hero_line1')}<br />
+            <em className="text-gradient-gold not-italic">{t('landing.hero_line2')}</em>
           </h1>
 
           <p className="text-lg text-arc-secondary max-w-2xl mx-auto leading-relaxed mb-10">
-            A members-only platform for exclusive creator content, private drops, and custom requests.
-            Not public. Not open to everyone. Access is earned.
+            {t('landing.hero_body')}
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
             {isAuthenticated ? (
               <>
                 <Link to="/explore" className="btn-gold px-8 py-4 text-base gap-3">
-                  Explore Creators <ArrowRight className="w-4 h-4" />
+                  {t('landing.cta_secondary')} <ArrowRight className="w-4 h-4" />
                 </Link>
-                <Link to="/dashboard" className="btn-outline px-8 py-4 text-base">My Dashboard</Link>
+                <Link to="/dashboard" className="btn-outline px-8 py-4 text-base">{t('nav.dashboard')}</Link>
               </>
             ) : (
               <>
                 <Link to="/signup" className="btn-gold px-8 py-4 text-base gap-3">
-                  Request Access <ArrowRight className="w-4 h-4" />
+                  {t('landing.cta_primary')} <ArrowRight className="w-4 h-4" />
                 </Link>
-                <Link to="/explore" className="btn-outline px-8 py-4 text-base">Explore Preview</Link>
+                <Link to="/explore" className="btn-outline px-8 py-4 text-base">{t('landing.cta_explore')}</Link>
               </>
             )}
           </div>
@@ -103,7 +104,7 @@ export default function LandingPage() {
               {creatorCount !== null && creatorCount > 0 && (
                 <div className="text-center">
                   <div className="font-serif text-2xl text-gold">{creatorCount.toLocaleString()}+</div>
-                  <div className="text-xs text-arc-muted mt-0.5">Verified Creators</div>
+                  <div className="text-xs text-arc-muted mt-0.5">{t('landing.verified_creators')}</div>
                 </div>
               )}
               {memberCount !== null && memberCount > 0 && (
@@ -112,7 +113,7 @@ export default function LandingPage() {
               {memberCount !== null && memberCount > 0 && (
                 <div className="text-center">
                   <div className="font-serif text-2xl text-gold">{memberCount.toLocaleString()}+</div>
-                  <div className="text-xs text-arc-muted mt-0.5">Active Members</div>
+                  <div className="text-xs text-arc-muted mt-0.5">{t('landing.active_members')}</div>
                 </div>
               )}
             </div>

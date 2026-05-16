@@ -1,0 +1,114 @@
+/* ─── Dream Drift — Language Transition Effect ─────────────────────────────────
+ *
+ * A cinematic transition that fires when the interface language changes.
+ * Feels like slipping between dream states: the current reality softens,
+ * drifts, dissolves — then the new language resolves out of the blur
+ * with quiet clarity.
+ *
+ * Two phases:
+ *   exit  (150ms) — blur, fade, gentle upward drift
+ *   enter (380ms) — resolve from blur into sharp focus, settling downward
+ *
+ * The ambient glow overlay (#dream-drift-glow) pulses at the crossover
+ * to suggest a soft luminance shift between realities.
+ *
+ * Total duration: ~530ms. Respects prefers-reduced-motion.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── Exit phase ─────────────────────────────────────────────────────────── */
+
+.dream-drift-exit {
+  will-change: transform, filter, opacity;
+  animation: dreamDriftExit 150ms cubic-bezier(0.4, 0, 1, 1) forwards;
+  pointer-events: none;
+}
+
+@keyframes dreamDriftExit {
+  0% {
+    filter: blur(0px) brightness(1);
+    opacity: 1;
+    transform: translateY(0px) scale(1);
+  }
+  100% {
+    filter: blur(7px) brightness(0.7);
+    opacity: 0.08;
+    transform: translateY(-6px) scale(0.986);
+  }
+}
+
+/* ── Enter phase ─────────────────────────────────────────────────────────── */
+
+.dream-drift-enter {
+  will-change: transform, filter, opacity;
+  animation: dreamDriftEnter 380ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes dreamDriftEnter {
+  0% {
+    filter: blur(12px) brightness(0.6);
+    opacity: 0;
+    transform: translateY(9px) scale(0.991);
+  }
+  35% {
+    opacity: 0.6;
+  }
+  100% {
+    filter: blur(0px) brightness(1);
+    opacity: 1;
+    transform: translateY(0px) scale(1);
+  }
+}
+
+/* ── Ambient glow overlay ────────────────────────────────────────────────── */
+
+#dream-drift-glow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: radial-gradient(
+    ellipse 55% 45% at 50% 48%,
+    rgba(212, 175, 55, 0.055) 0%,
+    rgba(212, 175, 55, 0.02)  40%,
+    transparent               70%
+  );
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+#dream-drift-glow.dream-drift-glow-active {
+  opacity: 1;
+  transition: opacity 80ms ease;
+}
+
+/* ── Cleanup — remove GPU hint after animation ends ─────────────────────── */
+
+.dream-drift-settled {
+  will-change: auto;
+}
+
+/* ── Reduced motion — dignified crossfade only ──────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .dream-drift-exit {
+    animation: dreamDriftExitReduced 120ms ease forwards;
+  }
+
+  .dream-drift-enter {
+    animation: dreamDriftEnterReduced 180ms ease forwards;
+  }
+
+  #dream-drift-glow,
+  #dream-drift-glow.dream-drift-glow-active {
+    display: none;
+  }
+
+  @keyframes dreamDriftExitReduced {
+    to { opacity: 0; }
+  }
+
+  @keyframes dreamDriftEnterReduced {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+  }
+}
