@@ -66,6 +66,10 @@ export interface AdminIntelligenceSummary {
     fulfillment_needs_review: number;
     earnings_no_payout_setup: number;
   };
+  member_risk_signals: {
+    dormant_active_members_30d: number;   // members with active sub but 0 logins in 30d
+    expiring_subscriptions_7d: number;    // subs expiring in the next 7 days
+  };
   generated_at: string;
 }
 
@@ -344,15 +348,31 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
     if (bioShort) missing.push('a bio');
     if (noTags) missing.push('tags');
     if (noCover) missing.push('a cover image');
+    // Elevated to medium when both bio and tags are missing — discovery impact is highest then
+    const profilePriority: InsightPriority = (bioShort && noTags) ? 'medium' : 'low';
     cards.push({
       type: 'profile_incomplete',
-      priority: 'low',
+      priority: profilePriority,
       title: 'Complete your profile to attract more visitors',
       body: `Your profile is missing ${missing.join(' and ')}. Complete profiles get significantly more views and trust from potential subscribers.`,
       cta_label: 'Edit profile',
       cta_action: 'go_to_profile',
       signal: `Missing: ${missing.join(', ')}`,
       confidence: 1.0,
+    });
+  }
+
+  // ── Rule 11: Free creator with unlock activity — suggest charging ─────────
+  if (parseFloat(profile.subscription_price ?? '0') === 0 && allTimeUnlocks >= 5) {
+    cards.push({
+      type: 'pricing_help',
+      priority: 'medium',
+      title: 'Your content is popular — consider a subscription price',
+      body: `Fans have unlocked your content ${allTimeUnlocks} time${allTimeUnlocks !== 1 ? 's' : ''} but you're not charging for a subscription. Even a low monthly rate can turn casual fans into committed subscribers.`,
+      cta_label: 'Set subscription price',
+      cta_action: 'go_to_settings',
+      signal: `${allTimeUnlocks} unlocks, subscription price = $0`,
+      confidence: 0.80,
     });
   }
 
@@ -375,6 +395,7 @@ export async function computeAdminIntelligence(): Promise<AdminIntelligenceSumma
     inactiveCreators,
     moderationStats,
     revenueSignals,
+    memberRisk,
   ] = await Promise.all([
 
     // Creators needing support: low health OR repeated rejections OR earnings stuck
@@ -522,6 +543,26 @@ export async function computeAdminIntelligence(): Promise<AdminIntelligenceSumma
          (SELECT COUNT(*)::text FROM creator_profiles
           WHERE total_earnings > 0 AND stripe_onboarding_complete = 0) AS no_payout`
     ),
+
+    // Member churn risk signals
+    queryOne<{ dormant: string; expiring: string }>(
+      `SELECT
+         (
+           SELECT COUNT(DISTINCT s.subscriber_id)::text
+           FROM subscriptions s
+           WHERE s.status = 'active'
+             AND NOT EXISTS (
+               SELECT 1 FROM user_sessions us
+               WHERE us.user_id = s.subscriber_id
+                 AND us.created_at >= NOW() - INTERVAL '30 days'
+             )
+         ) AS dormant,
+         (
+           SELECT COUNT(*)::text FROM subscriptions
+           WHERE status = 'active'
+             AND expires_at BETWEEN NOW() AND NOW() + INTERVAL '7 days'
+         ) AS expiring`
+    ),
   ]);
 
   return {
@@ -537,6 +578,10 @@ export async function computeAdminIntelligence(): Promise<AdminIntelligenceSumma
     revenue_signals: {
       fulfillment_needs_review: parseInt(revenueSignals?.needs_review ?? '0', 10),
       earnings_no_payout_setup: parseInt(revenueSignals?.no_payout ?? '0', 10),
+    },
+    member_risk_signals: {
+      dormant_active_members_30d: parseInt(memberRisk?.dormant ?? '0', 10),
+      expiring_subscriptions_7d: parseInt(memberRisk?.expiring ?? '0', 10),
     },
     generated_at: new Date().toISOString(),
   };

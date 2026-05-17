@@ -83,6 +83,89 @@ function setCached(key: string, data: unknown, ttl: number): void {
   _cache.set(key, { data, expiresAt: Date.now() + ttl });
 }
 
+// ── Dynamic confidence scoring ────────────────────────────────────────────────
+// Confidence reflects actual signal strength rather than a static constant.
+// Each type maps its metric to a calibrated 0–1 score.
+
+function computeConfidence(type: RecommendationType, metricValue?: string | number): number {
+  const v = typeof metricValue === 'string' ? parseFloat(metricValue) : (metricValue ?? 0);
+  const n = isNaN(v) ? 0 : v;
+
+  switch (type) {
+    case 'subscription_opportunity':
+      // 2 unlocks → 0.75, 5 → 0.83, 10+ → 0.95
+      return Math.min(0.95, 0.69 + Math.min(n, 10) * 0.026);
+
+    case 'rising_fast':
+      // velocity ratio 1.3 → 0.64, 2.0 → 0.79, 3.5+ → 0.92
+      return Math.min(0.92, 0.38 + Math.min(Math.max(n - 1.0, 0), 3.5) * 0.154);
+
+    case 'similar_to_vault':
+      // matching tags: 1 → 0.58, 3 → 0.72, 5+ → 0.88
+      return Math.min(0.90, 0.50 + Math.min(n, 6) * 0.067);
+
+    case 'trending':
+      // new subs 7d: 0 → 0.55, 3 → 0.71, 8+ → 0.88
+      return Math.min(0.92, 0.55 + Math.min(n, 10) * 0.037);
+
+    case 'most_collected':
+      // unlocks 30d: 1 → 0.60, 5 → 0.73, 20+ → 0.90
+      return Math.min(0.92, 0.56 + Math.min(n, 25) * 0.014);
+
+    case 'recently_active':
+      // days since post: 1 → 0.87, 7 → 0.76, 14 → 0.65
+      return Math.max(0.58, 0.91 - n * 0.019);
+
+    case 'custom_requests_open':
+      return 0.68;
+
+    default:
+      return 0.60;
+  }
+}
+
+// ── Tag diversification ───────────────────────────────────────────────────────
+// Prevents a section from showing 4 creators who all share the same tag cluster.
+// Iterates in rank order, skipping any creator whose every tag is already at cap.
+// Creators with no tags are always included.
+
+function diversifyByTags(
+  creators: MemberRecommendedCreator[],
+  maxPerTag = 2
+): MemberRecommendedCreator[] {
+  const tagCount: Record<string, number> = {};
+  const result: MemberRecommendedCreator[] = [];
+  for (const c of creators) {
+    let tags: string[] = [];
+    try { tags = JSON.parse(c.tags); } catch {}
+    if (tags.length > 0 && tags.every(t => (tagCount[t] ?? 0) >= maxPerTag)) continue;
+    result.push(c);
+    tags.forEach(t => { tagCount[t] = (tagCount[t] ?? 0) + 1; });
+  }
+  return result;
+}
+
+// ── Cross-section deduplication ───────────────────────────────────────────────
+// A creator who appears in subscription_opportunity (highest intent) should NOT
+// also appear in trending or similar_to_vault. Sections are processed in priority
+// order; a creator is dropped from lower-priority sections once seen.
+
+function deduplicateAcrossSections(
+  sections: RecommendationSection[]
+): RecommendationSection[] {
+  const seenIds = new Set<string>();
+  return sections
+    .map(section => ({
+      ...section,
+      creators: section.creators.filter(c => {
+        if (seenIds.has(c.id)) return false;
+        seenIds.add(c.id);
+        return true;
+      }),
+    }))
+    .filter(s => s.creators.length > 0);
+}
+
 // ── Helper: attach explanation and enforce shape ──────────────────────────────
 
 function withExplanation(
@@ -90,61 +173,57 @@ function withExplanation(
   type: RecommendationType,
   metricValue?: string | number
 ): MemberRecommendedCreator {
-  const explanations: Record<RecommendationType, {
-    reason: string; signal: string; action: string; confidence: number; metric_label?: string;
+  // Dynamic confidence replaces the former hardcoded constants.
+  const confidence = computeConfidence(type, metricValue);
+
+  const templates: Record<RecommendationType, {
+    reason: string; signal: string; action: string; metric_label?: string;
   }> = {
     trending: {
       reason: 'Gaining new subscribers this week',
       signal: metricValue !== undefined ? `${metricValue} new subscribers in 7 days` : 'High 7-day velocity',
       action: 'View profile',
-      confidence: 0.82,
       metric_label: 'New subs (7d)',
     },
     most_collected: {
       reason: 'Most purchased content on the platform this month',
       signal: metricValue !== undefined ? `${metricValue} unlocks in 30 days` : 'Top unlock count',
       action: 'Explore their drops',
-      confidence: 0.78,
       metric_label: 'Unlocks (30d)',
     },
     similar_to_vault: {
       reason: 'Similar content style to creators you\'ve unlocked',
       signal: metricValue !== undefined ? `${metricValue} shared content tags` : 'Tag overlap with your vault',
       action: 'Browse their content',
-      confidence: 0.72,
       metric_label: 'Matching tags',
     },
     recently_active: {
       reason: 'Posted new content within the last 14 days',
       signal: metricValue !== undefined ? `Last post ${metricValue} days ago` : 'Recently active',
       action: 'See what\'s new',
-      confidence: 0.70,
       metric_label: 'Days since post',
     },
     rising_fast: {
       reason: 'Growing significantly faster than their 30-day average',
       signal: metricValue !== undefined ? `${Number(metricValue).toFixed(1)}× their usual pace this week` : 'Accelerating growth',
       action: 'Subscribe early',
-      confidence: 0.75,
       metric_label: 'Velocity ratio',
     },
     custom_requests_open: {
       reason: 'Accepting custom content requests',
       signal: 'Custom requests enabled — responds to fans',
       action: 'Send a request',
-      confidence: 0.68,
       metric_label: 'Open for requests',
     },
     subscription_opportunity: {
       reason: 'You\'ve already unlocked multiple pieces — subscribing could save money',
       signal: metricValue !== undefined ? `${metricValue} pieces unlocked` : 'Multiple unlocks from this creator',
       action: 'Subscribe for all-access',
-      confidence: 0.88,
       metric_label: 'Pieces unlocked',
     },
   };
 
-  const ex = explanations[type];
+  const ex = templates[type];
   return {
     id: row.id as string,
     user_id: row.user_id as string,
@@ -158,7 +237,7 @@ function withExplanation(
     reason: ex.reason,
     signal: ex.signal,
     action: ex.action,
-    confidence: ex.confidence,
+    confidence,
     metric_label: ex.metric_label,
     metric_value: metricValue,
   };
@@ -175,37 +254,31 @@ export async function getTrendingCreators(limit = 8, excludeUserId?: string): Pr
   }
 
   const rows = await query<any>(
-    `SELECT
-       cp.id, cp.user_id, u.username, u.display_name, u.avatar_url,
-       cp.bio, cp.tags, cp.subscription_price,
-       chs.overall_score,
-       (
-         (SELECT COUNT(*) FROM subscriptions s2
-          WHERE s2.creator_id = cp.id AND s2.started_at >= NOW() - INTERVAL '7 days') * 5 +
-         (SELECT COUNT(*) FROM content_unlocks cu2
-          JOIN content c2 ON c2.id = cu2.content_id
-          WHERE c2.creator_id = cp.id AND cu2.unlocked_at >= NOW() - INTERVAL '7 days') * 2 +
-         (SELECT COUNT(*) FROM creator_page_views pv2
-          WHERE pv2.creator_id = cp.id AND pv2.viewed_at >= NOW() - INTERVAL '7 days') * 0.3
-       ) AS trend_score,
-       (SELECT COUNT(*) FROM subscriptions s3
-        WHERE s3.creator_id = cp.id AND s3.started_at >= NOW() - INTERVAL '7 days') AS new_subs_7d
-     FROM creator_profiles cp
-     JOIN users u ON u.id = cp.user_id
-     LEFT JOIN creator_health_scores chs ON chs.creator_id = cp.id
-     WHERE cp.is_approved = 1 AND u.status = 'approved'
-     HAVING (
-       (SELECT COUNT(*) FROM subscriptions s2
-        WHERE s2.creator_id = cp.id AND s2.started_at >= NOW() - INTERVAL '7 days') * 5 +
-       (SELECT COUNT(*) FROM content_unlocks cu2
-        JOIN content c2 ON c2.id = cu2.content_id
-        WHERE c2.creator_id = cp.id AND cu2.unlocked_at >= NOW() - INTERVAL '7 days') * 2 +
-       (SELECT COUNT(*) FROM creator_page_views pv2
-        WHERE pv2.creator_id = cp.id AND pv2.viewed_at >= NOW() - INTERVAL '7 days') * 0.3
-     ) > 0
+    `SELECT * FROM (
+       SELECT
+         cp.id, cp.user_id, u.username, u.display_name, u.avatar_url,
+         cp.bio, cp.tags, cp.subscription_price,
+         chs.overall_score,
+         (
+           (SELECT COUNT(*) FROM subscriptions s2
+            WHERE s2.creator_id = cp.id AND s2.started_at >= NOW() - INTERVAL '7 days') * 5 +
+           (SELECT COUNT(*) FROM content_unlocks cu2
+            JOIN content c2 ON c2.id = cu2.content_id
+            WHERE c2.creator_id = cp.id AND cu2.unlocked_at >= NOW() - INTERVAL '7 days') * 2 +
+           (SELECT COUNT(*) FROM creator_page_views pv2
+            WHERE pv2.creator_id = cp.id AND pv2.viewed_at >= NOW() - INTERVAL '7 days') * 0.3
+         ) AS trend_score,
+         (SELECT COUNT(*) FROM subscriptions s3
+          WHERE s3.creator_id = cp.id AND s3.started_at >= NOW() - INTERVAL '7 days') AS new_subs_7d
+       FROM creator_profiles cp
+       JOIN users u ON u.id = cp.user_id
+       LEFT JOIN creator_health_scores chs ON chs.creator_id = cp.id
+       WHERE cp.is_approved = 1 AND u.status = 'approved'
+     ) sub
+     WHERE trend_score > 0
      ORDER BY trend_score DESC
      LIMIT $1`,
-    [limit + 5] // fetch extra so we can exclude the user
+    [limit + 5]
   );
 
   const results = rows.map(r =>
@@ -569,8 +642,12 @@ export async function getMemberRecommendationSections(userId: string): Promise<R
     },
   ];
 
-  // Filter out empty sections
-  return sections.filter(s => s.creators.length > 0);
+  // Apply tag diversity within each section, then deduplicate creators across sections
+  const diversified = sections.map(section => ({
+    ...section,
+    creators: diversifyByTags(section.creators, 2),
+  }));
+  return deduplicateAcrossSections(diversified);
 }
 
 // ── Affinity picks (fast personalised fallback for dashboard) ─────────────────

@@ -6,6 +6,7 @@ import {
   getSimilarCreators,
 } from '../services/recommendations.js';
 import { getMemberRecommendationSections } from '../services/memberRecommendations.js';
+import { getMemberInterestProfile } from '../services/memberProfile.js';
 
 const router = Router();
 
@@ -55,6 +56,19 @@ router.get('/member', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('[recs] member error:', err);
     res.status(500).json({ error: 'Failed to load recommendations.', sections: [] });
+  }
+});
+
+// GET /api/recommendations/interest-profile — member tag affinity + engagement profile
+// AI-readiness layer: structured interest profile for async AI personalisation.
+// Returns immediately from DB aggregates; no AI calls involved.
+router.get('/interest-profile', requireAuth, async (req, res) => {
+  try {
+    const profile = await getMemberInterestProfile(req.auth!.userId);
+    res.json(profile);
+  } catch (err) {
+    console.error('[recs] interest-profile error:', err);
+    res.status(500).json({ error: 'Failed to build interest profile.' });
   }
 });
 
