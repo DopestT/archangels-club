@@ -376,6 +376,55 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
     });
   }
 
+  // ── Rule 12: Upload timing ────────────────────────────────────────────────
+  // Only suggest a timing pattern if there is enough historical signal (≥5 unlocks
+  // or page views in the last 90 days) and the creator has posted at least once.
+  if (contentCount > 0 && (v30 >= 10 || allTimeUnlocks >= 5)) {
+    const timingRow = await queryOne<{ best_day: string | null; day_score: string | null }>(
+      `WITH daily_signals AS (
+         SELECT
+           TO_CHAR(cu.unlocked_at AT TIME ZONE 'UTC', 'Day') AS day_name,
+           TRIM(TO_CHAR(cu.unlocked_at AT TIME ZONE 'UTC', 'Day')) AS day_trimmed,
+           EXTRACT(DOW FROM cu.unlocked_at AT TIME ZONE 'UTC') AS dow,
+           COUNT(*) * 2 AS score
+         FROM content_unlocks cu
+         JOIN content c ON c.id = cu.content_id
+         WHERE c.creator_id = $1
+           AND cu.unlocked_at >= NOW() - INTERVAL '90 days'
+         GROUP BY day_name, day_trimmed, dow
+         UNION ALL
+         SELECT
+           TO_CHAR(pv.viewed_at AT TIME ZONE 'UTC', 'Day') AS day_name,
+           TRIM(TO_CHAR(pv.viewed_at AT TIME ZONE 'UTC', 'Day')) AS day_trimmed,
+           EXTRACT(DOW FROM pv.viewed_at AT TIME ZONE 'UTC') AS dow,
+           COUNT(*) * 0.3 AS score
+         FROM creator_page_views pv
+         WHERE pv.creator_id = $1
+           AND pv.viewed_at >= NOW() - INTERVAL '90 days'
+         GROUP BY day_name, day_trimmed, dow
+       )
+       SELECT day_trimmed AS best_day, SUM(score) AS day_score
+       FROM daily_signals
+       GROUP BY day_trimmed, dow
+       ORDER BY day_score DESC
+       LIMIT 1`,
+      [creatorProfileId]
+    );
+
+    if (timingRow?.best_day && parseFloat(timingRow.day_score ?? '0') > 0) {
+      cards.push({
+        type: 'inactivity_risk',
+        priority: 'low',
+        title: `Post on ${timingRow.best_day}s for peak engagement`,
+        body: `Your audience is most active on ${timingRow.best_day}s based on the last 90 days of unlocks and profile visits. Scheduling uploads for that day can increase early momentum.`,
+        cta_label: 'Upload content',
+        cta_action: 'go_to_upload',
+        signal: `Peak engagement day: ${timingRow.best_day} (90-day pattern)`,
+        confidence: 0.65,
+      });
+    }
+  }
+
   // Sort: high → medium → low, then by confidence desc
   return cards.sort((a, b) => {
     const priorityOrder = { high: 0, medium: 1, low: 2 };

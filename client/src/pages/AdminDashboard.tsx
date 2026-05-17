@@ -539,6 +539,33 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                       ))}
                     </div>
 
+                    {/* Member risk signals */}
+                    {(adminIntel.member_risk_signals?.dormant_active_members_30d > 0 ||
+                      adminIntel.member_risk_signals?.expiring_subscriptions_7d > 0) && (
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {[
+                          {
+                            label: 'Dormant Subscribers',
+                            value: adminIntel.member_risk_signals?.dormant_active_members_30d ?? 0,
+                            sub: 'active subs, no login in 30d',
+                            urgent: (adminIntel.member_risk_signals?.dormant_active_members_30d ?? 0) >= 5,
+                          },
+                          {
+                            label: 'Expiring Soon',
+                            value: adminIntel.member_risk_signals?.expiring_subscriptions_7d ?? 0,
+                            sub: 'subscriptions expiring in 7 days',
+                            urgent: (adminIntel.member_risk_signals?.expiring_subscriptions_7d ?? 0) >= 10,
+                          },
+                        ].map(({ label, value, sub, urgent }) => (
+                          <div key={label} className={`rounded-xl p-5 border ${urgent ? 'border-amber-500/25 bg-amber-500/5' : 'card-surface'}`}>
+                            <p className="text-xs text-arc-muted uppercase tracking-widest font-medium mb-2">{label}</p>
+                            <p className={`font-serif text-3xl tabular-nums ${urgent ? 'text-amber-400' : 'text-white'}`}>{value}</p>
+                            <p className="text-xs text-arc-secondary mt-1">{sub}</p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Creator lists */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       {/* Creators needing support */}
