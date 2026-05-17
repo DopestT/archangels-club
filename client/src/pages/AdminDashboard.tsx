@@ -104,6 +104,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [pulseData, setPulseData] = useState<any>(null);
   const [pulseLoading, setPulseLoading] = useState(false);
 
+  // Rules-based intelligence summaries
+  const [adminIntel, setAdminIntel] = useState<any | null>(null);
+  const [intelLoading, setIntelLoading] = useState(false);
+
   // Verifications
   const [verifications, setVerifications] = useState<any[]>([]);
   const [creatorKyc, setCreatorKyc] = useState<any[]>([]);
@@ -155,12 +159,18 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
 
   async function loadPulse() {
     setPulseLoading(true);
+    setIntelLoading(true);
     try {
-      const res = await adminFetch('/api/admin/pulse');
-      const data = await res.json();
-      if (!data.error) setPulseData(data);
+      const [pulseRes, intelRes] = await Promise.all([
+        adminFetch('/api/admin/pulse'),
+        adminFetch('/api/intelligence/admin-summary'),
+      ]);
+      const [pulseJson, intelJson] = await Promise.all([pulseRes.json(), intelRes.json()]);
+      if (!pulseJson.error) setPulseData(pulseJson);
+      if (!intelJson.error) setAdminIntel(intelJson);
     } catch {} finally {
       setPulseLoading(false);
+      setIntelLoading(false);
     }
   }
 
@@ -477,6 +487,146 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* ── Creator Intelligence Summaries ── */}
+            {(intelLoading || adminIntel) && (
+              <div className="mt-8">
+                <div className="mb-5">
+                  <p className="section-eyebrow mb-1">Creator Intelligence</p>
+                  <h3 className="font-serif text-xl text-white">Platform Signals</h3>
+                  <p className="text-sm text-arc-secondary mt-1">Rules-based alerts from live platform data</p>
+                </div>
+
+                {intelLoading && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {[1, 2, 3, 4].map(i => (
+                      <div key={i} className="card-surface p-5 rounded-xl h-28 animate-pulse" />
+                    ))}
+                  </div>
+                )}
+
+                {adminIntel && !intelLoading && (
+                  <div className="space-y-6">
+                    {/* Revenue + Moderation signals row */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                      {[
+                        {
+                          label: 'No Payout Setup',
+                          value: adminIntel.revenue_signals?.earnings_no_payout_setup ?? 0,
+                          sub: 'creators with earnings, no Stripe',
+                          urgent: (adminIntel.revenue_signals?.earnings_no_payout_setup ?? 0) > 0,
+                        },
+                        {
+                          label: 'Pending Review',
+                          value: adminIntel.moderation_pressure?.pending_review_count ?? 0,
+                          sub: 'content items in queue',
+                          urgent: (adminIntel.moderation_pressure?.pending_review_count ?? 0) > 5,
+                        },
+                        {
+                          label: 'Open Reports',
+                          value: adminIntel.moderation_pressure?.open_reports_count ?? 0,
+                          sub: 'flagged items',
+                          urgent: (adminIntel.moderation_pressure?.open_reports_count ?? 0) > 0,
+                        },
+                      ].map(({ label, value, sub, urgent }) => (
+                        <div key={label} className={`rounded-xl p-5 border ${urgent ? 'border-red-500/25 bg-red-500/5' : 'card-surface'}`}>
+                          <p className="text-xs text-arc-muted uppercase tracking-widest font-medium mb-2">{label}</p>
+                          <p className={`font-serif text-3xl tabular-nums ${urgent ? 'text-red-400' : 'text-white'}`}>{value}</p>
+                          <p className="text-xs text-arc-secondary mt-1">{sub}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Creator lists */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Creators needing support */}
+                      {adminIntel.creators_needing_support?.length > 0 && (
+                        <div className="card-surface p-5 rounded-xl border border-amber-500/15">
+                          <h4 className="font-serif text-base text-white mb-1">Needs Support</h4>
+                          <p className="text-[11px] text-arc-muted mb-4">Low health, repeated rejections, or payout blocked</p>
+                          <div className="space-y-3">
+                            {adminIntel.creators_needing_support.slice(0, 5).map((c: any) => (
+                              <div key={c.creator_id} className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-[10px] font-serif text-amber-400">{c.display_name[0]?.toUpperCase()}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-white truncate">{c.display_name}</p>
+                                  <p className="text-[10px] text-arc-muted truncate">{c.detail}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* High potential, low conversion */}
+                      {adminIntel.high_potential_low_conversion?.length > 0 && (
+                        <div className="card-surface p-5 rounded-xl border border-gold/10">
+                          <h4 className="font-serif text-base text-white mb-1">High Potential</h4>
+                          <p className="text-[11px] text-arc-muted mb-4">Good traffic but not converting — pricing or preview issue</p>
+                          <div className="space-y-3">
+                            {adminIntel.high_potential_low_conversion.slice(0, 5).map((c: any) => (
+                              <div key={c.creator_id} className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-[10px] font-serif text-gold">{c.display_name[0]?.toUpperCase()}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-white truncate">{c.display_name}</p>
+                                  <p className="text-[10px] text-arc-muted truncate">{c.detail}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Trending */}
+                      {adminIntel.trending_creators?.filter((c: any) => c.new_subs_7d > 0 || c.unlocks_7d > 0).length > 0 && (
+                        <div className="card-surface p-5 rounded-xl">
+                          <h4 className="font-serif text-base text-white mb-1">Trending This Week</h4>
+                          <p className="text-[11px] text-arc-muted mb-4">Most new subscribers + unlocks in last 7 days</p>
+                          <div className="space-y-3">
+                            {adminIntel.trending_creators.filter((c: any) => c.new_subs_7d > 0 || c.unlocks_7d > 0).slice(0, 5).map((c: any) => (
+                              <div key={c.creator_id} className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-[10px] font-serif text-emerald-400">{c.display_name[0]?.toUpperCase()}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-white truncate">{c.display_name}</p>
+                                  <p className="text-[10px] text-arc-muted">+{c.new_subs_7d} subs · {c.unlocks_7d} unlocks</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Inactive */}
+                      {adminIntel.inactive_creators?.length > 0 && (
+                        <div className="card-surface p-5 rounded-xl">
+                          <h4 className="font-serif text-base text-white mb-1">Inactive (30d+)</h4>
+                          <p className="text-[11px] text-arc-muted mb-4">No approved content in over 30 days</p>
+                          <div className="space-y-3">
+                            {adminIntel.inactive_creators.slice(0, 5).map((c: any) => (
+                              <div key={c.creator_id} className="flex items-center gap-3">
+                                <div className="w-7 h-7 rounded-full bg-white/5 border border-white/10 flex items-center justify-center flex-shrink-0">
+                                  <span className="text-[10px] font-serif text-arc-muted">{c.display_name[0]?.toUpperCase()}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs text-white truncate">{c.display_name}</p>
+                                  <p className="text-[10px] text-arc-muted">{c.days_since_post > 0 ? `${c.days_since_post}d since last post` : 'No posts yet'}</p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

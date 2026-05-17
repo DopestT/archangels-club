@@ -18,6 +18,8 @@ import CreatorOnboardingChecklist from '../components/creator/CreatorOnboardingC
 import CreatorNextAction from '../components/creator/CreatorNextAction';
 import CreatorWelcomeReveal from '../components/creator/CreatorWelcomeReveal';
 import { useCreatorProgress } from '../hooks/useCreatorProgress';
+import CoachingCard from '../components/creator/CoachingCard';
+import type { Insight } from '../components/creator/CoachingCard';
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
 interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number; content_count: number }
@@ -65,6 +67,7 @@ export default function CreatorDashboard() {
   const [aiSuggestions, setAiSuggestions] = useState<{ category: string; text: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [health, setHealth] = useState<{ score: number; level: string; signals: { label: string; ok: boolean; note: string }[] } | null>(null);
+  const [coachingCards, setCoachingCards] = useState<Insight[]>([]);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -147,6 +150,10 @@ export default function CreatorDashboard() {
     fetch(`${API_BASE}/api/creators/my/health`, { headers: authHeaders })
       .then(r => r.json())
       .then(d => { if (d.score !== undefined) setHealth(d); })
+      .catch(() => {});
+    fetch(`${API_BASE}/api/intelligence/my-insights`, { headers: authHeaders })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.insights)) setCoachingCards(d.insights); })
       .catch(() => {});
   }, [token, isVerifiedCreator]);
 
@@ -760,6 +767,21 @@ export default function CreatorDashboard() {
                         <p className="text-[11px] text-arc-muted leading-snug">{s.note}</p>
                       </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Studio Coaching — rules-based insights */}
+            {coachingCards.length > 0 && (
+              <div className="card-surface p-5 rounded-xl">
+                <div className="flex items-center gap-2 mb-4">
+                  <AlertCircle className="w-4 h-4 text-gold/70" />
+                  <h3 className="font-serif text-base text-white">Studio Coaching</h3>
+                </div>
+                <div className="space-y-3">
+                  {coachingCards.map(card => (
+                    <CoachingCard key={card.type} insight={card} />
                   ))}
                 </div>
               </div>
