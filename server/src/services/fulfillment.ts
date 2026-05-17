@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { withTransaction, queryOne, execute } from '../db/schema.js';
 import { triggerPurchaseConfirmation } from './triggers.js';
 import { recordSignal, logEvent } from './events.js';
+import { invalidateUserCache } from './memberRecommendations.js';
 
 // PostgreSQL unique_violation error code — thrown when a UNIQUE constraint fires.
 // Used to detect concurrent fulfillment races and treat them as idempotent success.
@@ -176,6 +177,7 @@ export async function fulfillCheckoutSession(
       // Record engagement signal + platform event (non-fatal)
       recordSignal(userId, creatorProfileId, 'subscribe').catch(() => {});
       logEvent({ userId, eventType: 'subscribe_creator', entityType: 'creator', entityId: creatorProfileId, metadata: { amount: grossAmount } }).catch(() => {});
+      invalidateUserCache(userId);
     } catch (err) {
       // Unique violation on transactions(stripe_session_id) means a concurrent fulfillment
       // already committed this transaction. Mark as fulfilled, not failed.
@@ -347,6 +349,7 @@ export async function fulfillCheckoutSession(
       // Record engagement signal + platform event (non-fatal)
       recordSignal(userId, creatorProfileId, 'unlock').catch(() => {});
       logEvent({ userId, eventType: 'unlock_content', entityType: 'content', entityId: contentId, metadata: { amount: grossAmount, creator_id: creatorProfileId } }).catch(() => {});
+      invalidateUserCache(userId);
 
       const content = await queryOne<{ title: string }>('SELECT title FROM content WHERE id = $1', [contentId]);
       if (content) {

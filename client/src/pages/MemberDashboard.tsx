@@ -290,14 +290,17 @@ export default function MemberDashboard() {
                   <h3 className="font-serif text-base text-white">Picked for You</h3>
                 </div>
 
-                {/* Enriched sections (show first 2 sections, up to 3 creators each) */}
+                {/* Enriched sections — show all non-empty sections, up to 3 creators each */}
                 {memberSections.length > 0 ? (
                   <div className="space-y-5">
-                    {memberSections.slice(0, 2).map(section => (
+                    {memberSections.map(section => (
                       <div key={section.type}>
-                        <p className="text-[10px] font-semibold tracking-widest uppercase text-arc-muted mb-2">
+                        <p className="text-[10px] font-semibold tracking-widest uppercase text-arc-muted mb-0.5">
                           {section.label}
                         </p>
+                        {section.description && (
+                          <p className="text-[10px] text-arc-muted/60 mb-2 leading-relaxed">{section.description}</p>
+                        )}
                         <div className="space-y-1.5">
                           {section.creators.slice(0, 3).map(c => (
                             <RecommendationCard

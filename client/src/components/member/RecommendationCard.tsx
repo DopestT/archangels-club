@@ -74,6 +74,11 @@ export default function RecommendationCard({ creator, type, compact = false }: P
         </div>
         <p className="text-[10px] text-arc-muted truncate">
           @{creator.username} · {formatCurrency(parseFloat(creator.subscription_price))}/mo
+          {creator.metric_label && creator.metric_value !== undefined && (
+            <span className="ml-1.5 text-arc-secondary">
+              · {creator.metric_label}: <span className="text-white/70">{creator.metric_value}</span>
+            </span>
+          )}
         </p>
         {!compact && (
           <p className="text-[10px] text-arc-secondary mt-0.5 truncate">{creator.reason}</p>

@@ -83,6 +83,15 @@ function setCached(key: string, data: unknown, ttl: number): void {
   _cache.set(key, { data, expiresAt: Date.now() + ttl });
 }
 
+// Call after any purchase event (unlock or subscribe) so the next dashboard
+// load reflects the new state instead of serving stale per-user sections.
+export function invalidateUserCache(userId: string): void {
+  const prefixes = ['similar_vault_', 'sub_opportunity_', 'interest_profile_'];
+  for (const prefix of prefixes) {
+    _cache.delete(`${prefix}${userId}`);
+  }
+}
+
 // ── Dynamic confidence scoring ────────────────────────────────────────────────
 // Confidence reflects actual signal strength rather than a static constant.
 // Each type maps its metric to a calibrated 0–1 score.
