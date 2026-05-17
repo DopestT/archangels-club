@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
 import { Badge } from '../components/ui/Badge';
 import ContentCard from '../components/content/ContentCard';
+import RecommendationStrip from '../components/pulse/RecommendationStrip';
 import type { Content as GlobalContent } from '../types';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
@@ -281,7 +282,7 @@ export default function LockedContentPage() {
       });
       const data = await res.json();
       if (res.ok && data.token) {
-        setMediaUrl(`${API_BASE}/api/media/${data.token}`);
+        setMediaUrl(`${API_BASE}/api/stream/${data.token}`);
       } else {
         setError(data.error ?? 'Failed to load media. Please try again.');
       }
@@ -312,9 +313,9 @@ export default function LockedContentPage() {
           setError("Payment received — your access is being confirmed. Refresh in a moment if the content hasn't unlocked.");
         }
       })
-      .catch(err => {
+      .catch(() => {
         if (retries > 0) setTimeout(() => fetchAccess(retries - 1, delayMs), delayMs);
-        else setError(err instanceof Error ? err.message : String(err));
+        else setError('Unable to confirm access. Please refresh the page.');
       });
   }
 
@@ -377,13 +378,13 @@ export default function LockedContentPage() {
         data = await res.json();
       } catch {
         setPaying(false);
-        setError(`Server returned status ${res.status} with an unparseable response.`);
+        setError('Something went wrong. Please try again.');
         return;
       }
 
       if (!res.ok) {
         setPaying(false);
-        setError(data.error ?? `Server error (HTTP ${res.status})`);
+        setError(data.error ?? 'Something went wrong. Please try again.');
         return;
       }
 
@@ -404,9 +405,9 @@ export default function LockedContentPage() {
       setRedirecting(true);
       window.location.href = data.url;
 
-    } catch (err) {
+    } catch {
       setPaying(false);
-      setError(err instanceof Error ? err.message : String(err));
+      setError('Unable to reach the server. Please try again.');
     }
   }
 
@@ -795,6 +796,19 @@ export default function LockedContentPage() {
                 <ContentCard key={item.id} content={item} showCreator={false} />
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Post-unlock discovery — Pulse placement hook */}
+        {unlocked && (
+          <div className="mt-10 pt-8 border-t border-white/5">
+            <RecommendationStrip
+              recommendations={[]}
+              loading={false}
+              title="Discover from The Pulse"
+              unlockedCount={1}
+              hideWhenEmpty
+            />
           </div>
         )}
       </div>

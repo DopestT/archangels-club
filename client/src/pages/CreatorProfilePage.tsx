@@ -6,6 +6,7 @@ import ContentCard from '../components/content/ContentCard';
 import Avatar from '../components/ui/Avatar';
 import { VerifiedBadge } from '../components/ui/Badge';
 import { formatCurrency, formatCompactNumber, timeAgo } from '../lib/utils';
+import RecommendationStrip from '../components/pulse/RecommendationStrip';
 import type { CreatorProfile, Content } from '../types';
 import { API_BASE } from '../lib/api';
 import { logEvent } from '../lib/logEvent';
@@ -217,7 +218,7 @@ export default function CreatorProfilePage() {
     ])
       .then(([creatorData, contentData]) => {
         if (creatorData.error) {
-          setError(creatorData.error);
+          setError(creatorData.error ?? 'Unable to load creator profile.');
         } else {
           document.title = `${creatorData.display_name} — Archangels Club`;
           setCreator(creatorData);
@@ -778,6 +779,16 @@ export default function CreatorProfilePage() {
             </div>
           )}
         </div>
+        {/* Pulse Signal — hidden until data arrives from Claude A/B */}
+        <div className="py-6 border-t border-white/5">
+          <RecommendationStrip
+            recommendations={[]}
+            loading={false}
+            title="Recommended from The Pulse"
+            hideWhenEmpty
+          />
+        </div>
+
         {/* Similar Creators */}
         {similarCreators.length > 0 && (
           <div className="py-12 border-t border-white/5">
