@@ -161,6 +161,35 @@ Excludes creators the user already subscribes to.
 **Auth:** Optional  
 **Returns:** Creators sharing tags with the given creator profile.
 
+### `GET /api/recommendations/member`
+**Auth:** Required  
+**Returns:** All 7 recommendation sections for the authenticated member. Each section
+contains up to 6 creators with `reason`, `signal`, `action`, `confidence`, `metric_label`,
+`metric_value`. Empty sections are omitted. Results are cached (5 min global, 10 min
+per-user). Safe to call on every dashboard load.
+
+```json
+{
+  "sections": [
+    {
+      "type": "trending",
+      "label": "Trending This Week",
+      "description": "...",
+      "creators": [{ "id": "...", "username": "...", "reason": "...", "confidence": 0.71 }]
+    }
+  ]
+}
+```
+
+**Section types (priority order):**
+1. `subscription_opportunity` — user unlocked 2+ from this creator but isn't subscribed
+2. `trending` — highest 7-day weighted activity (subs×5 + unlocks×2 + views×0.3)
+3. `similar_to_vault` — tag overlap with creators the user has unlocked from
+4. `rising_fast` — velocity ratio ≥1.3× (7-day pace vs 30-day weekly average)
+5. `most_collected` — most content unlocks in 30 days
+6. `recently_active` — posted approved content in last 14 days
+7. `custom_requests_open` — accepting requests with <10 pending
+
 ### Confidence levels
 
 | Range | Interpretation |
@@ -178,12 +207,9 @@ Excludes creators the user already subscribes to.
 **Auth:** Creator  
 **Returns:** Array of coaching cards sorted by priority then confidence.
 
-### `GET /api/insights/creator/coaching`
-**Auth:** Creator  
-**Returns:** Detailed coaching cards with `id`, `reason`, `signal`, `action` fields.
-
-Both endpoints cover the same rules from different query paths. Use whichever fits
-the UI surface.
+### `GET /api/intelligence/creator/:profileId`
+**Auth:** Admin  
+**Returns:** Coaching cards for any creator (admin support view).
 
 ### `GET /api/intelligence/admin-summary`
 **Auth:** Admin  
@@ -265,13 +291,12 @@ These are enforced by code structure, not convention:
 - [ ] Creator can view their earnings
 - [ ] `GET /api/pulse/my-health` returns score (may be 0 if no data, that is correct)
 - [ ] `GET /api/intelligence/my-insights` returns array (may be empty on new accounts)
-- [ ] `GET /api/insights/creator/coaching` returns insights or empty array
+- [ ] `GET /api/intelligence/creator/:profileId` (admin) returns insights for that creator
 
 ### Admin Dashboard
 - [ ] `GET /api/pulse/platform` returns platform stats object
 - [ ] `GET /api/pulse/creators` returns array (may be empty if no health scores computed)
 - [ ] `GET /api/intelligence/admin-summary` returns all 6 sections
-- [ ] `GET /api/insights/admin/summaries` returns summary array
 - [ ] Creator approval flow still works (admin approves → creator can access studio)
 
 ### Events
@@ -284,6 +309,9 @@ These are enforced by code structure, not convention:
 ### Recommendations
 - [ ] `GET /api/recommendations/trending` without auth → returns content array
 - [ ] `GET /api/recommendations/creators` with auth → returns creator array with `reason`, `signal`, `action`, `confidence`
+- [ ] `GET /api/recommendations/member` with auth → returns `{ sections: [...] }` with at least one section if creators exist
+- [ ] Calling `GET /api/recommendations/member` twice → second call is faster (cache hit)
+- [ ] Member dashboard loads without waiting for recommendations (SQL recs appear first, enriched sections replace them)
 - [ ] Recommendations page load does NOT add measurable latency to dashboard (queries are read-only)
 
 ### Performance check
@@ -312,4 +340,11 @@ Before starting:
 
 ---
 
-*Last updated: 2026-05-16*
+---
+
+## Known Issues Fixed (Phase 5)
+
+- `getTrendingCreators` used `HAVING` without `GROUP BY`, which PostgreSQL treats as a single-group
+  aggregate and rejects bare column selects. Fixed by wrapping in a derived subquery with `WHERE`.
+
+*Last updated: 2026-05-17*
