@@ -26,13 +26,17 @@ interface LogEventOpts {
   entityType?: string | null;
   entityId?: string | null;
   metadata?: Record<string, unknown>;
+  // Optional: client-provided UUID. Same key on retry = idempotent (duplicate silently skipped).
+  idempotencyKey?: string | null;
 }
 
 export async function logEvent(opts: LogEventOpts): Promise<void> {
   try {
     await execute(
-      `INSERT INTO platform_events (id, user_id, session_id, event_type, entity_type, entity_id, metadata)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      `INSERT INTO platform_events
+         (id, user_id, session_id, event_type, entity_type, entity_id, metadata, idempotency_key)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING`,
       [
         nanoid(),
         opts.userId ?? null,
@@ -41,16 +45,19 @@ export async function logEvent(opts: LogEventOpts): Promise<void> {
         opts.entityType ?? null,
         opts.entityId ?? null,
         JSON.stringify(opts.metadata ?? {}),
+        opts.idempotencyKey ?? null,
       ]
     );
-  } catch {
-    // Event logging must never crash the calling request
+  } catch (err) {
+    // Never crashes the caller, but surfaces the failure for observability
+    console.error('[events] logEvent failed — type=%s entity=%s/%s error=%s',
+      opts.eventType, opts.entityType, opts.entityId, (err as Error).message);
   }
 }
 
-type SignalType = 'view' | 'unlock' | 'subscribe' | 'message' | 'tip' | 'save' | 'custom_request';
+export type SignalType = 'view' | 'unlock' | 'subscribe' | 'message' | 'tip' | 'save' | 'custom_request';
 
-const SIGNAL_WEIGHTS: Record<SignalType, number> = {
+export const SIGNAL_WEIGHTS: Record<SignalType, number> = {
   view: 0.5,
   unlock: 3.0,
   subscribe: 5.0,
@@ -72,7 +79,8 @@ export async function recordSignal(
        VALUES ($1, $2, $3, $4, $5)`,
       [nanoid(), userId, creatorProfileId, signalType, weight]
     );
-  } catch {
-    // Non-fatal
+  } catch (err) {
+    console.error('[events] recordSignal failed — user=%s creator=%s type=%s error=%s',
+      userId, creatorProfileId, signalType, (err as Error).message);
   }
 }

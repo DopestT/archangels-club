@@ -433,6 +433,13 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_platform_events_user ON platform_events(user_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_platform_events_entity ON platform_events(entity_type, entity_id, created_at DESC);
 
+  -- Idempotency key: client sends a UUID with each event; retries use the same key.
+  -- Partial unique index (only when key is provided) prevents duplicate writes.
+  ALTER TABLE platform_events ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_platform_events_idempotency
+    ON platform_events(idempotency_key)
+    WHERE idempotency_key IS NOT NULL;
+
   -- ── ABMIE-X: Engagement Signals (creator-user affinity) ─────────────────────
   -- Aggregated per (user, creator) pair. Updated on unlock/subscribe/view/message.
   -- Weight encodes signal strength; decays are applied at read time.

@@ -26,6 +26,8 @@ import promoRoutes from './routes/promo.js';
 import eventsRoutes from './routes/events.js';
 import pulseRoutes from './routes/pulse.js';
 import recommendationsRoutes from './routes/recommendations.js';
+import intelligenceRoutes from './routes/intelligence.js';
+import insightsRoutes from './routes/insights.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -81,6 +83,8 @@ app.use('/api/promo', promoRoutes);
 app.use('/api/events', eventsRoutes);
 app.use('/api/pulse', pulseRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
+app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/insights', insightsRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });

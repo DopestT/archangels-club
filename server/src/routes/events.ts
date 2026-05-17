@@ -35,8 +35,9 @@ const ALLOWED_EVENTS = new Set([
 
 // POST /api/events
 // Fire-and-forget behavioral event ingestion. Auth optional — anonymous events are valid.
+// Send `idempotency_key` (a client-generated UUID) to make retries safe.
 router.post('/', optionalAuth, async (req, res) => {
-  const { event_type, entity_type, entity_id, session_id, metadata } = req.body;
+  const { event_type, entity_type, entity_id, session_id, metadata, idempotency_key } = req.body;
 
   if (!event_type || typeof event_type !== 'string' || !ALLOWED_EVENTS.has(event_type)) {
     res.status(400).json({ error: 'Invalid or missing event_type.' });
@@ -50,6 +51,7 @@ router.post('/', optionalAuth, async (req, res) => {
     entityType: entity_type ?? null,
     entityId: entity_id ?? null,
     metadata: typeof metadata === 'object' && metadata !== null ? metadata : {},
+    idempotencyKey: typeof idempotency_key === 'string' ? idempotency_key : null,
   });
 
   res.json({ ok: true });
