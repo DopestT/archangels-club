@@ -68,9 +68,23 @@ export default function CoachingCard({ insight }: Props) {
       <p className="text-xs font-medium text-white mb-1.5">{insight.title}</p>
       <p className="text-[11px] text-arc-secondary leading-relaxed mb-2.5">{insight.body}</p>
 
-      <p className="text-[10px] text-arc-muted mb-3 leading-snug">
+      <p className="text-[10px] text-arc-muted mb-2 leading-snug">
         <span className="text-arc-secondary font-medium">Signal:</span> {insight.signal}
       </p>
+
+      {/* Confidence bar — visual indicator of signal strength */}
+      <div className="mb-3">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-[9px] text-arc-muted uppercase tracking-widest">Signal strength</span>
+          <span className="text-[9px] text-arc-muted">{Math.round(insight.confidence * 100)}%</span>
+        </div>
+        <div className="h-1 rounded-full bg-white/5 overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${s.color.replace('text-', 'bg-')} opacity-60`}
+            style={{ width: `${Math.round(insight.confidence * 100)}%` }}
+          />
+        </div>
+      </div>
 
       <button
         onClick={() => navigate(route)}

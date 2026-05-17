@@ -349,29 +349,57 @@ export async function getSimilarToVault(userId: string, limit = 8): Promise<Memb
   );
   if (parseInt(hasUnlocks?.count ?? '0', 10) === 0) return [];
 
+  // Weighted affinity: subscriptions count 5× more than unlocks; signals from
+  // the last 30 days count at full weight, older signals at 50%.
   const rows = await query<any>(
-    `WITH user_tags AS (
-       SELECT DISTINCT tag_value
-       FROM content_unlocks cu
-       JOIN content c ON c.id = cu.content_id
-       JOIN creator_profiles cp ON cp.id = c.creator_id
-       CROSS JOIN LATERAL jsonb_array_elements_text(
-         CASE WHEN cp.tags ~ '^\[' THEN cp.tags::jsonb ELSE '[]'::jsonb END
-       ) AS tag_value
-       WHERE cu.user_id = $1
+    `WITH user_tag_weights AS (
+       SELECT
+         tag_value AS tag,
+         SUM(
+           CASE
+             WHEN action_at >= NOW() - INTERVAL '30 days' THEN weight
+             ELSE weight * 0.5
+           END
+         ) AS score
+       FROM (
+         SELECT
+           tag_value,
+           2.0 AS weight,
+           cu.unlocked_at AS action_at
+         FROM content_unlocks cu
+         JOIN content c ON c.id = cu.content_id
+         JOIN creator_profiles cp2 ON cp2.id = c.creator_id
+         CROSS JOIN LATERAL jsonb_array_elements_text(
+           CASE WHEN cp2.tags ~ '^\[' THEN cp2.tags::jsonb ELSE '[]'::jsonb END
+         ) AS tag_value
+         WHERE cu.user_id = $1
+         UNION ALL
+         SELECT
+           tag_value,
+           5.0 AS weight,
+           s.started_at AS action_at
+         FROM subscriptions s
+         JOIN creator_profiles cp3 ON cp3.id = s.creator_id
+         CROSS JOIN LATERAL jsonb_array_elements_text(
+           CASE WHEN cp3.tags ~ '^\[' THEN cp3.tags::jsonb ELSE '[]'::jsonb END
+         ) AS tag_value
+         WHERE s.subscriber_id = $1
+       ) AS signals
+       GROUP BY tag_value
      )
      SELECT
        cp.id, cp.user_id, u.username, u.display_name, u.avatar_url,
        cp.bio, cp.tags, cp.subscription_price,
        chs.overall_score,
-       COUNT(DISTINCT ut.tag_value) AS matching_tags
+       ROUND(SUM(utw.score)::numeric, 2)  AS match_score,
+       COUNT(DISTINCT utw.tag)::int        AS matching_tags
      FROM creator_profiles cp
      JOIN users u ON u.id = cp.user_id
      LEFT JOIN creator_health_scores chs ON chs.creator_id = cp.id
      CROSS JOIN LATERAL jsonb_array_elements_text(
        CASE WHEN cp.tags ~ '^\[' THEN cp.tags::jsonb ELSE '[]'::jsonb END
      ) AS tag_value
-     JOIN user_tags ut ON ut.tag_value = tag_value
+     JOIN user_tag_weights utw ON utw.tag = tag_value
      WHERE cp.is_approved = 1 AND u.status = 'approved'
        AND cp.user_id != $1
        AND cp.id NOT IN (
@@ -379,18 +407,20 @@ export async function getSimilarToVault(userId: string, limit = 8): Promise<Memb
          WHERE subscriber_id = $1 AND status = 'active'
        )
        AND cp.id NOT IN (
-         SELECT DISTINCT cp2.id FROM content_unlocks cu2
+         SELECT DISTINCT cp4.id FROM content_unlocks cu2
          JOIN content c2 ON c2.id = cu2.content_id
-         JOIN creator_profiles cp2 ON cp2.id = c2.creator_id
+         JOIN creator_profiles cp4 ON cp4.id = c2.creator_id
          WHERE cu2.user_id = $1
        )
      GROUP BY cp.id, cp.user_id, u.username, u.display_name, u.avatar_url,
               cp.bio, cp.tags, cp.subscription_price, chs.overall_score
-     ORDER BY matching_tags DESC, COALESCE(chs.overall_score, 0) DESC
+     ORDER BY match_score DESC, COALESCE(chs.overall_score, 0) DESC
      LIMIT $2`,
     [userId, limit]
   );
 
+  // Use matching_tags for confidence (calibrated formula) and metric display;
+  // match_score drives ordering but is not exposed to the UI.
   const results = rows.map(r =>
     withExplanation(r, 'similar_to_vault', parseInt(r.matching_tags, 10))
   );
@@ -605,8 +635,7 @@ export async function getMemberRecommendationSections(userId: string): Promise<R
     getSubscriptionOpportunities(userId, CAP).catch(() => []),
   ]);
 
-  const sections: RecommendationSection[] = [
-    // Subscription opportunity first if the user has unlocks — highest intent signal
+  const sectionDefs: RecommendationSection[] = [
     {
       type: 'subscription_opportunity',
       label: 'Subscribe & Save',
@@ -650,6 +679,18 @@ export async function getMemberRecommendationSections(userId: string): Promise<R
       creators: customOpen.slice(0, CAP),
     },
   ];
+
+  // When the user has vault history, promote similar_to_vault to position 2
+  // (right after subscription_opportunity) so the most personalised section
+  // appears before platform-wide trending results.
+  let sections: RecommendationSection[];
+  if (similarToVault.length > 0) {
+    const vaultSection = sectionDefs.find(s => s.type === 'similar_to_vault')!;
+    const rest = sectionDefs.filter(s => s.type !== 'similar_to_vault');
+    sections = [rest[0], vaultSection, ...rest.slice(1)]; // sub_opp, vault, trending, ...
+  } else {
+    sections = sectionDefs;
+  }
 
   // Apply tag diversity within each section, then deduplicate creators across sections
   const diversified = sections.map(section => ({
