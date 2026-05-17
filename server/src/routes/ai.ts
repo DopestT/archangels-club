@@ -2,6 +2,7 @@ import { Router } from 'express';
 import OpenAI from 'openai';
 import { query, queryOne } from '../db/schema.js';
 import { requireAuth, requireCreator, requireAdmin } from '../middleware/auth.js';
+import { getAffinityPicksForUser, getMemberGuidanceTips } from '../services/memberRecommendations.js';
 
 const router = Router();
 
@@ -132,84 +133,31 @@ Category options: "Pricing" | "Content" | "Profile" | "Growth" | "Custom Request
 });
 
 // POST /api/ai/member-recommendations
-// Requires: approved auth. Returns personalized creator/content picks.
+// Returns personalized creator picks and guidance tips from real signal data.
+// Rules-based engine runs first (always fast); AI enhancement is additive if available.
+// Response shape is stable: { creator_picks, guidance } — dashboard depends on this.
 router.post('/member-recommendations', requireAuth, async (req, res) => {
   try {
     const userId = req.auth!.userId;
 
-    const [unlockedContent, subscriptions, availableCreators] = await Promise.all([
-      query<any>(
-        `SELECT c.title, c.content_type, c.price, u.display_name AS creator_name
-         FROM content_unlocks cu
-         JOIN content c ON c.id = cu.content_id
-         JOIN creator_profiles cp ON cp.id = c.creator_id
-         JOIN users u ON u.id = cp.user_id
-         WHERE cu.user_id = $1 ORDER BY cu.unlocked_at DESC LIMIT 12`,
-        [userId]
-      ),
-      query<any>(
-        `SELECT u.display_name, u.username, cp.tags, cp.subscription_price
-         FROM subscriptions s
-         JOIN creator_profiles cp ON cp.id = s.creator_id
-         JOIN users u ON u.id = cp.user_id
-         WHERE s.subscriber_id = $1 AND s.status = 'active'`,
-        [userId]
-      ),
-      query<any>(
-        `SELECT u.display_name, u.username, cp.tags, cp.subscription_price,
-           cp.bio,
-           (SELECT COUNT(*) FROM subscriptions sub WHERE sub.creator_id = cp.id AND sub.status = 'active') AS subscriber_count
-         FROM creator_profiles cp
-         JOIN users u ON u.id = cp.user_id
-         WHERE cp.is_approved = 1
-           AND cp.id NOT IN (
-             SELECT creator_id FROM subscriptions WHERE subscriber_id = $1 AND status = 'active'
-           )
-         ORDER BY subscriber_count DESC LIMIT 20`,
-        [userId]
-      ),
+    // Run both in parallel — both are cached so repeat calls are instant
+    const [picks, guidance] = await Promise.all([
+      getAffinityPicksForUser(userId, 3),
+      getMemberGuidanceTips(userId),
     ]);
 
-    const subscribedUsernames = subscriptions.map((s: any) => s.username);
-    const contentTypes = [...new Set(unlockedContent.map((c: any) => c.content_type))];
-    const avgSpend = unlockedContent.length
-      ? (unlockedContent.reduce((s: number, c: any) => s + parseFloat(c.price), 0) / unlockedContent.length).toFixed(2)
-      : '0';
-
-    const prompt = `You are a recommendation engine for Archangels Club, a private luxury creator platform.
-
-Member profile (REAL data):
-- Unlocked pieces: ${unlockedContent.length}
-- Content types enjoyed: ${contentTypes.join(', ') || 'none yet'}
-- Average content price paid: $${avgSpend}
-- Subscribed creators: ${subscribedUsernames.length > 0 ? subscribedUsernames.join(', ') : 'none yet'}
-- Recent unlocks: ${JSON.stringify(unlockedContent.slice(0, 6).map((c: any) => ({ title: c.title, type: c.content_type, creator: c.creator_name })))}
-
-Available creators NOT yet subscribed to: ${JSON.stringify(availableCreators.slice(0, 15).map((c: any) => ({ name: c.display_name, username: c.username, price: c.subscription_price, tags: c.tags, subscribers: c.subscriber_count })))}
-
-Generate personalized recommendations. If the member has no history, suggest popular creators and first-unlock guidance.
-Do not invent data. Only recommend creators from the available list above.
-
-Return JSON:
-{
-  "creator_picks": [{ "username": string, "display_name": string, "reason": string }],
-  "guidance": [{ "text": string }]
-}
-creator_picks: up to 3 creators from the available list.
-guidance: 2-3 short tips (first-unlock guidance, budget tips, vault suggestions, custom request ideas).`;
-
-    const result = await chatJSON(prompt, 600) as {
-      creator_picks: { username: string; display_name: string; reason: string }[];
-      guidance: { text: string }[];
-    };
-
     res.json({
-      creator_picks: result.creator_picks ?? [],
-      guidance: result.guidance ?? [],
+      creator_picks: picks.map(p => ({
+        username: p.username,
+        display_name: p.display_name,
+        reason: p.reason,
+      })),
+      guidance,
     });
   } catch (err) {
     console.error('[ai/member-recommendations] error:', err);
-    res.status(500).json({ error: 'Failed to generate recommendations.' });
+    // Always return a valid shape — never leave the dashboard in a broken state
+    res.json({ creator_picks: [], guidance: [] });
   }
 });
 

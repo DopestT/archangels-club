@@ -9,6 +9,8 @@ import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
 import { setViewMode } from '../lib/viewMode';
 import ActivityTicker from '../components/explore/ActivityTicker';
+import RecommendationCard from '../components/member/RecommendationCard';
+import type { MemberRecommendedCreator, RecommendationType } from '../components/member/RecommendationCard';
 import type { Content } from '../types';
 
 
@@ -45,6 +47,8 @@ export default function MemberDashboard() {
   const [aiLoading, setAiLoading] = useState(false);
   const [sqlRecs, setSqlRecs] = useState<{ username: string; display_name: string; avatar_url: string | null; subscription_price: number }[]>([]);
   const [sqlRecsLoaded, setSqlRecsLoaded] = useState(false);
+  const [memberSections, setMemberSections] = useState<{ type: RecommendationType; label: string; description: string; creators: MemberRecommendedCreator[] }[]>([]);
+  const [sectionsLoaded, setSectionsLoaded] = useState(false);
 
   useEffect(() => { document.title = 'My Dashboard — Archangels Club'; }, []);
   // Mark member mode when the dashboard is explicitly visited
@@ -70,12 +74,19 @@ export default function MemberDashboard() {
       .catch(() => {})
       .finally(() => setLoading(false));
 
-    // Fast SQL-based recs (load first)
+    // Fast SQL-based recs (immediate fallback)
     fetch(`${API_BASE}/api/recommendations/creators?limit=4`, { headers })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.creators)) setSqlRecs(d.creators); })
       .catch(() => {})
       .finally(() => setSqlRecsLoaded(true));
+
+    // Enriched member rec sections (cached server-side — fast enough)
+    fetch(`${API_BASE}/api/recommendations/member`, { headers })
+      .then(r => r.json())
+      .then(d => { if (Array.isArray(d.sections)) setMemberSections(d.sections.filter((s: any) => s.creators?.length > 0)); })
+      .catch(() => {})
+      .finally(() => setSectionsLoaded(true));
 
     // Slow AI recs (load async)
     setAiLoading(true);
@@ -271,39 +282,62 @@ export default function MemberDashboard() {
               </Link>
             </div>
 
-            {/* Picked for You */}
-            {(sqlRecsLoaded || aiLoading || aiRecs) && (
+            {/* Picked for You — enriched sections when available, plain SQL as fallback */}
+            {(sqlRecsLoaded || sectionsLoaded || aiLoading || aiRecs) && (
               <div className="card-surface p-5 rounded-xl">
                 <div className="flex items-center gap-2 mb-4">
                   <Sparkles className="w-4 h-4 text-gold/70" />
                   <h3 className="font-serif text-base text-white">Picked for You</h3>
                 </div>
 
-                {/* SQL recs — appear immediately */}
-                {sqlRecs.length > 0 && (
-                  <div className="space-y-2 mb-4">
-                    {sqlRecs.map((c, i) => (
-                      <Link
-                        key={i}
-                        to={`/creator/${c.username}`}
-                        className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-bg-hover border border-white/5 hover:border-gold/20 transition-all group"
-                      >
-                        <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-serif text-gold">{c.display_name[0]?.toUpperCase()}</span>
+                {/* Enriched sections (show first 2 sections, up to 3 creators each) */}
+                {memberSections.length > 0 ? (
+                  <div className="space-y-5">
+                    {memberSections.slice(0, 2).map(section => (
+                      <div key={section.type}>
+                        <p className="text-[10px] font-semibold tracking-widest uppercase text-arc-muted mb-2">
+                          {section.label}
+                        </p>
+                        <div className="space-y-1.5">
+                          {section.creators.slice(0, 3).map(c => (
+                            <RecommendationCard
+                              key={c.id}
+                              creator={c}
+                              type={section.type}
+                              compact
+                            />
+                          ))}
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-medium text-white truncate">{c.display_name}</p>
-                          <p className="text-[11px] text-arc-muted">@{c.username} · {formatCurrency(c.subscription_price)}/mo</p>
-                        </div>
-                        <ChevronRight className="w-3.5 h-3.5 text-arc-muted opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
-                      </Link>
+                      </div>
                     ))}
                   </div>
+                ) : (
+                  /* Plain SQL recs as fallback while sections load */
+                  sqlRecs.length > 0 && (
+                    <div className="space-y-2">
+                      {sqlRecs.map((c, i) => (
+                        <Link
+                          key={i}
+                          to={`/creator/${c.username}`}
+                          className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-bg-hover border border-white/5 hover:border-gold/20 transition-all group"
+                        >
+                          <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0">
+                            <span className="text-xs font-serif text-gold">{c.display_name[0]?.toUpperCase()}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-white truncate">{c.display_name}</p>
+                            <p className="text-[11px] text-arc-muted">@{c.username} · {formatCurrency(c.subscription_price)}/mo</p>
+                          </div>
+                          <ChevronRight className="w-3.5 h-3.5 text-arc-muted opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  )
                 )}
 
-                {/* AI guidance — loads after SQL recs */}
-                {aiLoading && !aiRecs && (
-                  <div className="space-y-2 mt-1">
+                {/* AI guidance tips */}
+                {aiLoading && !aiRecs && memberSections.length === 0 && (
+                  <div className="space-y-2 mt-3">
                     {[75, 55, 65].map(w => (
                       <div key={w} className="h-2.5 rounded-full bg-white/5 animate-pulse" style={{ width: `${w}%` }} />
                     ))}
@@ -311,7 +345,7 @@ export default function MemberDashboard() {
                 )}
 
                 {aiRecs?.guidance && aiRecs.guidance.length > 0 && (
-                  <div className={`space-y-2 ${sqlRecs.length > 0 ? 'pt-3 border-t border-white/5 mt-1' : ''}`}>
+                  <div className="space-y-2 pt-3 border-t border-white/5 mt-4">
                     <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-2">Tips</p>
                     {aiRecs.guidance.map((g, i) => (
                       <p key={i} className="text-xs text-arc-secondary leading-relaxed flex gap-2">

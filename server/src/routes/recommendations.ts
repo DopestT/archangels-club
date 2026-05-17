@@ -1,11 +1,11 @@
 import { Router } from 'express';
 import { requireAuth, optionalAuth } from '../middleware/auth.js';
-import { queryOne } from '../db/client.js';
 import {
   getCreatorRecommendations,
   getTrendingContent,
   getSimilarCreators,
 } from '../services/recommendations.js';
+import { getMemberRecommendationSections } from '../services/memberRecommendations.js';
 
 const router = Router();
 
@@ -42,6 +42,19 @@ router.get('/similar/:profileId', optionalAuth, async (req, res) => {
   } catch (err) {
     console.error('[recs] similar error:', err);
     res.status(500).json({ error: 'Failed to load similar creators.' });
+  }
+});
+
+// GET /api/recommendations/member — all 7 recommendation sections for a member
+// Global sections are served from cache; user-specific sections run fresh per user.
+// Empty sections are omitted. Safe to call on every dashboard load.
+router.get('/member', requireAuth, async (req, res) => {
+  try {
+    const sections = await getMemberRecommendationSections(req.auth!.userId);
+    res.json({ sections });
+  } catch (err) {
+    console.error('[recs] member error:', err);
+    res.status(500).json({ error: 'Failed to load recommendations.', sections: [] });
   }
 });
 
