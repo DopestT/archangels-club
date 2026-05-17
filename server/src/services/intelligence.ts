@@ -110,6 +110,7 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
     messagesReceived30d,
     messagesSent30d,
     customRequests30d,
+    lapsedSubs30d,
   ] = await Promise.all([
     queryOne<{ count: string }>(
       `SELECT COUNT(*) AS count FROM creator_page_views
@@ -171,6 +172,12 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
        WHERE creator_id = $1 AND created_at >= NOW() - INTERVAL '30 days'`,
       [creatorProfileId]
     ),
+    queryOne<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM subscriptions
+       WHERE creator_id = $1 AND status = 'cancelled'
+         AND updated_at >= NOW() - INTERVAL '30 days'`,
+      [creatorProfileId]
+    ),
   ]);
 
   const v30 = parseInt(views30d?.count ?? '0', 10);
@@ -182,6 +189,7 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
   const subs = parseInt(activeSubs?.count ?? '0', 10);
   const bundles = parseInt(bundleCount?.count ?? '0', 10);
   const msgReceived = parseInt(messagesReceived30d?.count ?? '0', 10);
+  const lapsed = parseInt(lapsedSubs30d?.count ?? '0', 10);
   const msgSent = parseInt(messagesSent30d?.count ?? '0', 10);
   const customReqs = parseInt(customRequests30d?.count ?? '0', 10);
   const earnings = parseFloat(profile.total_earnings ?? '0');
@@ -423,6 +431,21 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
         confidence: 0.65,
       });
     }
+  }
+
+  // ── Rule 13: Lapsed subscriber reactivation ───────────────────────────────
+  // Fires when 2+ subscribers cancelled in 30 days — signals churn risk.
+  if (lapsed >= 2) {
+    cards.push({
+      type: 'subscription_opportunity',
+      priority: lapsed >= 5 ? 'medium' : 'low',
+      title: `${lapsed} subscriber${lapsed !== 1 ? 's' : ''} cancelled this month`,
+      body: `Cancellations often follow a gap in new content. Posting something fresh — even a short update — and sending a personal message to recent subscribers can slow churn significantly.`,
+      cta_label: 'Upload content',
+      cta_action: 'go_to_upload',
+      signal: `${lapsed} cancellation${lapsed !== 1 ? 's' : ''} in last 30 days, ${subs} still active`,
+      confidence: lapsed >= 5 ? 0.82 : 0.68,
+    });
   }
 
   // Sort: high → medium → low, then by confidence desc

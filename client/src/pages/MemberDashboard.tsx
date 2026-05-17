@@ -347,10 +347,34 @@ export default function MemberDashboard() {
                   </div>
                 )}
 
+                {/* AI creator picks — shown when enriched sections are absent */}
+                {!aiLoading && aiRecs?.creator_picks && aiRecs.creator_picks.length > 0 && memberSections.length === 0 && (
+                  <div className="space-y-1.5 pt-3 border-t border-white/5 mt-4">
+                    <p className="text-[10px] font-semibold tracking-widest uppercase text-arc-muted mb-2">Suggested for You</p>
+                    {aiRecs.creator_picks.map((p: { username: string; display_name: string; reason: string }) => (
+                      <Link
+                        key={p.username}
+                        to={`/creator/${p.username}`}
+                        className="flex items-start gap-3 px-3 py-2.5 rounded-xl bg-bg-hover border border-white/5 hover:border-gold/20 transition-all group"
+                      >
+                        <div className="w-7 h-7 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-xs font-serif text-gold">{p.display_name[0]?.toUpperCase()}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-medium text-white truncate">{p.display_name}</p>
+                          <p className="text-[10px] text-arc-muted">@{p.username}</p>
+                          <p className="text-[10px] text-arc-secondary mt-0.5 leading-relaxed">{p.reason}</p>
+                        </div>
+                        <ChevronRight className="w-3.5 h-3.5 text-arc-muted opacity-0 group-hover:opacity-60 transition-opacity flex-shrink-0 mt-1" />
+                      </Link>
+                    ))}
+                  </div>
+                )}
+
                 {aiRecs?.guidance && aiRecs.guidance.length > 0 && (
                   <div className="space-y-2 pt-3 border-t border-white/5 mt-4">
                     <p className="text-[10px] font-medium tracking-widest uppercase text-arc-muted mb-2">Tips</p>
-                    {aiRecs.guidance.map((g, i) => (
+                    {aiRecs.guidance.map((g: { text: string }, i: number) => (
                       <p key={i} className="text-xs text-arc-secondary leading-relaxed flex gap-2">
                         <span className="text-gold flex-shrink-0 mt-0.5">·</span>
                         {g.text}

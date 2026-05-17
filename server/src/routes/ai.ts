@@ -3,6 +3,7 @@ import OpenAI from 'openai';
 import { query, queryOne } from '../db/schema.js';
 import { requireAuth, requireCreator, requireAdmin } from '../middleware/auth.js';
 import { getAffinityPicksForUser, getMemberGuidanceTips } from '../services/memberRecommendations.js';
+import { getMemberInterestProfile } from '../services/memberProfile.js';
 
 const router = Router();
 
@@ -133,30 +134,109 @@ Category options: "Pricing" | "Content" | "Profile" | "Growth" | "Custom Request
 });
 
 // POST /api/ai/member-recommendations
-// Returns personalized creator picks and guidance tips from real signal data.
-// Rules-based engine runs first (always fast); AI enhancement is additive if available.
-// Response shape is stable: { creator_picks, guidance } — dashboard depends on this.
+// Returns personalized creator picks and guidance tips grounded in real signal data.
+// Rules-based guidance always runs (fast, cached). AI picks layer is additive:
+// if OpenAI is available, uses the member's interest profile to select and explain
+// 3 creators. Falls back to affinity picks silently if AI call fails or key absent.
 router.post('/member-recommendations', requireAuth, async (req, res) => {
   try {
     const userId = req.auth!.userId;
 
-    // Run both in parallel — both are cached so repeat calls are instant
-    const [picks, guidance] = await Promise.all([
-      getAffinityPicksForUser(userId, 3),
+    // Always run guidance — it's fast and rules-based
+    const [guidance, profile] = await Promise.all([
       getMemberGuidanceTips(userId),
+      getMemberInterestProfile(userId).catch(() => null),
     ]);
 
-    res.json({
-      creator_picks: picks.map(p => ({
+    // Build AI picks if we have an interest profile and an OpenAI key
+    let creator_picks: { username: string; display_name: string; reason: string }[] = [];
+
+    if (profile && profile.top_tags.length > 0 && process.env.OPENAI_API_KEY) {
+      const topTags = profile.top_tags.slice(0, 5).map(t => t.tag);
+
+      // Fetch candidate creators matching the member's top tags
+      const candidates = await query<{
+        username: string;
+        display_name: string;
+        tags: string;
+        subscription_price: string;
+        sub_count: number;
+      }>(
+        `SELECT
+           u.username,
+           u.display_name,
+           cp.tags,
+           cp.subscription_price,
+           (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active')::int AS sub_count
+         FROM creator_profiles cp
+         JOIN users u ON u.id = cp.user_id
+         WHERE cp.is_approved = 1 AND u.status = 'approved'
+           AND cp.user_id != $1
+           AND cp.id NOT IN (
+             SELECT creator_id FROM subscriptions
+             WHERE subscriber_id = $1 AND status = 'active'
+           )
+           AND EXISTS (
+             SELECT 1 FROM jsonb_array_elements_text(
+               CASE WHEN cp.tags ~ '^\[' THEN cp.tags::jsonb ELSE '[]'::jsonb END
+             ) AS t WHERE t = ANY($2)
+           )
+         ORDER BY sub_count DESC
+         LIMIT 10`,
+        [userId, topTags]
+      ).catch(() => []);
+
+      if (candidates.length > 0) {
+        const prompt = `You are a recommendation engine for Archangels Club, a private creator platform.
+
+Member interest profile:
+- Top content tags (weighted by engagement): ${topTags.join(', ')}
+- Has unlocked content before: ${profile.has_unlock_history}
+- Has subscribed before: ${profile.has_sub_history}
+- Engagement recency: ${profile.engagement_recency_days >= 0 ? `${profile.engagement_recency_days} days ago` : 'no history yet'}
+
+Available creators (username, display name, tags, monthly price, subscriber count):
+${candidates.map(c => {
+  let tags: string[] = [];
+  try { tags = JSON.parse(c.tags); } catch {}
+  return `- @${c.username} (${c.display_name}): tags=[${tags.join(',')}] price=$${parseFloat(c.subscription_price).toFixed(2)}/mo subs=${c.sub_count}`;
+}).join('\n')}
+
+Select exactly 3 creators that best match this member's interests. For each, write a one-sentence reason (max 15 words) explaining why they match. Be specific — reference a shared tag or the member's history.
+
+Return JSON: { "picks": [{ "username": string, "reason": string }] }`;
+
+        try {
+          const result = await chatJSON(prompt, 300) as { picks: { username: string; reason: string }[] };
+          if (Array.isArray(result.picks)) {
+            creator_picks = result.picks.slice(0, 3).map(p => {
+              const c = candidates.find(c => c.username === p.username);
+              return {
+                username: p.username,
+                display_name: c?.display_name ?? p.username,
+                reason: p.reason,
+              };
+            }).filter(p => p.display_name);
+          }
+        } catch {
+          // AI unavailable — fall through to affinity fallback below
+        }
+      }
+    }
+
+    // Fallback: rules-based affinity picks when AI produced nothing
+    if (creator_picks.length === 0) {
+      const picks = await getAffinityPicksForUser(userId, 3);
+      creator_picks = picks.map(p => ({
         username: p.username,
         display_name: p.display_name,
         reason: p.reason,
-      })),
-      guidance,
-    });
+      }));
+    }
+
+    res.json({ creator_picks, guidance });
   } catch (err) {
     console.error('[ai/member-recommendations] error:', err);
-    // Always return a valid shape — never leave the dashboard in a broken state
     res.json({ creator_picks: [], guidance: [] });
   }
 });
