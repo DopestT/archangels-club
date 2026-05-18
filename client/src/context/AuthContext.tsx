@@ -59,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data = await res.json();
       console.log('[login] response body:', data);
     } catch {
-      throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
+      throw new Error('Unable to sign in. Please try again.');
     }
 
     if (!res.ok) throw new Error(data.error ?? 'Login failed. Please try again.');
