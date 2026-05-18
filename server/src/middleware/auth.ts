@@ -24,6 +24,19 @@ export function signToken(payload: AuthPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
+// Admin key brute-force guard: 5 attempts/minute/IP
+const _adminKeyAttempts = new Map<string, { count: number; resetAt: number }>();
+function isAdminKeyRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const record = _adminKeyAttempts.get(ip);
+  if (!record || now > record.resetAt) {
+    _adminKeyAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
+    return false;
+  }
+  record.count++;
+  return record.count > 5;
+}
+
 // Attaches auth payload if a valid token is present; never blocks the request.
 export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
   const header = req.headers.authorization;
@@ -37,11 +50,18 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const adminKey = req.headers['x-admin-key'];
-  if (adminKey && process.env.ADMIN_KEY && adminKey === process.env.ADMIN_KEY) {
-    req.auth = { userId: 'admin', role: 'admin' };
-    console.log('[auth] admin-key bypass, role=admin');
-    next();
-    return;
+  if (adminKey && process.env.ADMIN_KEY) {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ?? req.ip ?? '';
+    if (isAdminKeyRateLimited(clientIp)) {
+      res.status(429).json({ error: 'Too many admin key attempts — try again in a minute' });
+      return;
+    }
+    if (adminKey === process.env.ADMIN_KEY) {
+      req.auth = { userId: 'admin', role: 'admin' };
+      console.log('[auth] admin-key bypass, role=admin');
+      next();
+      return;
+    }
   }
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {

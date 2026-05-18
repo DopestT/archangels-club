@@ -485,6 +485,10 @@ const DDL = `
 
   CREATE INDEX IF NOT EXISTS idx_creator_daily_stats_date ON creator_daily_stats(stat_date DESC);
 
+  -- ── Infrastructure hardening ─────────────────────────────────────────────────
+  -- fulfilled_at: exact timestamp when fulfillment completed (distinct from updated_at).
+  ALTER TABLE fulfillment_records ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
+
   -- ── ABMIE-X: Platform Daily Stats ────────────────────────────────────────────
   -- Platform-wide aggregates for admin Pulse view. One row per date.
   CREATE TABLE IF NOT EXISTS platform_daily_stats (

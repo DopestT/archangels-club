@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Bell, Check, Trash2, Zap, Crown, ShoppingBag, Info, Filter } from 'lucide-react';
+import {
+  Bell, Check, Trash2, Zap, Crown, ShoppingBag, Info,
+  Star, Users, MessageCircle, CheckCircle, XCircle, AlertTriangle,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { NotificationSkeleton } from '../components/ui/LoadingSkeleton';
@@ -22,20 +25,82 @@ interface Notification {
 type FilterTab = 'all' | 'creator' | 'user' | 'unread';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
-  creator_first_sale: <ShoppingBag className="w-4 h-4" />,
-  creator_welcome:    <Crown className="w-4 h-4" />,
-  creator_drop_live:  <Zap className="w-4 h-4" />,
-  user_drop_alert:    <Zap className="w-4 h-4" />,
-  user_purchase:      <ShoppingBag className="w-4 h-4" />,
+  creator_first_sale:        <ShoppingBag className="w-4 h-4" />,
+  creator_welcome:           <Crown className="w-4 h-4" />,
+  creator_drop_live:         <Zap className="w-4 h-4" />,
+  creator_tip:               <Star className="w-4 h-4" />,
+  creator_subscriber:        <Users className="w-4 h-4" />,
+  creator_request:           <MessageCircle className="w-4 h-4" />,
+  creator_content_approved:  <CheckCircle className="w-4 h-4" />,
+  creator_content_rejected:  <XCircle className="w-4 h-4" />,
+  creator_content_changes:   <AlertTriangle className="w-4 h-4" />,
+  user_drop_alert:           <Zap className="w-4 h-4" />,
+  user_purchase:             <ShoppingBag className="w-4 h-4" />,
+  user_subscription:         <Crown className="w-4 h-4" />,
 };
 
-function icon(type: string) { return TYPE_ICONS[type] ?? <Info className="w-4 h-4" />; }
+// Icon container style per type category
+type IconTheme = { bg: string; border: string; text: string };
+
+function iconTheme(type: string): IconTheme {
+  if (type === 'creator_content_rejected' || type === 'creator_content_changes') {
+    return { bg: 'bg-arc-error/10', border: 'border-arc-error/25', text: 'text-arc-error' };
+  }
+  if (type === 'creator_content_approved') {
+    return { bg: 'bg-arc-success/10', border: 'border-arc-success/25', text: 'text-arc-success' };
+  }
+  if (type.includes('drop') || type.includes('alert')) {
+    return { bg: 'bg-amber-400/10', border: 'border-amber-400/20', text: 'text-amber-400' };
+  }
+  if (type.startsWith('creator_')) {
+    return { bg: 'bg-gold/10', border: 'border-gold/25', text: 'text-gold' };
+  }
+  if (type.startsWith('user_')) {
+    return { bg: 'bg-arc-success/10', border: 'border-arc-success/25', text: 'text-arc-success' };
+  }
+  return { bg: 'bg-white/5', border: 'border-white/10', text: 'text-arc-secondary' };
+}
+
+// Unread dot color per type
+function unreadDotCls(type: string): string {
+  if (type === 'creator_content_rejected' || type === 'creator_content_changes') return 'bg-arc-error';
+  if (type.includes('drop') || type.includes('alert')) return 'bg-amber-400';
+  if (type.startsWith('creator_')) return 'bg-gold';
+  if (type.startsWith('user_')) return 'bg-arc-success';
+  return 'bg-gold';
+}
+
 function isCreatorType(t: string) { return t.startsWith('creator_'); }
-function isDropType(t: string)    { return t.includes('drop') || t.includes('scarcity'); }
+
+// Group notifications into date buckets
+const DAY = 86_400_000;
+function groupByDate(items: Notification[]): { label: string; items: Notification[] }[] {
+  const now = Date.now();
+  const today: Notification[] = [];
+  const week: Notification[] = [];
+  const earlier: Notification[] = [];
+
+  for (const n of items) {
+    const age = now - new Date(n.created_at).getTime();
+    if (age < DAY)       today.push(n);
+    else if (age < 7 * DAY) week.push(n);
+    else                 earlier.push(n);
+  }
+
+  return [
+    ...(today.length   > 0 ? [{ label: 'Today',     items: today   }] : []),
+    ...(week.length    > 0 ? [{ label: 'This Week',  items: week    }] : []),
+    ...(earlier.length > 0 ? [{ label: 'Earlier',    items: earlier }] : []),
+  ];
+}
 
 function apiFetch(path: string, opts?: RequestInit) {
   return baseApiFetch(`/api/notifications${path}`, opts);
 }
+
+const PULSE_DOT_STYLE: React.CSSProperties = {
+  animation: 'pulseSignalDot 2s ease-in-out infinite',
+};
 
 export default function NotificationsPage() {
   const { isAuthenticated } = useAuth();
@@ -116,53 +181,76 @@ export default function NotificationsPage() {
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Bell className="w-7 h-7" />}
-            title="No notifications"
-            description={filter === 'unread' ? "You're all caught up." : "Notifications will appear here as activity happens."}
+            title={filter === 'unread' ? "You're all caught up." : "No notifications"}
+            description={filter === 'unread' ? "Signal intelligence is active and monitoring." : "Notifications will appear here as activity happens."}
           />
         ) : (
-          <div className="card-surface rounded-xl overflow-hidden">
-            {filtered.map((n, i) => (
-              <div
-                key={n.id}
-                className={`relative flex gap-4 px-5 py-4 border-b border-white/5 last:border-0 transition-colors ${n.status === 'unread' ? 'bg-gold/3 hover:bg-gold/5' : 'hover:bg-bg-hover'}`}
-              >
-                {/* Unread indicator */}
-                {n.status === 'unread' && (
-                  <div className="absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gold" />
-                )}
+          <div className="space-y-5">
+            {groupByDate(filtered).map(({ label, items }) => (
+              <div key={label}>
+                {/* Date group header */}
+                <p className="text-[9px] font-bold tracking-[0.2em] uppercase text-arc-muted mb-2 px-1">{label}</p>
 
-                {/* Icon */}
-                <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${
-                  isDropType(n.type)    ? 'bg-arc-success/10 border-arc-success/25 text-arc-success' :
-                  isCreatorType(n.type) ? 'bg-gold/10 border-gold/25 text-gold' :
-                  'bg-white/5 border-white/10 text-arc-secondary'
-                }`}>
-                  {icon(n.type)}
+                <div className="card-surface rounded-xl overflow-hidden">
+                  {items.map((n, i) => {
+                    const theme = iconTheme(n.type);
+                    const dotCls = unreadDotCls(n.type);
+                    return (
+                      <div
+                        key={n.id}
+                        className={`relative flex gap-4 px-5 py-4 border-b border-white/5 last:border-0 transition-colors ${
+                          n.status === 'unread' ? 'bg-gold/[0.025] hover:bg-gold/[0.045]' : 'hover:bg-bg-hover'
+                        }`}
+                        style={{ animation: 'recCardReveal 240ms ease both', animationDelay: `${i * 30}ms` }}
+                      >
+                        {/* Unread signal dot */}
+                        {n.status === 'unread' && (
+                          <div
+                            className={`absolute left-2 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full ${dotCls}`}
+                            style={PULSE_DOT_STYLE}
+                          />
+                        )}
+
+                        {/* Type icon */}
+                        <div className={`w-10 h-10 rounded-xl border flex items-center justify-center flex-shrink-0 ${theme.bg} ${theme.border} ${theme.text}`}>
+                          {TYPE_ICONS[n.type] ?? <Info className="w-4 h-4" />}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium mb-0.5 leading-snug ${n.status === 'unread' ? 'text-white' : 'text-arc-secondary'}`}>
+                            {n.title}
+                          </p>
+                          <p className="text-xs text-arc-muted leading-relaxed">{n.message}</p>
+                          <div className="flex items-center gap-3 mt-2 flex-wrap">
+                            <span className="text-xs text-arc-muted tabular-nums">{timeAgo(n.created_at)}</span>
+                            {n.action_url && n.action_label && (
+                              <Link to={n.action_url} className="text-xs font-medium text-gold hover:text-gold/80 transition-colors">
+                                {n.action_label} →
+                              </Link>
+                            )}
+                            {n.status === 'unread' && (
+                              <button
+                                onClick={() => markRead(n.id)}
+                                className="text-xs text-arc-muted hover:text-white transition-colors"
+                              >
+                                Mark read
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Dismiss */}
+                        <button
+                          onClick={() => dismiss(n.id)}
+                          className="flex-shrink-0 p-1.5 text-arc-muted hover:text-arc-error hover:bg-arc-error/10 rounded-lg transition-all self-start mt-0.5"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className={`text-sm font-medium mb-0.5 ${n.status === 'unread' ? 'text-white' : 'text-arc-secondary'}`}>{n.title}</p>
-                  <p className="text-xs text-arc-muted leading-relaxed">{n.message}</p>
-                  <div className="flex items-center gap-3 mt-2">
-                    <span className="text-xs text-arc-muted">{timeAgo(n.created_at)}</span>
-                    {n.action_url && n.action_label && (
-                      <Link to={n.action_url} className="text-xs font-medium text-gold hover:text-gold-hover transition-colors">
-                        {n.action_label} →
-                      </Link>
-                    )}
-                    {n.status === 'unread' && (
-                      <button onClick={() => markRead(n.id)} className="text-xs text-arc-muted hover:text-white transition-colors">
-                        Mark read
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Dismiss */}
-                <button onClick={() => dismiss(n.id)} className="flex-shrink-0 p-1.5 text-arc-muted hover:text-arc-error hover:bg-arc-error/10 rounded-lg transition-all">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
               </div>
             ))}
           </div>

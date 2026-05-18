@@ -43,7 +43,7 @@ function buildPreviewUrl(cloudName: string, result: CloudinaryUploadResult): str
   return `https://res.cloudinary.com/${cloudName}/image/upload/e_blur:1800,q_20,w_800/${v}/${public_id}`;
 }
 
-async function signUpload(token: string): Promise<{ signature: string; timestamp: number; api_key: string; cloud_name: string; folder: string }> {
+async function signUpload(token: string): Promise<{ signature: string; timestamp: number; api_key: string; cloud_name: string; folder: string; type?: string }> {
   const res = await fetch(`${API_BASE}/api/upload/sign`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -65,6 +65,7 @@ function uploadToCloudinary(
     form.append('timestamp', String(sign.timestamp));
     form.append('signature', sign.signature);
     form.append('folder', sign.folder);
+    if (sign.type) form.append('type', sign.type);
 
     const xhr = new XMLHttpRequest();
     xhr.upload.addEventListener('progress', (e) => {

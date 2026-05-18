@@ -1,7 +1,9 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
+import { fulfillCheckoutSession } from '../services/fulfillment.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { triggerAccountApproved } from '../services/triggers.js';
 import {
@@ -867,6 +869,28 @@ router.get('/money-health', async (req, res) => {
   } catch (err) {
     console.error('[admin] money-health error:', err);
     res.status(500).json({ error: 'Failed to fetch money health.' });
+  }
+});
+
+// ── Fulfillment Retry ─────────────────────────────────────────────────────────
+
+// POST /api/admin/fulfillment/:sessionId/retry — re-run fulfillment for a stuck/failed session
+router.post('/fulfillment/:sessionId/retry', async (req, res) => {
+  const { sessionId } = req.params;
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    await fulfillCheckoutSession(session);
+    const record = await queryOne<{ status: string; ref_type: string | null; ref_id: string | null; fulfilled_at: string | null }>(
+      'SELECT status, ref_type, ref_id, fulfilled_at FROM fulfillment_records WHERE stripe_session_id = $1',
+      [sessionId]
+    );
+    console.log('[admin] manual fulfillment retry for session=%s result=%s', sessionId, record?.status);
+    res.json({ ok: true, status: record?.status ?? 'unknown', ref_type: record?.ref_type, ref_id: record?.ref_id, fulfilled_at: record?.fulfilled_at });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('[admin] fulfillment retry failed session=%s: %s', sessionId, msg);
+    res.status(500).json({ error: msg });
   }
 });
 

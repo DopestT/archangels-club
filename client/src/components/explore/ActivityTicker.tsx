@@ -1,30 +1,14 @@
 import React, { useRef, useEffect, useState } from 'react';
 
-interface ActivityTickerProps {
-  mode: 'member' | 'creator';
+export interface ActivityTickerItem {
+  label: string;
+  action: string;
 }
 
-const MEMBER_ITEMS = [
-  { label: 'Noire Atelier', action: 'drop unlocked 42 times today' },
-  { label: '3 limited drops', action: 'ending in the next 24 hours' },
-  { label: 'Solène V.', action: 'just released a new locked post' },
-  { label: 'The Dark Room bundle', action: 'is trending right now' },
-  { label: '18 members', action: 'joined the platform this week' },
-  { label: 'Cipher Series', action: 'sold out its last 4 spots' },
-  { label: '9 new drops', action: 'added by creators this morning' },
-  { label: 'Vault III', action: 'claimed by 11 subscribers today' },
-];
-
-const CREATOR_ITEMS = [
-  { label: 'Obsidian Series', action: 'gained 8 unlocks in the last hour' },
-  { label: '3 visitors', action: 'are close to subscribing to your profile' },
-  { label: 'Your limited drop', action: 'is 67% claimed — trending now' },
-  { label: 'Bundle conversion rate', action: 'is up 18% today' },
-  { label: 'Subscribers on the platform', action: 'up 12% this week' },
-  { label: 'Your last drop', action: 'earned the most in the past 30 days' },
-  { label: '4 saves', action: 'on your latest post in the last hour' },
-  { label: 'Top creators', action: 'averaging 6 drops per month' },
-];
+interface ActivityTickerProps {
+  mode: 'member' | 'creator';
+  items?: ActivityTickerItem[];
+}
 
 const DOT = (
   <span
@@ -34,7 +18,7 @@ const DOT = (
       width: 3,
       height: 3,
       borderRadius: '50%',
-      background: 'rgba(212,175,55,0.45)',
+      background: 'rgba(212,175,55,0.4)',
       margin: '0 20px',
       verticalAlign: 'middle',
       flexShrink: 0,
@@ -42,7 +26,7 @@ const DOT = (
   />
 );
 
-function TickerItem({ label, action }: { label: string; action: string }) {
+function TickerItem({ label, action }: ActivityTickerItem) {
   return (
     <span
       style={{
@@ -51,67 +35,179 @@ function TickerItem({ label, action }: { label: string; action: string }) {
         whiteSpace: 'nowrap',
         fontSize: 11,
         letterSpacing: '0.01em',
-        color: 'rgba(255,255,255,0.42)',
+        color: 'rgba(255,255,255,0.38)',
         flexShrink: 0,
       }}
     >
-      <span style={{ color: 'rgba(212,175,55,0.75)', fontWeight: 500 }}>{label}</span>
+      <span style={{ color: 'rgba(212,175,55,0.7)', fontWeight: 500 }}>{label}</span>
       &nbsp;
       <span>{action}</span>
     </span>
   );
 }
 
-export default function ActivityTicker({ mode }: ActivityTickerProps) {
-  const items = mode === 'creator' ? CREATOR_ITEMS : MEMBER_ITEMS;
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [trackWidth, setTrackWidth] = useState(0);
+const SHELL_STYLE: React.CSSProperties = {
+  borderTop: '1px solid rgba(255,255,255,0.04)',
+  borderBottom: '1px solid rgba(255,255,255,0.04)',
+  background: 'rgba(255,255,255,0.012)',
+  overflow: 'hidden',
+  height: 30,
+  display: 'flex',
+  alignItems: 'center',
+  position: 'relative',
+};
 
-  // Measure the natural width of one copy so we can set the animation distance exactly
-  useEffect(() => {
-    if (trackRef.current) {
-      setTrackWidth(trackRef.current.scrollWidth / 2);
-    }
-  }, [mode]);
-
-  // Build one copy, then duplicate it for seamless loop
-  const single = items.flatMap((item, i) => [
-    <TickerItem key={`a-${i}`} label={item.label} action={item.action} />,
-    <React.Fragment key={`dot-a-${i}`}>{DOT}</React.Fragment>,
-  ]);
-  const doubled = [...single, ...items.flatMap((item, i) => [
-    <TickerItem key={`b-${i}`} label={item.label} action={item.action} />,
-    <React.Fragment key={`dot-b-${i}`}>{DOT}</React.Fragment>,
-  ])];
-
-  return (
-    <div
+const LIVE_INDICATOR = (
+  <div
+    aria-hidden
+    style={{
+      position: 'absolute',
+      left: 0,
+      top: 0,
+      bottom: 0,
+      width: 72,
+      display: 'flex',
+      alignItems: 'center',
+      paddingLeft: 12,
+      gap: 5,
+      zIndex: 3,
+      background: 'linear-gradient(to right, #0A0A0F 45%, transparent 100%)',
+      pointerEvents: 'none',
+    }}
+  >
+    <span
       style={{
-        borderTop: '1px solid rgba(255,255,255,0.04)',
-        borderBottom: '1px solid rgba(255,255,255,0.04)',
-        background: 'rgba(255,255,255,0.015)',
-        overflow: 'hidden',
-        height: 30,
-        display: 'flex',
-        alignItems: 'center',
-        position: 'relative',
+        width: 5,
+        height: 5,
+        borderRadius: '50%',
+        background: '#22C55E',
+        flexShrink: 0,
+        animation: 'ticker-pulse 2.2s ease-in-out infinite',
+      }}
+    />
+    <span
+      style={{
+        fontSize: 9,
+        fontWeight: 700,
+        letterSpacing: '0.18em',
+        color: 'rgba(255,255,255,0.28)',
+        textTransform: 'uppercase',
       }}
     >
-      {/* Left fade */}
+      Live
+    </span>
+    <style>{`
+      @keyframes ticker-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+    `}</style>
+  </div>
+);
+
+// Shown when items prop is explicitly [] — data-ready but no signals yet
+function SignalsLoadingTicker() {
+  return (
+    <div style={SHELL_STYLE}>
+      {LIVE_INDICATOR}
+      <span
+        style={{
+          marginLeft: 110,
+          fontSize: 10,
+          color: 'rgba(255,255,255,0.2)',
+          letterSpacing: '0.08em',
+          fontStyle: 'italic',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        Pulse active · Activity signals loading
+      </span>
+      {/* Right fade */}
       <div
         aria-hidden
         style={{
           position: 'absolute',
-          left: 0,
+          right: 0,
           top: 0,
           bottom: 0,
           width: 48,
+          background: 'linear-gradient(to left, #0A0A0F 0%, transparent 100%)',
+          zIndex: 2,
+          pointerEvents: 'none',
+        }}
+      />
+    </div>
+  );
+}
+
+export default function ActivityTicker({ mode, items }: ActivityTickerProps) {
+  // items=undefined → use mode-based content (legacy path until real API flows)
+  // items=[]        → show "signals loading" state (data-ready, no events yet)
+  // items=[...]     → use real data
+
+  if (items !== undefined && items.length === 0) {
+    return <SignalsLoadingTicker />;
+  }
+
+  const displayItems: ActivityTickerItem[] = items ?? (
+    mode === 'creator'
+      ? [
+          { label: 'Studio Intelligence',  action: 'is tracking your signals' },
+          { label: 'Signal updates',       action: 'will appear here in real time' },
+          { label: 'Creator Pulse',        action: 'active and monitoring' },
+          { label: 'Real-time activity',   action: 'streams when members interact' },
+        ]
+      : [
+          { label: 'Signal Intelligence',  action: 'is active on this platform' },
+          { label: 'Platform activity',    action: 'streams here in real time' },
+          { label: 'Archangels Club',      action: 'live and monitoring' },
+          { label: 'Creator signals',      action: 'update continuously' },
+        ]
+  );
+
+  return <ScrollingTicker mode={mode} items={displayItems} />;
+}
+
+function ScrollingTicker({ mode, items }: { mode: string; items: ActivityTickerItem[] }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
+
+  useEffect(() => {
+    if (trackRef.current) {
+      setTrackWidth(trackRef.current.scrollWidth / 2);
+    }
+  }, [mode, items]);
+
+  const single = items.flatMap((item, i) => [
+    <TickerItem key={`a-${i}`} label={item.label} action={item.action} />,
+    <React.Fragment key={`dot-a-${i}`}>{DOT}</React.Fragment>,
+  ]);
+  const doubled = [
+    ...single,
+    ...items.flatMap((item, i) => [
+      <TickerItem key={`b-${i}`} label={item.label} action={item.action} />,
+      <React.Fragment key={`dot-b-${i}`}>{DOT}</React.Fragment>,
+    ]),
+  ];
+
+  return (
+    <div style={SHELL_STYLE}>
+      {LIVE_INDICATOR}
+
+      {/* Left fade — behind LIVE indicator */}
+      <div
+        aria-hidden
+        style={{
+          position: 'absolute',
+          left: 72,
+          top: 0,
+          bottom: 0,
+          width: 32,
           background: 'linear-gradient(to right, #0A0A0F 0%, transparent 100%)',
           zIndex: 2,
           pointerEvents: 'none',
         }}
       />
-
       {/* Right fade */}
       <div
         aria-hidden
@@ -137,7 +233,7 @@ export default function ActivityTicker({ mode }: ActivityTickerProps) {
           animation: trackWidth > 0
             ? `arc-ticker-${mode} ${Math.round(trackWidth / 28)}s linear infinite`
             : undefined,
-          paddingLeft: 24,
+          paddingLeft: 104,
         }}
       >
         {doubled}
@@ -147,6 +243,10 @@ export default function ActivityTicker({ mode }: ActivityTickerProps) {
         @keyframes arc-ticker-${mode} {
           0%   { transform: translateX(0); }
           100% { transform: translateX(-${trackWidth}px); }
+        }
+        @keyframes ticker-pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.3; }
         }
       `}</style>
     </div>

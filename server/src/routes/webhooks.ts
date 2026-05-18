@@ -109,12 +109,22 @@ async function handleCheckoutCompleted(
   });
   if (isDuplicate) return;
 
-  try {
-    await fulfillCheckoutSession(session, event.id);
-    await markEventProcessed(eventRowId);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[webhook] checkout.session.completed fulfillment failed:', msg);
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      await fulfillCheckoutSession(session, event.id);
+      await markEventProcessed(eventRowId);
+      lastErr = undefined;
+      break;
+    } catch (err) {
+      lastErr = err;
+      console.error('[webhook] checkout.session.completed attempt %d/3 failed: %s',
+        attempt, err instanceof Error ? err.message : String(err));
+      if (attempt < 3) await new Promise(r => setTimeout(r, attempt * 1_000));
+    }
+  }
+  if (lastErr !== undefined) {
+    const msg = lastErr instanceof Error ? lastErr.message : String(lastErr);
     await markEventFailed(eventRowId, msg);
   }
 }
