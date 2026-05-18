@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Upload, DollarSign, Users, TrendingUp, MessageCircle, Clock, ChevronRight,
   Star, CheckCircle, XCircle, Crown, ExternalLink, Zap, Copy, Check,
@@ -44,8 +44,9 @@ const ACT_COLORS: Record<string, string> = {
 };
 
 export default function CreatorDashboard() {
-  const { user, token, refreshUser, isVerifiedCreator } = useAuth();
+  const { user, token, refreshUser, isVerifiedCreator, logout } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   useEffect(() => { document.title = 'Creator Studio — Archangels Club'; }, []);
   useEffect(() => { setViewMode('creator'); }, []);
@@ -180,11 +181,16 @@ export default function CreatorDashboard() {
         method: 'POST',
         headers: { ...authHeaders, 'Content-Type': 'application/json' },
       });
+      if (res.status === 401) {
+        logout();
+        navigate('/login?next=/creator');
+        return;
+      }
       const data = await res.json();
       if (data.url) {
         window.location.href = data.url;
       } else {
-        setStripeError(data.error ?? 'Payout setup is being prepared. Please try again shortly.');
+        setStripeError('Payout setup unavailable. Please try again shortly.');
         setStripeLoading(false);
       }
     } catch {
@@ -224,6 +230,7 @@ export default function CreatorDashboard() {
       method: 'POST',
       headers: authHeaders,
     });
+    if (res.status === 401) { logout(); navigate('/login?next=/creator'); return; }
     const data = await res.json();
     if (data.url) window.open(data.url, '_blank');
   }
