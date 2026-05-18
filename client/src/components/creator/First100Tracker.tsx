@@ -10,11 +10,11 @@ interface First100TrackerProps {
 }
 
 const MILESTONES = [
-  { label: 'First post', earnings: 0,   icon: <Upload className="w-3.5 h-3.5" />,    action: 'Upload your first content' },
-  { label: 'First $10',  earnings: 10,  icon: <DollarSign className="w-3.5 h-3.5" />, action: 'Unlock a second content piece' },
-  { label: 'First $25',  earnings: 25,  icon: <TrendingUp className="w-3.5 h-3.5" />, action: 'Set up a limited drop' },
-  { label: 'First $50',  earnings: 50,  icon: <Users className="w-3.5 h-3.5" />,      action: 'Launch your subscription' },
-  { label: 'First $100', earnings: 100, icon: <DollarSign className="w-3.5 h-3.5" />, action: 'You made it 🎉' },
+  { label: 'First drop',  earnings: 0,   icon: <Upload className="w-3.5 h-3.5" />,    action: 'Start with one drop.' },
+  { label: 'First $10',   earnings: 10,  icon: <DollarSign className="w-3.5 h-3.5" />, action: 'Keep going.' },
+  { label: 'First $25',   earnings: 25,  icon: <TrendingUp className="w-3.5 h-3.5" />, action: 'Momentum is building.' },
+  { label: 'First $50',   earnings: 50,  icon: <Users className="w-3.5 h-3.5" />,      action: 'Open your subscription.' },
+  { label: 'First $100',  earnings: 100, icon: <DollarSign className="w-3.5 h-3.5" />, action: 'You made it.' },
 ];
 
 export default function First100Tracker({ currentEarnings, goal = 100, className = '' }: First100TrackerProps) {
