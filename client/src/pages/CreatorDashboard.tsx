@@ -246,6 +246,33 @@ export default function CreatorDashboard() {
   const hasContent  = (contentCounts?.published ?? 0) > 0;
   const isActive    = isVerifiedCreator && (hasEarnings || hasContent || (stats?.subscriber_count ?? 0) > 0);
 
+  type CreatorState = 'new' | 'first_unlock' | 'active' | 'rising' | 'established';
+  const creatorState: CreatorState = (() => {
+    if (!isVerifiedCreator || (!hasContent && !hasEarnings && (stats?.subscriber_count ?? 0) === 0)) return 'new';
+    if (!hasEarnings) return 'first_unlock';
+    const earnings = stats?.total_earnings ?? 0;
+    const subs = stats?.subscriber_count ?? 0;
+    if (earnings >= 500 || subs >= 50) return 'established';
+    if (earnings >= 100 || subs >= 10) return 'rising';
+    return 'active';
+  })();
+
+  const HERO_SUBTITLE: Record<CreatorState, string> = {
+    new:          'Your studio awaits.',
+    first_unlock: 'Your first drop is live.',
+    active:       'Building momentum.',
+    rising:       'Your audience is growing.',
+    established:  'Your studio is performing.',
+  };
+
+  const HERO_DESCRIPTION: Record<CreatorState, string> = {
+    new:          "Upload your first drop to activate your studio.",
+    first_unlock: "Your first drop is live. Keep uploading to build momentum.",
+    active:       "Every drop you publish builds compounding revenue. Keep going.",
+    rising:       "Subscribers unlock your earning ceiling. Upload drops that reward loyalty.",
+    established:  "Upload drops, grow your audience, and collect earnings — this is your command center.",
+  };
+
   type ActivityType = 'unlock' | 'sub' | 'tip' | 'request';
   type ActivityItem = { type: ActivityType; text: string; time: string; amount: string };
 
@@ -342,16 +369,16 @@ export default function CreatorDashboard() {
                   className="font-serif text-lg xl:text-xl italic leading-snug"
                   style={{ color: 'rgba(212,175,55,0.72)' }}
                 >
-                  Your studio awaits.
+                  {HERO_SUBTITLE[creatorState]}
                 </p>
               </div>
             </div>
 
             {!statusLoading && (
               <p className="text-sm text-arc-secondary leading-relaxed max-w-lg mb-8">
-                {isVerifiedCreator
-                  ? 'Upload drops, grow your audience, and collect earnings — this is your command center.'
-                  : 'Set up your profile and prepare your first drop. You\'ll be notified as soon as your studio is ready.'}
+                {!isVerifiedCreator
+                  ? "Set up your profile and prepare your first drop. You'll be notified as soon as your studio is ready."
+                  : HERO_DESCRIPTION[creatorState]}
               </p>
             )}
 
@@ -408,7 +435,7 @@ export default function CreatorDashboard() {
         )}
 
         {/* ── Enable payouts CTA ───────────────────────────────────────────────── */}
-        {stripeStatus !== null && !stripeStatus.onboarded && (
+        {stripeStatus !== null && !stripeStatus.onboarded && (creatorState === 'new' || creatorState === 'first_unlock') && (
           <div className="flex items-start gap-4 p-5 rounded-xl bg-bg-surface border border-gold/30 mb-5">
             <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/25 flex items-center justify-center flex-shrink-0">
               <Zap className="w-4 h-4 text-gold" />

@@ -29,7 +29,7 @@ export default function AppShell() {
       <main className="flex-1 pt-16 lg:pt-18 pb-20 md:pb-0">
         <Outlet />
       </main>
-      <Footer />
+      {!['/creator', '/upload', '/studio'].some(p => pathname.startsWith(p)) && <Footer />}
 
       {/* Mobile bottom nav */}
       {isAuthenticated && (

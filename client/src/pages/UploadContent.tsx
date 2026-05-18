@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save } from 'lucide-react';
+import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save, ChevronDown } from 'lucide-react';
 import { timeAgo } from '../lib/utils';
 import type { ContentType, PricingConfig, VideoProcessingConfig } from '../types';
 import ImageEditor from '../components/editor/ImageEditor';
@@ -48,7 +48,7 @@ async function signUpload(token: string): Promise<{ signature: string; timestamp
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
   });
-  if (!res.ok) throw new Error('Failed to get upload credentials.');
+  if (!res.ok) throw new Error('Upload credentials unavailable.');
   return res.json();
 }
 
@@ -107,6 +107,7 @@ export default function UploadContent() {
   const [uploadError, setUploadError] = useState('');
   const [submittedTitle, setSubmittedTitle] = useState('');
   const [draftSaved, setDraftSaved] = useState(false);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [draftNotice, setDraftNotice] = useState<{
     title: string;
     description: string;
@@ -542,12 +543,41 @@ export default function UploadContent() {
 
             {/* Error */}
             {uploadError && (
-              <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/10 border border-arc-error/30">
-                <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-xs text-arc-error">{uploadError}</p>
-                  <p className="text-xs text-arc-muted mt-1">Your work is preserved — try again when ready.</p>
+              <div className="p-4 rounded-xl" style={{ background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.18)' }}>
+                <div className="flex items-start gap-3 mb-3">
+                  <AlertCircle className="w-4 h-4 text-amber-400/80 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-white">Studio upload interrupted.</p>
+                    <p className="text-xs text-arc-secondary mt-0.5 leading-relaxed">Your work is preserved. Retry or continue editing below.</p>
+                  </div>
                 </div>
+                <div className="flex items-center gap-2 pl-7 flex-wrap">
+                  <button
+                    onClick={() => handleSave()}
+                    disabled={busy || !title.trim()}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/8 text-amber-300 hover:bg-amber-500/15 transition-all disabled:opacity-50"
+                  >
+                    Retry
+                  </button>
+                  <button
+                    onClick={() => setUploadError('')}
+                    className="text-xs px-3 py-1.5 rounded-lg text-arc-muted hover:text-arc-secondary transition-all"
+                  >
+                    Continue Editing
+                  </button>
+                  <button
+                    onClick={() => setShowErrorDetails(v => !v)}
+                    className="text-xs flex items-center gap-1 text-arc-muted hover:text-arc-secondary transition-all ml-auto"
+                  >
+                    <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showErrorDetails ? 'rotate-180' : ''}`} />
+                    Diagnostics
+                  </button>
+                </div>
+                {showErrorDetails && (
+                  <div className="mt-3 ml-7 px-3 py-2.5 rounded-lg bg-white/4 border border-white/6">
+                    <p className="text-[11px] font-mono text-arc-muted leading-relaxed break-all">{uploadError}</p>
+                  </div>
+                )}
               </div>
             )}
 
