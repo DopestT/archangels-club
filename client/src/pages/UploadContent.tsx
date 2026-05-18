@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save, ChevronDown } from 'lucide-react';
 import { timeAgo } from '../lib/utils';
 import type { ContentType, PricingConfig, VideoProcessingConfig } from '../types';
@@ -27,71 +27,59 @@ const DEFAULT_PRICING: PricingConfig = {
   bundlePrice: null,
 };
 
-interface CloudinaryUploadResult {
+interface ServerAsset {
   secure_url: string;
   public_id: string;
-  resource_type: 'image' | 'video' | 'raw';
-  version: number;
+  resource_type: string;
+  bytes: number;
+  thumbnail_url: string | null;
+  blurred_preview_url: string | null;
 }
 
-function buildPreviewUrl(cloudName: string, result: CloudinaryUploadResult): string {
-  const { public_id, resource_type, version } = result;
-  const v = `v${version}`;
-  if (resource_type === 'video') {
-    return `https://res.cloudinary.com/${cloudName}/video/upload/so_3,e_blur:600,q_30,w_800/${v}/${public_id}.jpg`;
-  }
-  return `https://res.cloudinary.com/${cloudName}/image/upload/e_blur:1800,q_20,w_800/${v}/${public_id}`;
-}
-
-async function signUpload(token: string): Promise<{ signature: string; timestamp: number; api_key: string; cloud_name: string; folder: string; type?: string }> {
-  const res = await fetch(`${API_BASE}/api/upload/sign`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) throw new Error('Upload credentials unavailable.');
-  return res.json();
-}
-
-function uploadToCloudinary(
+function uploadViaServer(
   file: File,
-  resourceType: 'image' | 'video' | 'raw',
-  sign: Awaited<ReturnType<typeof signUpload>>,
+  token: string,
   onProgress: (pct: number) => void,
-): Promise<CloudinaryUploadResult> {
+): Promise<ServerAsset> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append('file', file);
-    form.append('api_key', sign.api_key);
-    form.append('timestamp', String(sign.timestamp));
-    form.append('signature', sign.signature);
-    form.append('folder', sign.folder);
-    if (sign.type) form.append('type', sign.type);
 
     const xhr = new XMLHttpRequest();
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     });
     xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText));
-      } else {
+      let data: any;
+      try { data = JSON.parse(xhr.responseText); } catch {
+        console.error('[upload] unparseable response:', xhr.status, xhr.responseText.slice(0, 300));
         reject(new Error(`Upload failed (${xhr.status})`));
+        return;
       }
+      if (xhr.status === 401) { reject(new Error('SESSION_EXPIRED')); return; }
+      if (xhr.status === 403) { reject(new Error(data?.error ?? 'CREATOR_NOT_APPROVED')); return; }
+      if (xhr.status === 429) { reject(new Error(data?.error ?? 'Too many uploads. Please wait a moment.')); return; }
+      if (!data?.success) {
+        console.error('[upload] server rejected:', xhr.status, data);
+        reject(new Error(data?.error ?? `Upload failed (${xhr.status})`));
+        return;
+      }
+      console.log('[upload] success | public_id:', data.asset.public_id, 'bytes:', data.asset.bytes);
+      resolve(data.asset as ServerAsset);
     });
-    xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${sign.cloud_name}/${resourceType}/upload`);
+    xhr.addEventListener('error', () => {
+      console.error('[upload] network error');
+      reject(new Error('Network error during upload.'));
+    });
+    xhr.open('POST', `${API_BASE}/api/media/upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(form);
   });
 }
 
-function toResourceType(contentType: ContentType): 'image' | 'video' | 'raw' {
-  if (contentType === 'image') return 'image';
-  if (contentType === 'video') return 'video';
-  return 'raw';
-}
-
 export default function UploadContent() {
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
+  const navigate = useNavigate();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [contentType, setContentType] = useState<ContentType>('image');
@@ -184,6 +172,7 @@ export default function UploadContent() {
   async function handleSave() {
     if (!title.trim() || !token || busy) return;
     setUploadError('');
+    setShowErrorDetails(false);
     setUploadProgress(0);
 
     try {
@@ -192,20 +181,29 @@ export default function UploadContent() {
 
       if (activeFile) {
         setStatus('uploading');
-        const sign = await signUpload(token);
-        const result = await uploadToCloudinary(
-          activeFile,
-          toResourceType(contentType),
-          sign,
-          setUploadProgress,
-        );
-        mediaUrl = result.secure_url;
+        console.log('[upload] starting | file:', activeFile.name, 'size:', activeFile.size, 'contentType:', contentType);
+
+        let asset: ServerAsset;
+        try {
+          asset = await uploadViaServer(activeFile, token, setUploadProgress);
+        } catch (uploadErr) {
+          const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+          if (msg === 'SESSION_EXPIRED') {
+            logout();
+            navigate('/login?next=/upload');
+            return;
+          }
+          throw uploadErr;
+        }
+
+        mediaUrl = asset.secure_url;
         if (!previewUrl) {
-          previewUrl = buildPreviewUrl(sign.cloud_name, result);
+          previewUrl = asset.blurred_preview_url ?? asset.thumbnail_url ?? asset.secure_url;
         }
       }
 
       setStatus('saving');
+      console.log('[upload] saving content record | mediaUrl:', mediaUrl ? 'set' : 'null', 'contentType:', contentType);
       const res = await fetch(`${API_BASE}/api/content`, {
         method: 'POST',
         headers: {
@@ -220,21 +218,32 @@ export default function UploadContent() {
           price: pricingConfig.price ?? 0,
           preview_url: previewUrl,
           media_url: mediaUrl,
+          status: 'pending_review',
         }),
       });
 
+      if (res.status === 401) {
+        logout();
+        navigate('/login?next=/upload');
+        return;
+      }
+
       const data = await res.json();
       if (!res.ok) {
+        console.error('[upload] content create failed:', res.status, data);
         setUploadError(data.error ?? 'Failed to submit content. Please try again.');
         setStatus('idle');
         return;
       }
 
+      console.log('[upload] submitted | id:', data.id, 'status:', data.status);
       setSubmittedTitle(title.trim());
       localStorage.removeItem('arc_upload_draft');
       setStatus('submitted');
     } catch (err) {
-      setUploadError(err instanceof Error ? err.message : 'Unable to reach the server.');
+      const msg = err instanceof Error ? err.message : 'Unable to reach the server.';
+      console.error('[upload] unhandled error:', err);
+      setUploadError(msg);
       setStatus('idle');
     }
   }
@@ -260,10 +269,10 @@ export default function UploadContent() {
           <div className="w-20 h-20 rounded-full bg-arc-success/10 border border-arc-success/30 flex items-center justify-center mx-auto mb-8">
             <Check className="w-9 h-9 text-arc-success" />
           </div>
-          <span className="section-eyebrow mb-4 block">Published</span>
-          <h1 className="font-serif text-3xl text-white">Your drop is live.</h1>
+          <span className="section-eyebrow mb-4 block">Submitted</span>
+          <h1 className="font-serif text-3xl text-white">Drop submitted for review.</h1>
           <p className="text-arc-secondary leading-relaxed mb-8">
-            <strong className="text-white">{submittedTitle}</strong> is now visible to members and available to unlock immediately.
+            <strong className="text-white">{submittedTitle}</strong> is in the review queue. It goes live once approved — usually within 24 hours.
           </p>
           <div className="flex flex-col gap-3">
             <button onClick={resetUpload} className="btn-gold w-full">

@@ -129,6 +129,13 @@ router.post(
           })
         : null;
 
+      const blurredPreviewUrl = resType === 'image'
+        ? cloudinary.url(result.public_id, {
+            transformation: [{ effect: 'blur:1800', quality: 20, width: 800 }],
+            secure: true,
+          })
+        : null;
+
       res.json({
         success: true,
         asset: {
@@ -141,7 +148,8 @@ router.post(
           width: result.width ?? null,
           height: result.height ?? null,
           thumbnail_url: thumbnailUrl,
-          preview_url: result.secure_url,
+          blurred_preview_url: blurredPreviewUrl,
+          cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
         },
       });
     } catch (err) {
