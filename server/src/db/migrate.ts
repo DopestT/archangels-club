@@ -177,10 +177,6 @@ const DDL = `
 
   ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
 
-  ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
-  ALTER TABLE content ADD CONSTRAINT content_status_check
-    CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested'));
-
   CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
   CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
 
@@ -387,10 +383,18 @@ const DDL = `
   ALTER TABLE content ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   ALTER TABLE content ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
-  -- Expand status constraint: add scheduled and failed_processing
-  ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
-  ALTER TABLE content ADD CONSTRAINT content_status_check
-    CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested','scheduled','failed_processing'));
+  -- Expand status constraint: add scheduled and failed_processing (idempotent)
+  DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint c
+      WHERE c.conname = 'content_status_check'
+        AND pg_get_constraintdef(c.oid) LIKE '%failed_processing%'
+    ) THEN
+      ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
+      ALTER TABLE content ADD CONSTRAINT content_status_check
+        CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested','scheduled','failed_processing'));
+    END IF;
+  END $$;
 
   -- New content defaults to draft so creators can save before submitting for review
   ALTER TABLE content ALTER COLUMN status SET DEFAULT 'draft';
