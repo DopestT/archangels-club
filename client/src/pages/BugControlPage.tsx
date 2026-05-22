@@ -8,6 +8,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
+import AdminSidebar from '../components/admin/AdminSidebar';
 
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -166,20 +167,26 @@ export default function BugControlPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <RefreshCw className="w-6 h-6 text-gold animate-spin" />
+      <div className="flex min-h-screen bg-bg-primary">
+        <AdminSidebar />
+        <main className="flex-1 flex items-center justify-center">
+          <RefreshCw className="w-6 h-6 text-gold animate-spin" />
+        </main>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="text-center">
-          <AlertTriangle className="w-8 h-8 text-arc-error mx-auto mb-3" />
-          <p className="text-arc-error text-sm">{error}</p>
-          <button onClick={load} className="btn-gold mt-4 text-xs">Retry</button>
-        </div>
+      <div className="flex min-h-screen bg-bg-primary">
+        <AdminSidebar />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <AlertTriangle className="w-8 h-8 text-arc-error mx-auto mb-3" />
+            <p className="text-arc-error text-sm">{error}</p>
+            <button onClick={load} className="btn-gold mt-4 text-xs">Retry</button>
+          </div>
+        </main>
       </div>
     );
   }
@@ -212,8 +219,10 @@ export default function BugControlPage() {
   const checks = report?.checks ?? [];
 
   return (
-    <div className="min-h-screen bg-bg-primary">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+    <div className="flex min-h-screen bg-bg-primary">
+      <AdminSidebar />
+      <main className="flex-1 overflow-y-auto min-w-0">
+      <div className="max-w-5xl mx-auto px-8 py-10">
 
         {/* Header */}
         <div className="flex items-center justify-between gap-4 mb-8">
@@ -377,6 +386,7 @@ export default function BugControlPage() {
           Re-run <code className="text-gold font-mono">npm run bug:report</code> to refresh the underlying data.
         </p>
       </div>
+      </main>
     </div>
   );
 }

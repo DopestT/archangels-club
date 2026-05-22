@@ -243,6 +243,11 @@ function AppRoutes() {
             <AdminDashboard initialTab="verifications" />
           </ProtectedRoute>
         } />
+        <Route path="admin/pulse" element={
+          <ProtectedRoute requireAdmin>
+            <AdminDashboard initialTab="pulse" />
+          </ProtectedRoute>
+        } />
         <Route path="admin/control-center" element={
           <ProtectedRoute requireAdmin>
             <AdminControlCenter />

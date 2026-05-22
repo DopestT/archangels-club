@@ -2,19 +2,20 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Crown, Users, DollarSign, Flag, LayoutDashboard,
-  UserCheck, Image, Shield, Bug,
+  UserCheck, Image, Shield, Bug, Activity,
 } from 'lucide-react';
 
 const NAV = [
-  { to: '/admin/control-center', label: 'Command Center', icon: LayoutDashboard },
-  { to: '/admin/access-requests', label: 'Access Requests', icon: UserCheck },
+  { to: '/admin',                   label: 'Overview',          icon: Users },
+  { to: '/admin/pulse',             label: 'Pulse',             icon: Activity },
+  { to: '/admin/access-requests',   label: 'Access Requests',   icon: UserCheck },
   { to: '/admin/creator-approvals', label: 'Creator Approvals', icon: Crown },
   { to: '/admin/content-approvals', label: 'Content Approvals', icon: Image },
-  { to: '/admin/flagged', label: 'Reports', icon: Flag },
-  { to: '/admin/transactions', label: 'Transactions', icon: DollarSign },
-  { to: '/admin/verifications', label: 'Verifications', icon: Shield },
-  { to: '/admin/bug-control', label: 'Bug Control', icon: Bug },
-  { to: '/admin', label: 'Overview', icon: Users },
+  { to: '/admin/flagged',           label: 'Reports',           icon: Flag },
+  { to: '/admin/transactions',      label: 'Transactions',      icon: DollarSign },
+  { to: '/admin/verifications',     label: 'Verifications',     icon: Shield },
+  { to: '/admin/control-center',    label: 'Command Center',    icon: LayoutDashboard },
+  { to: '/admin/bug-control',       label: 'Bug Control',       icon: Bug },
 ];
 
 export default function AdminSidebar({ badges = {} }: { badges?: Record<string, number> }) {

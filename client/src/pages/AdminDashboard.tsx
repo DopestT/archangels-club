@@ -323,17 +323,6 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   }
 
 
-  const tabs: { id: Tab; label: string; badge?: number }[] = [
-    { id: 'overview', label: 'Overview' },
-    { id: 'pulse', label: 'Pulse' },
-    { id: 'access-requests', label: 'Access Requests', badge: pendingAccessCount },
-    { id: 'creator-approvals', label: 'Creator Approvals', badge: pendingCreatorCount },
-    { id: 'content-approvals', label: 'Content Approvals', badge: pendingContentCount },
-    { id: 'flagged', label: 'Flagged Content', badge: stats?.openReports ?? flaggedContent.length },
-    { id: 'transactions', label: 'Transactions' },
-    { id: 'verifications', label: 'Verifications', badge: (stats?.pendingAgeVerifications ?? 0) + (stats?.failedVerifications ?? 0) + (stats?.pendingCreatorKyc ?? 0) },
-  ];
-
   return (
     <div className="flex min-h-screen bg-bg-primary">
       <AdminSidebar badges={{
@@ -349,12 +338,13 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
         <div className="sticky top-0 z-20 bg-bg-primary/95 backdrop-blur-md border-b border-white/5 px-8 py-4 flex items-center justify-between">
           <div>
             <h1 className="text-[11px] font-bold tracking-[0.18em] uppercase text-white">
-              {activeTab === 'overview' ? 'Platform Overview'
-                : activeTab === 'access-requests' ? 'Access Requests'
+              {activeTab === 'overview'          ? 'Platform Overview'
+                : activeTab === 'pulse'          ? 'Pulse'
+                : activeTab === 'access-requests'   ? 'Access Requests'
                 : activeTab === 'creator-approvals' ? 'Creator Approvals'
                 : activeTab === 'content-approvals' ? 'Content Approvals'
-                : activeTab === 'flagged' ? 'Flagged Content'
-                : activeTab === 'transactions' ? 'Transactions'
+                : activeTab === 'flagged'           ? 'Flagged Content'
+                : activeTab === 'transactions'      ? 'Transactions'
                 : 'Verifications'}
             </h1>
             <p className="text-[10px] text-arc-muted/60 mt-0.5 tracking-wide">Admin · Archangels Platform</p>
@@ -373,28 +363,6 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
           <StatCard label="Pending Requests" value={stats?.pendingAccessRequests ?? pendingAccessCount} sub="Require review" icon={<Clock className="w-5 h-5" />} />
           <StatCard label="Platform Revenue" value={formatCurrency(stats?.totalRevenue ?? 0)} sub={`${formatCurrency(stats?.totalVolume ?? 0)} gross volume`} trend="up" icon={<DollarSign className="w-5 h-5" />} />
           <StatCard label="Content Queue" value={stats?.pendingContent ?? pendingContentCount} sub="Awaiting approval" icon={<Lock className="w-5 h-5" />} />
-        </div>
-
-        {/* Tabs */}
-        <div className="border-b border-gold-border/40 mb-8 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {tabs.map(({ id, label, badge }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-2 px-5 py-3 text-sm font-sans transition-all border-b-2 -mb-px whitespace-nowrap ${
-                  activeTab === id ? 'border-gold text-gold' : 'border-transparent text-arc-secondary hover:text-white'
-                }`}
-              >
-                {label}
-                {badge !== undefined && badge > 0 && (
-                  <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-gold text-bg-primary text-[10px] font-bold">
-                    {badge}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* ── PULSE ──────────────────────────────────────────────────────────── */}
