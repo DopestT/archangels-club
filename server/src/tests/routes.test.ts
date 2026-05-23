@@ -413,15 +413,17 @@ describe('POST /api/webhooks/stripe — unlock', () => {
       await fn(mockClient);
     });
     // queryOne call order (webhook → fulfillCheckoutSession):
-    //   1. stripe_processed_events check (event-level dedup)
-    //   2. transactions stripe_session_id check (session-level dedup)
-    //   3. content_unlocks check (unlock row dedup)
-    //   4. content title lookup (for purchase notification)
+    //   1. recordEvent → INSERT INTO payment_events RETURNING id, processing_status
+    //   2. initFulfillmentRecord → INSERT INTO fulfillment_records RETURNING id, status, attempts
+    //   3. transactions stripe_session_id check (session-level dedup)
+    //   4. content_unlocks check (unlock row dedup)
+    //   5. content title lookup (for purchase notification)
     mockQueryOne
-      .mockResolvedValueOnce(null)                     // stripe_processed_events → not processed
-      .mockResolvedValueOnce(null)                     // existing transaction by session_id → none
-      .mockResolvedValueOnce(null)                     // existing unlock row → none
-      .mockResolvedValueOnce({ title: 'Secret Drop' }); // content title for trigger
+      .mockResolvedValueOnce({ id: 'evt-row-id', processing_status: 'received' }) // recordEvent
+      .mockResolvedValueOnce({ id: 'fr-id', status: 'pending', attempts: 0 })    // initFulfillmentRecord
+      .mockResolvedValueOnce(null)                                                  // existing tx by session → none
+      .mockResolvedValueOnce(null)                                                  // existing unlock row → none
+      .mockResolvedValueOnce({ title: 'Secret Drop' });                             // content title for trigger
   });
 
   it('7. webhook inserts content_unlock row', async () => {
@@ -465,7 +467,8 @@ describe('POST /api/webhooks/stripe — unlock', () => {
       const mockClient = { query: vi.fn().mockResolvedValue({ rows: [] }) } as any;
       await fn(mockClient);
     });
-    mockQueryOne.mockResolvedValueOnce({ id: 'existing-txn-id' }); // duplicate session found
+    // recordEvent returns skipped_duplicate → handler exits before calling fulfillCheckoutSession
+    mockQueryOne.mockResolvedValueOnce({ id: 'evt-row-id', processing_status: 'skipped_duplicate' });
 
     const body = JSON.stringify(makeWebhookBody());
     const res  = await request(app)
