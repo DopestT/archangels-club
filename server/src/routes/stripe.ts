@@ -62,7 +62,7 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
     );
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
-    let profile = await queryOne<{ id: string; stripe_account_id: string | null }>(
+    const profile = await queryOne<{ id: string; stripe_account_id: string | null }>(
       'SELECT id, stripe_account_id FROM creator_profiles WHERE user_id = $1',
       [req.auth!.userId]
     );
