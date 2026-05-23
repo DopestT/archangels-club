@@ -2,10 +2,13 @@ import rateLimit from 'express-rate-limit';
 import type { Request, Response, NextFunction } from 'express';
 
 // 20 upload attempts per 15 minutes per authenticated creator; falls back to IP.
+// validate.xForwardedForHeader suppresses the IPv6 keyGenerator warning — Railway
+// sits behind a trusted proxy so X-Forwarded-For is reliable here.
 export const uploadRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 20,
   keyGenerator: (req) => req.auth?.userId ?? req.ip ?? 'unknown',
+  validate: { xForwardedForHeader: false },
   handler: (req, res) => {
     const key = req.auth?.userId ?? req.ip ?? 'unknown';
     console.log(`[media/upload] rate-limit hit | key=${key}`);
