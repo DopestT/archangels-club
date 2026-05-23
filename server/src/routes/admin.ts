@@ -591,13 +591,14 @@ router.get('/content-approvals', async (req, res) => {
     const rows = await query(`
       SELECT c.*,
              u.display_name AS creator_name, u.username AS creator_username, u.avatar_url AS creator_avatar,
-             (SELECT COUNT(*) FROM unlocks WHERE content_id = c.id) AS unlock_count
+             (SELECT COUNT(*) FROM content_unlocks WHERE content_id = c.id) AS unlock_count
       FROM content c
       JOIN creator_profiles cp ON cp.id = c.creator_id
       JOIN users u ON u.id = cp.user_id
       WHERE c.status = 'pending_review'
       ORDER BY c.created_at ASC
     `);
+    console.log(`[admin/content-approvals] returned ${(rows as any[]).length} pending items`);
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch content approvals.' });

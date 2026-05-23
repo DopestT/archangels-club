@@ -287,6 +287,7 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
     const { title, description, content_type, access_type, preview_url, media_url, price, publish_at } = req.body;
     const rawStatus = req.body.status;
     const status: 'draft' | 'pending_review' = rawStatus === 'pending_review' ? 'pending_review' : 'draft';
+    console.log(`[content/create] userId=${req.auth!.userId} status=${status} content_type=${content_type}`);
 
     if (!title || !content_type || !access_type) {
       res.status(400).json({ error: 'title, content_type, and access_type are required.' });
@@ -366,6 +367,7 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
 // For rejected/changes_requested: automatically moves to pending_review and clears rejection_reason
 router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
   try {
+    console.log(`[content/patch] userId=${req.auth!.userId} contentId=${req.params.id}`);
     const row = await queryOne<any>(
       `SELECT c.id, c.status, c.content_type, c.media_url FROM content c
        JOIN creator_profiles cp ON cp.id = c.creator_id
@@ -472,18 +474,25 @@ router.delete('/:id', requireAuth, requireCreator, async (req, res) => {
 // POST /api/content/:id/submit — submit draft (or rejected/changes_requested) for review
 router.post('/:id/submit', requireAuth, requireCreator, async (req, res) => {
   try {
+    console.log(`[content/submit] received | userId=${req.auth!.userId} contentId=${req.params.id}`);
     const row = await queryOne<any>(
       `SELECT c.id, c.status, c.content_type, c.media_url FROM content c
        JOIN creator_profiles cp ON cp.id = c.creator_id
        WHERE c.id = $1 AND cp.user_id = $2`,
       [req.params.id, req.auth!.userId]
     );
-    if (!row) { res.status(404).json({ error: 'Content not found.' }); return; }
+    if (!row) {
+      console.log(`[content/submit] not found | userId=${req.auth!.userId} contentId=${req.params.id}`);
+      res.status(404).json({ error: 'Content not found.' }); return;
+    }
+    console.log(`[content/submit] found | status=${row.status} content_type=${row.content_type} has_media=${!!row.media_url}`);
 
     if (!['draft', 'rejected', 'changes_requested'].includes(row.status)) {
+      console.log(`[content/submit] rejected non-submittable status | status=${row.status}`);
       res.status(409).json({ error: `Content in '${row.status}' state cannot be submitted.` }); return;
     }
     if (row.content_type !== 'text' && !row.media_url) {
+      console.log(`[content/submit] rejected missing media | content_type=${row.content_type}`);
       res.status(400).json({ error: 'A media file is required before submitting for review.' }); return;
     }
 
@@ -491,6 +500,7 @@ router.post('/:id/submit', requireAuth, requireCreator, async (req, res) => {
       `UPDATE content SET status = 'pending_review', rejection_reason = NULL, updated_at = NOW() WHERE id = $1`,
       [req.params.id]
     );
+    console.log(`[content/submit] success | contentId=${req.params.id} → pending_review`);
 
     // First-post trigger: fire when a creator's first non-draft is submitted
     const profile = await queryOne<{ id: string }>(
