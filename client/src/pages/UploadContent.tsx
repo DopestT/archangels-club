@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save, ChevronDown } from 'lucide-react';
+import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save, ChevronDown, RefreshCw } from 'lucide-react';
 import { timeAgo } from '../lib/utils';
 import type { ContentType, PricingConfig, VideoProcessingConfig } from '../types';
 import ImageEditor from '../components/editor/ImageEditor';
@@ -36,6 +36,18 @@ interface ServerAsset {
   blurred_preview_url: string | null;
 }
 
+type UploadStatus = 'idle' | 'creating_draft' | 'uploading' | 'retrying' | 'saving' | 'submitted';
+
+const RETRY_DELAYS = [1000, 2000, 4000];
+const MAX_ATTEMPTS = 4;
+
+function isRetryableError(msg: string): boolean {
+  return msg !== 'SESSION_EXPIRED'
+    && msg !== 'CREATOR_NOT_APPROVED'
+    && !msg.includes('Too many')
+    && !msg.includes('(413)');
+}
+
 function uploadViaServer(
   file: File,
   token: string,
@@ -59,6 +71,7 @@ function uploadViaServer(
       if (xhr.status === 401) { reject(new Error('SESSION_EXPIRED')); return; }
       if (xhr.status === 403) { reject(new Error(data?.error ?? 'CREATOR_NOT_APPROVED')); return; }
       if (xhr.status === 429) { reject(new Error(data?.error ?? 'Too many uploads. Please wait a moment.')); return; }
+      if (xhr.status === 413) { reject(new Error('File too large (413)')); return; }
       if (!data?.success) {
         console.error('[upload] server rejected:', xhr.status, data);
         reject(new Error(data?.error ?? `Upload failed (${xhr.status})`));
@@ -77,6 +90,30 @@ function uploadViaServer(
   });
 }
 
+async function uploadViaServerWithRetry(
+  file: File,
+  token: string,
+  onProgress: (pct: number) => void,
+  onRetry: (attempt: number) => void,
+): Promise<ServerAsset> {
+  let lastError: Error = new Error('Unknown upload error');
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) {
+      onRetry(attempt);
+      await new Promise<void>(r => setTimeout(r, RETRY_DELAYS[attempt - 1]));
+    }
+    try {
+      return await uploadViaServer(file, token, onProgress);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (!isRetryableError(msg)) throw err;
+      lastError = err instanceof Error ? err : new Error(msg);
+      console.warn(`[upload] attempt ${attempt + 1} failed, ${attempt < MAX_ATTEMPTS - 1 ? 'will retry' : 'giving up'}:`, msg);
+    }
+  }
+  throw lastError;
+}
+
 export default function UploadContent() {
   const { token, logout } = useAuth();
   const navigate = useNavigate();
@@ -90,8 +127,10 @@ export default function UploadContent() {
   const [pricingConfig, setPricingConfig] = useState<PricingConfig>(DEFAULT_PRICING);
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [showEditor, setShowEditor] = useState(false);
-  const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'saving' | 'submitted'>('idle');
+  const [status, setStatus] = useState<UploadStatus>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [retryCount, setRetryCount] = useState(0);
+  const [draftId, setDraftId] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState('');
   const [submittedTitle, setSubmittedTitle] = useState('');
   const [draftSaved, setDraftSaved] = useState(false);
@@ -102,12 +141,13 @@ export default function UploadContent() {
     contentType: ContentType;
     pricingConfig: PricingConfig;
     savedAt: string;
+    draftId?: string;
   } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const activeFile = enhancedFile ?? file;
   const canEnhance = file !== null && (contentType === 'image' || contentType === 'video');
-  const busy = status === 'uploading' || status === 'processing' || status === 'saving';
+  const busy = status === 'creating_draft' || status === 'uploading' || status === 'retrying' || status === 'saving';
 
   // Restore saved draft on mount
   React.useEffect(() => {
@@ -117,6 +157,7 @@ export default function UploadContent() {
       const draft = JSON.parse(raw) as {
         title: string; description: string;
         contentType: ContentType; pricingConfig: PricingConfig; savedAt: string;
+        draftId?: string;
       };
       if (draft.title || draft.description) setDraftNotice(draft);
     } catch {
@@ -124,15 +165,21 @@ export default function UploadContent() {
     }
   }, []);
 
-  function saveDraft() {
+  function persistDraft(fields: {
+    title: string; description: string; contentType: ContentType;
+    pricingConfig: PricingConfig; draftId?: string;
+  }) {
     try {
       localStorage.setItem('arc_upload_draft', JSON.stringify({
-        title, description, contentType, pricingConfig,
-        savedAt: new Date().toISOString(),
+        ...fields, savedAt: new Date().toISOString(),
       }));
-      setDraftSaved(true);
-      setTimeout(() => setDraftSaved(false), 2000);
     } catch {}
+  }
+
+  function saveDraft() {
+    persistDraft({ title, description, contentType, pricingConfig, draftId: draftId ?? undefined });
+    setDraftSaved(true);
+    setTimeout(() => setDraftSaved(false), 2000);
   }
 
   function restoreDraft() {
@@ -141,6 +188,7 @@ export default function UploadContent() {
     setDescription(draftNotice.description);
     setContentType(draftNotice.contentType);
     setPricingConfig(draftNotice.pricingConfig);
+    if (draftNotice.draftId) setDraftId(draftNotice.draftId);
     setDraftNotice(null);
   }
 
@@ -174,71 +222,116 @@ export default function UploadContent() {
     setUploadError('');
     setShowErrorDetails(false);
     setUploadProgress(0);
+    setRetryCount(0);
 
     try {
+      // 1. Draft-first: create DB record before any media transfer
+      let currentDraftId = draftId;
+      if (!currentDraftId) {
+        setStatus('creating_draft');
+        console.log('[upload] creating draft record');
+        const draftRes = await fetch(`${API_BASE}/api/content`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            title: title.trim(),
+            description: description.trim(),
+            content_type: contentType,
+            access_type: pricingConfig.accessType,
+            price: pricingConfig.price ?? 0,
+            status: 'draft',
+          }),
+        });
+        if (draftRes.status === 401) { logout(); navigate('/login?next=/upload'); return; }
+        const draftData = await draftRes.json();
+        if (!draftRes.ok) {
+          console.error('[upload] draft create failed:', draftRes.status, draftData);
+          setUploadError(draftData.error ?? 'Failed to prepare upload. Please try again.');
+          setStatus('idle');
+          return;
+        }
+        currentDraftId = draftData.id as string;
+        setDraftId(currentDraftId);
+        persistDraft({ title, description, contentType, pricingConfig, draftId: currentDraftId });
+        console.log('[upload] draft created | id:', currentDraftId);
+      }
+
+      // 2. Upload media with automatic retry
       let mediaUrl: string | null = null;
       let previewUrl: string | null = previewDataUrl ?? null;
 
       if (activeFile) {
         setStatus('uploading');
-        console.log('[upload] starting | file:', activeFile.name, 'size:', activeFile.size, 'contentType:', contentType);
+        console.log('[upload] starting | file:', activeFile.name, 'size:', activeFile.size, 'draftId:', currentDraftId);
 
         let asset: ServerAsset;
         try {
-          asset = await uploadViaServer(activeFile, token, setUploadProgress);
+          asset = await uploadViaServerWithRetry(
+            activeFile,
+            token,
+            (pct) => { setStatus('uploading'); setUploadProgress(pct); },
+            (attempt) => {
+              setRetryCount(attempt);
+              setStatus('retrying');
+              setUploadProgress(0);
+              console.log(`[upload] retry attempt ${attempt}/${MAX_ATTEMPTS - 1} | draftId:`, currentDraftId);
+            },
+          );
         } catch (uploadErr) {
           const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
-          if (msg === 'SESSION_EXPIRED') {
-            logout();
-            navigate('/login?next=/upload');
-            return;
-          }
+          if (msg === 'SESSION_EXPIRED') { logout(); navigate('/login?next=/upload'); return; }
           throw uploadErr;
         }
 
         mediaUrl = asset.secure_url;
-        if (!previewUrl) {
-          previewUrl = asset.blurred_preview_url ?? asset.thumbnail_url ?? asset.secure_url;
-        }
+        if (!previewUrl) previewUrl = asset.blurred_preview_url ?? asset.thumbnail_url ?? asset.secure_url;
       }
 
+      // 3. PATCH draft with final metadata and media URLs
       setStatus('saving');
-      console.log('[upload] saving content record | mediaUrl:', mediaUrl ? 'set' : 'null', 'contentType:', contentType);
-      const res = await fetch(`${API_BASE}/api/content`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim(),
-          content_type: contentType,
-          access_type: pricingConfig.accessType,
-          price: pricingConfig.price ?? 0,
-          preview_url: previewUrl,
-          media_url: mediaUrl,
-          status: 'pending_review',
-        }),
+      console.log('[upload] saving | draftId:', currentDraftId, 'hasMedia:', !!mediaUrl);
+      const patchBody: Record<string, unknown> = {
+        title: title.trim(),
+        description: description.trim(),
+        access_type: pricingConfig.accessType,
+        price: pricingConfig.price ?? 0,
+      };
+      if (mediaUrl) patchBody.media_url = mediaUrl;
+      if (previewUrl) patchBody.preview_url = previewUrl;
+
+      const patchRes = await fetch(`${API_BASE}/api/content/${currentDraftId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(patchBody),
       });
-
-      if (res.status === 401) {
-        logout();
-        navigate('/login?next=/upload');
-        return;
-      }
-
-      const data = await res.json();
-      if (!res.ok) {
-        console.error('[upload] content create failed:', res.status, data);
-        setUploadError(data.error ?? 'Failed to submit content. Please try again.');
+      if (patchRes.status === 401) { logout(); navigate('/login?next=/upload'); return; }
+      const patchData = await patchRes.json();
+      if (!patchRes.ok) {
+        console.error('[upload] patch failed:', patchRes.status, patchData);
+        setUploadError(patchData.error ?? 'Failed to save. Your draft is protected — please retry.');
         setStatus('idle');
         return;
       }
 
-      console.log('[upload] submitted | id:', data.id, 'status:', data.status);
+      // 4. Submit for review
+      console.log('[upload] submitting | draftId:', currentDraftId);
+      const submitRes = await fetch(`${API_BASE}/api/content/${currentDraftId}/submit`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (submitRes.status === 401) { logout(); navigate('/login?next=/upload'); return; }
+      const submitData = await submitRes.json();
+      if (!submitRes.ok) {
+        console.error('[upload] submit failed:', submitRes.status, submitData);
+        setUploadError(submitData.error ?? 'Failed to submit. Your draft is protected — please retry.');
+        setStatus('idle');
+        return;
+      }
+
+      console.log('[upload] submitted | id:', currentDraftId, 'status:', submitData.status);
       setSubmittedTitle(title.trim());
       localStorage.removeItem('arc_upload_draft');
+      setDraftId(null);
       setStatus('submitted');
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unable to reach the server.';
@@ -256,10 +349,12 @@ export default function UploadContent() {
     setImageDataUrl(null);
     setStatus('idle');
     setUploadProgress(0);
+    setRetryCount(0);
     setTitle('');
     setDescription('');
     setPricingConfig(DEFAULT_PRICING);
     setSubmittedTitle('');
+    setDraftId(null);
   }
 
   if (status === 'submitted') {
@@ -335,7 +430,9 @@ export default function UploadContent() {
             <div className="flex items-center gap-3 p-4 rounded-xl bg-white/4 border border-white/10 mb-8">
               <Clock className="w-4 h-4 text-arc-secondary flex-shrink-0" />
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-white">Saved draft found</p>
+                <p className="text-xs font-medium text-white">
+                  {draftNotice.draftId ? 'In-progress upload recovered' : 'Saved draft found'}
+                </p>
                 <p className="text-xs text-arc-muted truncate mt-0.5">
                   {draftNotice.title ? `"${draftNotice.title}"` : 'Untitled'} · saved {timeAgo(draftNotice.savedAt)}
                 </p>
@@ -513,11 +610,35 @@ export default function UploadContent() {
             {/* Pricing */}
             <PricingPanel config={pricingConfig} onChange={setPricingConfig} />
 
+            {/* Draft creation progress */}
+            {status === 'creating_draft' && (
+              <div className="flex items-center gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20">
+                <svg className="animate-spin h-4 w-4 text-gold flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <p className="text-xs text-arc-secondary">Securing your draft…</p>
+              </div>
+            )}
+
             {/* Upload progress */}
-            {status === 'uploading' && (
+            {(status === 'uploading' || status === 'retrying') && (
               <div className="card-surface p-5 rounded-xl">
+                {status === 'retrying' && (
+                  <div className="flex items-center gap-2 mb-3">
+                    <RefreshCw className="w-3.5 h-3.5 text-amber-400 flex-shrink-0 animate-spin" />
+                    <p className="text-xs text-amber-400 font-medium">
+                      Connection interrupted — retrying upload safely. Attempt {retryCount + 1} of {MAX_ATTEMPTS}.
+                    </p>
+                  </div>
+                )}
+                {status === 'retrying' && (
+                  <p className="text-xs text-arc-muted mb-3">Your draft and edits are protected.</p>
+                )}
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-arc-secondary">Uploading file…</p>
+                  <p className="text-xs text-arc-secondary">
+                    {status === 'retrying' ? 'Resuming upload…' : 'Uploading file…'}
+                  </p>
                   <p className="text-xs font-medium text-gold">{uploadProgress}%</p>
                 </div>
                 <div className="h-1.5 rounded-full bg-white/8 overflow-hidden">
@@ -535,7 +656,7 @@ export default function UploadContent() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
                 </svg>
-                <p className="text-xs text-arc-secondary">Saving content record…</p>
+                <p className="text-xs text-arc-secondary">Submitting for review…</p>
               </div>
             )}
 
@@ -556,8 +677,12 @@ export default function UploadContent() {
                 <div className="flex items-start gap-3 mb-3">
                   <AlertCircle className="w-4 h-4 text-amber-400/80 flex-shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-white">Studio upload interrupted.</p>
-                    <p className="text-xs text-arc-secondary mt-0.5 leading-relaxed">Your work is preserved. Retry or continue editing below.</p>
+                    <p className="text-sm font-medium text-white">Upload interrupted.</p>
+                    <p className="text-xs text-arc-secondary mt-0.5 leading-relaxed">
+                      {draftId
+                        ? 'Your draft is protected. Retry to continue where you left off.'
+                        : 'Your work is preserved. Retry or continue editing below.'}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pl-7 flex-wrap">
@@ -566,7 +691,7 @@ export default function UploadContent() {
                     disabled={busy || !title.trim()}
                     className="text-xs px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/8 text-amber-300 hover:bg-amber-500/15 transition-all disabled:opacity-50"
                   >
-                    Retry
+                    {draftId ? 'Resume Upload' : 'Retry'}
                   </button>
                   <button
                     onClick={() => setUploadError('')}
@@ -613,7 +738,17 @@ export default function UploadContent() {
                 ) : (
                   <Upload className="w-4 h-4" />
                 )}
-                {status === 'uploading' ? `Uploading… ${uploadProgress}%` : status === 'saving' ? 'Submitting…' : 'Submit for Review'}
+                {status === 'creating_draft'
+                  ? 'Securing Draft…'
+                  : status === 'uploading'
+                  ? `Uploading… ${uploadProgress}%`
+                  : status === 'retrying'
+                  ? `Retrying… (${retryCount}/${MAX_ATTEMPTS - 1})`
+                  : status === 'saving'
+                  ? 'Submitting…'
+                  : draftId
+                  ? 'Resume & Submit'
+                  : 'Submit for Review'}
               </button>
             </div>
 

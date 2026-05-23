@@ -1,4 +1,6 @@
 console.log('STARTING SERVER...');process.stdout.write('index.ts loading\n');
+import { validateConfig } from './config.js';
+validateConfig();
 import express from 'express';
 import cors from 'cors';
 import { pool, runMigrations } from './db/schema.js';

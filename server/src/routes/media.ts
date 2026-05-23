@@ -62,6 +62,34 @@ function safeDel(filePath?: string): void {
   if (filePath) fs.unlink(filePath, () => {});
 }
 
+// GET /api/media/health — Cloudinary connectivity probe (no auth, safe to call from Railway health checks)
+router.get('/health', async (_req, res) => {
+  const vars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'];
+  const missing = vars.filter(k => !process.env[k]);
+
+  if (missing.length > 0) {
+    console.error(`[media/health] missing env vars: ${missing.join(', ')}`);
+    res.status(503).json({
+      ok: false,
+      issue: 'missing_env',
+      missing,
+      hint: `Set these in Railway: ${missing.join(', ')}`,
+    });
+    return;
+  }
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ping = await (cloudinary.api as any).ping();
+    console.log(`[media/health] cloudinary ping ok | cloud=${process.env.CLOUDINARY_CLOUD_NAME}`);
+    res.json({ ok: true, cloud: process.env.CLOUDINARY_CLOUD_NAME, ping });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error(`[media/health] cloudinary ping failed | ${msg}`);
+    res.status(503).json({ ok: false, issue: 'api_error', message: msg });
+  }
+});
+
 // POST /api/media/upload
 router.post(
   '/upload',
@@ -98,9 +126,11 @@ router.post(
       return;
     }
 
-    if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    const missingVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET']
+      .filter(k => !process.env[k]);
+    if (missingVars.length > 0) {
       safeDel(file.path);
-      console.error(`[media/upload] storage not configured | creator=${creatorId}`);
+      console.error(`[media/upload] storage not configured | creator=${creatorId} missing=${missingVars.join(',')}`);
       res.status(503).json({ success: false, error: 'Media storage is temporarily unavailable. Your draft is still safe.' });
       return;
     }
@@ -155,7 +185,11 @@ router.post(
     } catch (err) {
       safeDel(file.path);
       const msg = err instanceof Error ? err.message : String(err);
-      console.error(`[media/upload] cloudinary failure | creator=${creatorId} reason=${msg}`);
+      // Log the full error so Railway logs show the real Cloudinary reason
+      console.error(`[media/upload] cloudinary failure | creator=${creatorId} cloud=${process.env.CLOUDINARY_CLOUD_NAME} error="${msg}"`);
+      if (err && typeof err === 'object' && 'http_code' in err) {
+        console.error(`[media/upload] cloudinary http_code=${(err as { http_code: number }).http_code}`);
+      }
       res.status(503).json({
         success: false,
         error: 'Media storage is temporarily unavailable. Your draft is still safe.',

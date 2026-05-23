@@ -81,6 +81,7 @@ export default function LanguageSwitcher({ compact = false }: Props) {
           className={`
             absolute z-[200] py-1.5 rounded-xl overflow-hidden
             bg-bg-surface border border-gold-border/50 shadow-gold
+            max-h-72 overflow-y-auto
             ${compact
               ? 'left-0 right-0 bottom-full mb-2'
               : 'right-0 top-full mt-2 w-44'
