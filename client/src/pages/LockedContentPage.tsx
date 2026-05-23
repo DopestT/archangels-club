@@ -347,9 +347,19 @@ export default function LockedContentPage() {
         }),
       });
       const data = await res.json();
-      if (!res.ok || !data.url) {
+      if (!res.ok) {
         setSubscribing(false);
+        if (res.status === 401) {
+          localStorage.removeItem('arc_auth');
+          navigate(`/login?next=${encodeURIComponent(`/content/${id}`)}`);
+          return;
+        }
         setSubscribeError(data.error ?? 'Failed to start checkout. Please try again.');
+        return;
+      }
+      if (!data.url) {
+        setSubscribing(false);
+        setSubscribeError('Failed to start checkout. Please try again.');
         return;
       }
       setRedirecting(true);
@@ -384,6 +394,11 @@ export default function LockedContentPage() {
 
       if (!res.ok) {
         setPaying(false);
+        if (res.status === 401) {
+          localStorage.removeItem('arc_auth');
+          navigate(`/login?next=${encodeURIComponent(`/content/${id}`)}`);
+          return;
+        }
         setError(data.error ?? 'Something went wrong. Please try again.');
         return;
       }

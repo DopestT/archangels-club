@@ -174,8 +174,8 @@ async function seedDemo() {
       await pool.query(
         `INSERT INTO content
            (id, creator_id, title, description, content_type, access_type,
-            preview_url, media_url, price, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, 'approved')
+            preview_url, media_url, price, status, is_demo)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, 'approved', true)
          ON CONFLICT (id) DO UPDATE SET
            creator_id   = EXCLUDED.creator_id,
            title        = EXCLUDED.title,
@@ -184,7 +184,8 @@ async function seedDemo() {
            access_type  = EXCLUDED.access_type,
            preview_url  = EXCLUDED.preview_url,
            price        = EXCLUDED.price,
-           status       = 'approved'`,
+           status       = 'approved',
+           is_demo      = true`,
         [item.id, actualProfileId, item.title, item.desc,
          item.type, item.access, item.prev, item.price]
       );

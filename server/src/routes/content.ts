@@ -57,7 +57,8 @@ router.get('/', async (req, res) => {
           (SELECT COALESCE(SUM(t.net_amount), 0) FROM transactions t WHERE t.ref_type = 'content' AND t.ref_id = c.id AND t.status = 'completed') AS content_revenue
       ) stats
       WHERE (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))
-        AND cp.is_approved = 1 AND cp.application_status = 'approved'${extraWhere}
+        AND cp.is_approved = 1 AND cp.application_status = 'approved'
+        AND c.is_demo = false${extraWhere}
       ORDER BY ${orderBy}
       LIMIT ${limit} OFFSET ${offsetNum}
     `, params);

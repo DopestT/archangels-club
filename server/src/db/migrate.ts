@@ -506,6 +506,19 @@ const DDL = `
     content_published INTEGER NOT NULL DEFAULT 0,
     computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  -- ── Demo/test content isolation ───────────────────────────────────────────────
+  -- Marks seed and test content so it can be excluded from public listings.
+  ALTER TABLE content ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false;
+
+  -- Mark all existing demo seed content (fixed IDs start with 'demo-c-') and any
+  -- content uploaded by demo accounts so they don't appear in the public explore feed.
+  UPDATE content SET is_demo = true
+  WHERE id LIKE 'demo-c-%'
+     OR creator_id IN (
+       SELECT id FROM creator_profiles
+       WHERE user_id LIKE 'demo-user-%'
+     );
 `;
 
 export async function runMigrations(): Promise<void> {

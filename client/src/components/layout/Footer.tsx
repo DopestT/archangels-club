@@ -97,7 +97,7 @@ export default function Footer() {
             © {new Date().getFullYear()} Archangels Club. All rights reserved. For adults only (18+).
           </p>
           <p className="text-xs text-arc-muted">
-            Platform fee: 20% · Payments processed securely
+            Platform fee: 30% · Payments processed securely
           </p>
         </div>
       </div>
