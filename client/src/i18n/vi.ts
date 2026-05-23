@@ -1,0 +1,69 @@
+import type { TranslationMap } from './types';
+
+const vi: TranslationMap = {
+  'nav.explore': 'Khám phá',
+  'nav.dashboard': 'Bảng điều khiển',
+  'nav.creator_studio': 'Studio Sáng tạo',
+  'nav.admin': 'Quản trị',
+  'nav.sign_in': 'Đăng nhập',
+  'nav.request_access': 'Yêu cầu quyền truy cập',
+  'nav.sign_out': 'Đăng xuất',
+
+  'landing.access_only': 'Chỉ dành cho thành viên',
+  'landing.hero_line1': 'Nơi Quyền truy cập',
+  'landing.hero_line2': 'Được trao.',
+  'landing.hero_body': 'Nền tảng chỉ dành cho thành viên với nội dung độc quyền, các drop riêng tư và yêu cầu tùy chỉnh. Không công khai. Không mở cho tất cả mọi người. Quyền truy cập phải được kiếm.',
+  'landing.cta_primary': 'Yêu cầu quyền truy cập',
+  'landing.cta_secondary': 'Khám phá nhà sáng tạo',
+  'landing.cta_explore': 'Xem trước',
+  'landing.verified_creators': 'Nhà sáng tạo được xác minh',
+  'landing.active_members': 'Thành viên đang hoạt động',
+
+  'auth.sign_in_title': 'Đăng nhập',
+  'auth.create_account': 'Tạo tài khoản',
+  'auth.email': 'Email',
+  'auth.password': 'Mật khẩu',
+  'auth.display_name': 'Tên hiển thị',
+  'auth.username': 'Tên người dùng',
+  'auth.sign_in_btn': 'Đăng nhập',
+  'auth.sign_up_btn': 'Tạo tài khoản',
+  'auth.forgot_password': 'Quên mật khẩu?',
+  'auth.no_account': 'Chưa có tài khoản?',
+  'auth.have_account': 'Đã có tài khoản?',
+  'auth.request_access': 'Yêu cầu quyền truy cập',
+
+  'common.loading': 'Đang tải…',
+  'common.save': 'Lưu',
+  'common.cancel': 'Hủy',
+  'common.back': 'Quay lại',
+  'common.continue': 'Tiếp tục',
+  'common.submit': 'Gửi',
+  'common.unlock': 'Mở khóa',
+  'common.subscribe': 'Đăng ký',
+  'common.upload': 'Tải lên',
+  'common.members_only': 'Chỉ dành cho thành viên',
+
+  'explore.title': 'Khám phá nhà sáng tạo',
+  'explore.subtitle': 'Khám phá các nhà sáng tạo độc quyền và các drop riêng tư của họ.',
+  'explore.search_placeholder': 'Tìm kiếm nhà sáng tạo…',
+  'explore.no_creators': 'Không tìm thấy nhà sáng tạo nào.',
+
+  'access.locked': 'Đã khóa',
+  'access.free': 'Miễn phí',
+  'access.subscribers_only': 'Chỉ dành cho người đăng ký',
+  'access.unlock_now': 'Mở khóa ngay',
+  'access.checkout_preparing': 'Đang chuẩn bị thanh toán…',
+
+  'creator.studio': 'Studio Sáng tạo',
+  'creator.upload': 'Tải nội dung lên',
+  'creator.earnings': 'Thu nhập',
+  'creator.subscribers': 'Người đăng ký',
+  'creator.enable_payouts': 'Bật thanh toán',
+
+  'member.dashboard': 'Bảng điều khiển thành viên',
+  'member.vault': 'Kho của tôi',
+  'member.subscriptions': 'Đăng ký',
+  'member.messages': 'Tin nhắn',
+};
+
+export default vi;
