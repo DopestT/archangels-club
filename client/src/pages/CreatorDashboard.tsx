@@ -56,6 +56,7 @@ export default function CreatorDashboard() {
   const [stripeError, setStripeError] = useState<string | null>(null);
   const [stats, setStats] = useState<CreatorStats | null>(null);
   const [profileSetupNeeded, setProfileSetupNeeded] = useState(false);
+  const [trainingViewed, setTrainingViewed] = useState(false);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [requests, setRequests] = useState<CustomRequest[]>([]);
   const [promoStats, setPromoStats] = useState<PromoStats | null>(null);
@@ -134,6 +135,10 @@ export default function CreatorDashboard() {
         }
       })
       .catch(() => {});
+    fetch(`${API_BASE}/api/creators/my/onboarding`, { headers: authHeaders })
+      .then((r) => r.json())
+      .then((d) => { if (d?.steps?.training_viewed) setTrainingViewed(true); })
+      .catch(() => {});
   }, [token]);
 
   useEffect(() => {
@@ -186,6 +191,11 @@ export default function CreatorDashboard() {
         return;
       }
       const data = await res.json();
+      if (!res.ok) {
+        setStripeError(data.error ?? 'Payout setup unavailable. Please try again shortly.');
+        setStripeLoading(false);
+        return;
+      }
       if (data.url) {
         window.location.href = data.url;
       } else {
@@ -426,7 +436,7 @@ export default function CreatorDashboard() {
         </div>
 
         {/* ── Profile setup card ───────────────────────────────────────────────── */}
-        {profileSetupNeeded && (
+        {profileSetupNeeded && !trainingViewed && (
           <div className="card-surface p-6 rounded-xl mb-6 border border-gold/20">
             <p className="section-eyebrow mb-2">Your Studio Awaits</p>
             <h2 className="font-serif text-xl text-white mb-2">Finish setting up your studio</h2>

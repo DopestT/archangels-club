@@ -99,9 +99,19 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
     });
 
     res.json({ url: accountLink.url });
-  } catch (err) {
+  } catch (err: any) {
     console.error('[stripe/connect] start error:', err);
-    res.status(500).json({ error: 'Failed to start Stripe onboarding' });
+    const stripeType = err?.type ?? '';
+    const stripeCode = err?.code ?? '';
+    let msg = 'Failed to start payout setup. Please try again.';
+    if (stripeType === 'StripeAuthenticationError') {
+      msg = 'Stripe API key is invalid. Contact support.';
+    } else if (stripeType === 'StripePermissionError' || stripeCode === 'account_invalid') {
+      msg = 'Stripe Connect is not enabled on this account. Contact support.';
+    } else if (err?.message) {
+      msg = `Payout setup failed: ${err.message}`;
+    }
+    res.status(500).json({ error: msg });
   }
 });
 

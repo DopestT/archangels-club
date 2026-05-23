@@ -4,8 +4,10 @@ import {
   ArrowRight, ArrowLeft, Check, X, Zap, TrendingUp, Diamond,
   Camera, Video, Package, Lock, Eye, Upload, Sparkles,
   Crown, ChevronRight, User, DollarSign, Play, Clock, Image,
-  Mic, FileText, Layers,
+  Mic, FileText, Layers, Star, Shield,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../lib/api';
 
 // ─── Dream Drift ambient gradients per step ───────────────────────────────────
 
@@ -226,11 +228,35 @@ function StepWhatWorks() {
         </div>
       </div>
 
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20">
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mb-4">
         <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
         <p className="text-xs text-arc-secondary leading-relaxed">
-          <strong className="text-white">Signal:</strong> Natural window light is your best tool. Face a window for soft, even lighting — no studio required. Shoot during the day for best results.
+          <strong className="text-white">Lighting shortcut:</strong> Face a window during the day. Soft, even natural light beats studio equipment — no setup, no cost, instantly professional.
         </p>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-white/4 border border-white/10 mb-4">
+        <Eye className="w-4 h-4 text-arc-secondary flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">Buyer psychology:</strong> Members decide in 1.5 seconds. Your preview image is your sales page. One sharp, well-lit, centered shot outperforms ten mediocre ones every time.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 overflow-hidden">
+        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted px-4 pt-3 pb-2">Quick wins</p>
+        <div className="divide-y divide-white/6">
+          {[
+            { icon: <Star className="w-3 h-3" />, tip: 'Use a clean or blurred background — clutter signals low effort to buyers.' },
+            { icon: <Star className="w-3 h-3" />, tip: 'Portrait orientation (9:16) fills mobile screens and feels premium.' },
+            { icon: <Star className="w-3 h-3" />, tip: 'Shoot 20+ shots and choose the top 3 — volume gives you options to select from.' },
+            { icon: <Shield className="w-3 h-3" />, tip: 'Consistency builds trust. Creators who post weekly earn 3–4× more than sporadic posters.' },
+          ].map(({ icon, tip }, i) => (
+            <div key={i} className="flex items-start gap-3 px-4 py-3">
+              <span className="text-gold mt-0.5 flex-shrink-0">{icon}</span>
+              <p className="text-xs text-arc-secondary leading-relaxed">{tip}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -325,6 +351,36 @@ function StepContentTypes() {
             </div>
           </div>
         </div>
+
+        {/* Subscriber exclusive */}
+        <div className="card-surface rounded-2xl p-5 flex gap-5 items-start">
+          <div
+            className="w-20 h-20 rounded-xl flex-shrink-0 flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(6,78,59,0.22) 100%)' }}
+          >
+            <Star className="w-7 h-7 text-emerald-400/70" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+              <p className="font-serif text-white">Subscriber Reward</p>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">LOYALTY BUILDER</span>
+            </div>
+            <p className="text-xs text-arc-secondary leading-relaxed mb-2.5">
+              Content only subscribers can access — no unlock cost on top. Makes the subscription feel worth it every month. One exclusive per week converts casual followers into long-term members.
+            </p>
+            <div className="flex flex-wrap gap-3 text-xs text-arc-muted">
+              <span className="flex items-center gap-1"><Star className="w-3 h-3" /> Subscribers only</span>
+              <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> Included in sub</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mt-4">
+        <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">Starting strategy:</strong> Lead with 2–3 photo sets to build unlock history and social proof. Once you have 5+ unlocks, add a short clip teaser. When you hit your first subscriber, reward them — post one exclusive just for them.
+        </p>
       </div>
     </div>
   );
@@ -420,10 +476,36 @@ function StepPricing() {
         ))}
       </div>
 
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20">
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mb-4">
         <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
         <p className="text-xs text-arc-secondary leading-relaxed">
-          <strong className="text-white">First move:</strong> Start at $5 to build unlock history and social proof. Once you have 10+ unlocks, raise prices on future drops.
+          <strong className="text-white">First drop rule:</strong> Start at $5 to build unlock history and social proof. Once you have 10+ unlocks, raise prices on future drops. Buyers validate your work — let them.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 overflow-hidden mb-4">
+        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted px-4 pt-3 pb-2">Subscription pricing</p>
+        <div className="divide-y divide-white/6">
+          {[
+            { range: '$6–$9 / mo', label: 'Low barrier', desc: 'Grows audience fast. Best when you post frequently (3+ times/week).' },
+            { range: '$10–$15 / mo', label: 'Standard', desc: 'Sustainable for weekly creators. Filters for serious members.' },
+            { range: '$20+ / mo', label: 'Premium', desc: 'Works when you have a strong following or offer exclusive custom content.' },
+          ].map(({ range, label, desc }) => (
+            <div key={range} className="flex items-start gap-4 px-4 py-3">
+              <span className="font-mono text-xs text-gold font-semibold flex-shrink-0 w-20">{range}</span>
+              <div>
+                <p className="text-xs font-medium text-white">{label}</p>
+                <p className="text-xs text-arc-muted leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/8 border border-arc-error/20">
+        <X className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">Overpricing kills momentum.</strong> A $40 photo set with 0 unlocks signals zero social proof — buyers pass. Start low, build proof, then raise. You can always increase prices on future drops without touching past ones.
         </p>
       </div>
     </div>
@@ -439,28 +521,28 @@ function StepWalkthrough() {
     {
       icon: <Upload className="w-6 h-6" />,
       label: 'Upload your content',
-      desc: 'Choose your best photo or video. Use our in-app editor to enhance brightness, add filters, trim your clip, and capture a thumbnail.',
+      desc: 'Choose your best photo or video. Title it clearly — search-friendly titles like "Lingerie Set — Natural Light" outperform vague ones. Add a description that sells the mood, not just the content.',
       color: 'text-gold',
       ring: 'bg-gold/10 border-gold/30',
     },
     {
       icon: <Eye className="w-6 h-6" />,
       label: 'Set a preview',
-      desc: 'Upload a teaser image that visitors see before unlocking. Make it compelling — show just enough to create desire without giving it away.',
+      desc: 'The preview is your storefront window. Upload a teaser image that shows quality and creates desire without revealing the full drop. Close cropping, strong expression, or a compelling angle — these convert. Blurry or generic thumbnails do not.',
       color: 'text-blue-400',
       ring: 'bg-blue-400/10 border-blue-400/30',
     },
     {
       icon: <DollarSign className="w-6 h-6" />,
       label: 'Set your price',
-      desc: 'Start at $5–$12 for your first post. Optionally add a limited unlock count or subscriber discount to drive conversions.',
+      desc: 'Start at $5–$12 for your first post. Optionally add a limited unlock count (e.g., 50 unlocks max) to create urgency. A subscriber discount gives your paying audience a reason to unlock immediately — try 20% off.',
       color: 'text-green-400',
       ring: 'bg-green-400/10 border-green-400/30',
     },
     {
       icon: <Check className="w-6 h-6" />,
       label: 'Submit for review',
-      desc: 'Content is reviewed by our team within 24 hours. Once approved, it goes live and is instantly purchasable by members.',
+      desc: 'Our team reviews every submission within 24 hours — usually much faster. You\'ll receive a notification when it\'s approved and live. While you wait, prepare your next drop so you can publish immediately after approval.',
       color: 'text-violet-400',
       ring: 'bg-violet-400/10 border-violet-400/30',
     },
@@ -524,6 +606,32 @@ function StepWalkthrough() {
           Next step →
         </button>
       )}
+
+      <div className="mt-6 rounded-xl border border-white/10 overflow-hidden">
+        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted px-4 pt-3 pb-2">After you submit</p>
+        <div className="divide-y divide-white/6">
+          {[
+            { time: '< 24 hrs', label: 'Review', desc: 'Our team checks every submission for quality and compliance.' },
+            { time: 'Instant', label: 'Goes live', desc: 'Approved drops are immediately visible and purchasable by members.' },
+            { time: 'Your call', label: 'Promote it', desc: 'Share your profile link. Creators who promote within 48 hours of going live see significantly more unlocks.' },
+          ].map(({ time, label, desc }) => (
+            <div key={label} className="flex items-start gap-4 px-4 py-3">
+              <span className="font-mono text-xs text-gold font-semibold flex-shrink-0 w-16">{time}</span>
+              <div>
+                <p className="text-xs font-medium text-white">{label}</p>
+                <p className="text-xs text-arc-muted leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mt-4">
+        <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">The hardest part is clicking submit.</strong> Your first drop doesn't need to be perfect — it needs to exist. Every creator's first $100 starts with one live drop.
+        </p>
+      </div>
     </div>
   );
 }
@@ -695,10 +803,25 @@ export default function CreatorOnboarding() {
   const [stepIndex, setStepIndex] = useState(0);
   const [entering, setEntering] = useState(true);
   const navigate = useNavigate();
+  const { token } = useAuth();
 
   const current = STEPS[stepIndex];
   const hasNav = (LEARNING_STEPS as string[]).includes(current);
   const dotIndex = LEARNING_STEPS.indexOf(current as typeof LEARNING_STEPS[number]);
+
+  function markTrainingViewed() {
+    if (!token) return;
+    fetch(`${API_BASE}/api/creators/profile`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ training_viewed: true }),
+    }).catch(() => {});
+  }
+
+  function navigateOut(to: string) {
+    markTrainingViewed();
+    navigate(to);
+  }
 
   // Dream Drift: fade + lift transition between steps
   function drift(fn: () => void) {
@@ -712,7 +835,7 @@ export default function CreatorOnboarding() {
   function next() {
     drift(() => {
       if (stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
-      else navigate('/creator');
+      else navigateOut('/creator');
     });
   }
 
@@ -760,14 +883,14 @@ export default function CreatorOnboarding() {
           transition: 'opacity 200ms ease, transform 200ms ease',
         }}
       >
-        {current === 'welcome'           && <StepWelcome onNext={next} onSkip={() => navigate('/creator')} />}
+        {current === 'welcome'           && <StepWelcome onNext={next} onSkip={() => navigateOut('/creator')} />}
         {current === 'content-category'  && <StepContentCategory onNext={next} />}
         {current === 'what-works'        && <StepWhatWorks />}
         {current === 'content-types'     && <StepContentTypes />}
         {current === 'pricing'           && <StepPricing />}
         {current === 'walkthrough'       && <StepWalkthrough />}
-        {current === 'first-action'      && <StepFirstAction onNavigate={navigate} />}
-        {current === 'complete'          && <StepComplete onNavigate={navigate} />}
+        {current === 'first-action'      && <StepFirstAction onNavigate={navigateOut} />}
+        {current === 'complete'          && <StepComplete onNavigate={navigateOut} />}
       </div>
 
       {/* Bottom nav — learning steps only */}
