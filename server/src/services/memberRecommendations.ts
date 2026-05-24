@@ -290,9 +290,10 @@ export async function getTrendingCreators(limit = 8, excludeUserId?: string): Pr
     [limit + 5]
   );
 
-  const results = rows.map(r =>
-    withExplanation(r, 'trending', parseInt(r.new_subs_7d, 10))
-  );
+  const results = rows.map(r => {
+    const newSubs = parseInt(r.new_subs_7d, 10);
+    return withExplanation(r, 'trending', newSubs > 0 ? newSubs : undefined);
+  });
   setCached(cacheKey, results, TTL_GLOBAL);
   return excludeUserId ? results.filter(c => c.user_id !== excludeUserId).slice(0, limit) : results.slice(0, limit);
 }
