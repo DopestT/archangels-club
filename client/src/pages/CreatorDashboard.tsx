@@ -184,10 +184,15 @@ export default function CreatorDashboard() {
       if (data.url) {
         window.location.href = data.url;
       } else {
-        setStripeError(data.error ?? 'Payout setup is being prepared. Please try again shortly.');
+        // Show the actual Stripe error for debugging
+        const msg = data.error ?? data.message ?? 'Payout setup failed. Please try again.';
+        const detail = data.code ? ` (${data.type}: ${data.code})` : '';
+        setStripeError(msg + detail);
+        console.error('[stripe/connect/start] server error:', data);
         setStripeLoading(false);
       }
-    } catch {
+    } catch (err) {
+      console.error('[stripe/connect/start] fetch error:', err);
       setStripeError('Unable to reach the server. Please try again.');
       setStripeLoading(false);
     }
