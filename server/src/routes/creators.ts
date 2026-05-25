@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireCreator } from '../middleware/auth.js';
+import { logAuditEvent } from '../services/audit.js';
 
 const router = Router();
 
@@ -117,6 +118,7 @@ router.post('/apply', requireAuth, async (req, res) => {
     );
 
     console.log(`[creator/apply] application submitted userId=${req.auth!.userId} profileId=${id}`);
+    logAuditEvent({ eventType: 'creator_applied', actorUserId: req.auth!.userId, entityType: 'creator_profile', entityId: id }).catch(() => {});
     res.status(201).json({ success: true, id, status: 'pending' });
   } catch (err) {
     console.error('[creator/apply] error:', err);

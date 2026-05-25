@@ -90,6 +90,7 @@ export default function UploadContent() {
   const [status, setStatus] = useState<'idle' | 'uploading' | 'processing' | 'saving' | 'submitted'>('idle');
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState('');
+  const [mediaAssetId, setMediaAssetId] = useState<string | null>(null);
   const [submittedTitle, setSubmittedTitle] = useState('');
   const [draftSaved, setDraftSaved] = useState(false);
   const [draftNotice, setDraftNotice] = useState<{
@@ -176,10 +177,13 @@ export default function UploadContent() {
       let mediaUrl: string | null = null;
       let previewUrl: string | null = previewDataUrl ?? null;
 
+      let currentMediaAssetId = mediaAssetId;
       if (activeFile) {
         setStatus('uploading');
         const result = await uploadViaServer(activeFile, token, setUploadProgress);
         mediaUrl = result.asset.secure_url;
+        currentMediaAssetId = result.media_asset_id ?? null;
+        setMediaAssetId(currentMediaAssetId);
         if (!previewUrl) {
           previewUrl = result.asset.thumbnail_url ?? result.asset.preview_url;
         }
@@ -200,6 +204,7 @@ export default function UploadContent() {
           price: pricingConfig.price ?? 0,
           preview_url: previewUrl,
           media_url: mediaUrl,
+          ...(currentMediaAssetId ? { media_asset_id: currentMediaAssetId } : {}),
         }),
       });
 
@@ -227,6 +232,8 @@ export default function UploadContent() {
     setImageDataUrl(null);
     setStatus('idle');
     setUploadProgress(0);
+    setUploadError('');
+    setMediaAssetId(null);
     setTitle('');
     setDescription('');
     setPricingConfig(DEFAULT_PRICING);
@@ -521,13 +528,35 @@ export default function UploadContent() {
               </div>
             )}
 
-            {/* Error */}
+            {/* Error + recovery */}
             {uploadError && (
               <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/10 border border-arc-error/30">
                 <AlertCircle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-xs text-arc-error">{uploadError}</p>
-                  <p className="text-xs text-arc-muted mt-1">Your work is preserved — try again when ready.</p>
+                  <p className="text-xs text-arc-muted mt-1">Your draft is preserved. You can retry or remove the file and start over.</p>
+                  <div className="flex items-center gap-2 mt-3">
+                    <button
+                      onClick={() => { setUploadError(''); handleSave(); }}
+                      disabled={busy || !title.trim()}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-arc-error/40 text-arc-error hover:bg-arc-error/10 transition-all disabled:opacity-50"
+                    >
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => {
+                        setFile(null);
+                        setEnhancedFile(null);
+                        setMediaAssetId(null);
+                        setUploadError('');
+                        setUploadProgress(0);
+                        if (fileRef.current) fileRef.current.value = '';
+                      }}
+                      className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-arc-muted hover:text-white hover:bg-white/8 transition-all"
+                    >
+                      Remove File
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

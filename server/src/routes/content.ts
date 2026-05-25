@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { query, queryOne, execute, withTransaction } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator } from '../middleware/auth.js';
 import { triggerCreatorFirstPost, triggerCreatorFirstSale, triggerPurchaseConfirmation } from '../services/triggers.js';
+import { logAuditEvent } from '../services/audit.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'archangels_dev_secret_change_in_production'; // only used for optional auth on draft content
 
@@ -282,15 +283,39 @@ router.get('/:id/stream-url', requireAuth, async (req, res) => {
 // POST /api/content — create content record; defaults to draft
 // status: 'draft' (default) or 'pending_review' — anything else is ignored
 // publish_at: ISO timestamp; if set and future, admin approval will result in 'scheduled'
+// media_asset_id: if provided, server verifies it's status='ready' and uses its secure_url
 router.post('/', requireAuth, requireCreator, async (req, res) => {
   try {
-    const { title, description, content_type, access_type, preview_url, media_url, price, publish_at } = req.body;
+    const { title, description, content_type, access_type, preview_url, price, publish_at } = req.body;
+    const media_asset_id: string | undefined = req.body.media_asset_id ?? undefined;
+    let media_url: string | null = req.body.media_url ?? null;
     const rawStatus = req.body.status;
     const status: 'draft' | 'pending_review' = rawStatus === 'pending_review' ? 'pending_review' : 'draft';
 
     if (!title || !content_type || !access_type) {
       res.status(400).json({ error: 'title, content_type, and access_type are required.' });
       return;
+    }
+
+    // If media_asset_id is provided, verify it's ready in the DB and use its canonical URL.
+    // This makes the server the source of truth for media readiness.
+    if (media_asset_id) {
+      const asset = await queryOne<{ id: string; status: string; secure_url: string | null; creator_user_id: string }>(
+        `SELECT id, status, secure_url, creator_user_id FROM media_assets WHERE id = $1`,
+        [media_asset_id]
+      );
+      if (!asset || asset.creator_user_id !== req.auth!.userId) {
+        res.status(400).json({ error: 'Upload not found. Please re-upload the file.' });
+        return;
+      }
+      if (asset.status !== 'ready') {
+        const reason = asset.status === 'failed'
+          ? 'The upload failed. Please re-upload the file.'
+          : 'The upload is still processing. Please wait and try again.';
+        res.status(400).json({ error: reason });
+        return;
+      }
+      media_url = asset.secure_url;
     }
 
     // Media validation is required only when submitting for review, not for drafts
@@ -352,6 +377,7 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
       if (parseInt(countResult?.n ?? '0', 10) === 1) {
         triggerCreatorFirstPost(req.auth!.userId).catch(console.error);
       }
+      logAuditEvent({ eventType: 'drop_created', actorUserId: req.auth!.userId, entityType: 'content', entityId: id, metadata: { title, content_type, access_type, price: price ?? 0, status } }).catch(() => {});
     }
 
     const message = status === 'draft' ? 'Draft saved.' : 'Content submitted for review.';
@@ -506,6 +532,7 @@ router.post('/:id/submit', requireAuth, requireCreator, async (req, res) => {
       }
     }
 
+    logAuditEvent({ eventType: 'drop_published', actorUserId: req.auth!.userId, entityType: 'content', entityId: req.params.id, metadata: { action: 'submitted_for_review' } }).catch(() => {});
     res.json({ success: true, status: 'pending_review' });
   } catch (err) {
     res.status(500).json({ error: 'Failed to submit content.' });

@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { queryOne } from '../db/schema.js';
 import { fulfillCheckoutSession } from '../services/fulfillment.js';
+import { logAuditEvent } from '../services/audit.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://archangelsclub.com';
@@ -176,6 +177,7 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
       console.log('Stripe session URL:', session.url);
       if (!session.url) throw new Error('Stripe session created but no URL returned.');
+      logAuditEvent({ eventType: 'payment_started', actorUserId: req.auth!.userId, entityType: 'content', entityId: content_id, metadata: { type: 'unlock', amount: effectivePrice, session_id: session.id, creator_id: content.creator_id } }).catch(() => {});
       res.json({ url: session.url });
       return;
     }
@@ -247,6 +249,7 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
       console.log('Stripe session URL:', session.url);
       if (!session.url) throw new Error('Stripe session created but no URL returned.');
+      logAuditEvent({ eventType: 'payment_started', actorUserId: req.auth!.userId, entityType: 'creator_profile', entityId: creator_id, metadata: { type: 'tip', amount: tipAmount, session_id: session.id } }).catch(() => {});
       res.json({ url: session.url });
       return;
     }
@@ -320,6 +323,7 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
       console.log('Stripe session URL:', session.url);
       if (!session.url) throw new Error('Stripe session created but no URL returned.');
+      logAuditEvent({ eventType: 'payment_started', actorUserId: req.auth!.userId, entityType: 'creator_profile', entityId: creator_id, metadata: { type: 'subscription', amount: subscriptionPrice, session_id: session.id } }).catch(() => {});
       res.json({ url: session.url });
       return;
     }

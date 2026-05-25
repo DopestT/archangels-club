@@ -2,6 +2,7 @@ import { Router } from 'express';
 import crypto from 'crypto';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { logAuditEvent } from '../services/audit.js';
 
 const router = Router();
 
@@ -100,6 +101,8 @@ router.post('/', requireAuth, async (req, res) => {
       'INSERT INTO messages (id, sender_id, receiver_id, content, custom_request_id) VALUES ($1, $2, $3, $4, $5)',
       [id, req.auth!.userId, receiver_id, content.trim(), custom_request_id ?? null]
     );
+    const eventType = req.auth!.role === 'admin' ? 'admin_message_sent' : 'message_sent';
+    logAuditEvent({ eventType, actorUserId: req.auth!.userId, targetUserId: receiver_id, entityType: 'message', entityId: id }).catch(() => {});
     res.status(201).json({ id });
   } catch (err) {
     res.status(500).json({ error: 'Failed to send message.' });

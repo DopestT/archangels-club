@@ -21,7 +21,7 @@ import checkoutRoutes from './routes/checkout.js';
 import membersRoutes from './routes/members.js';
 import aiRoutes from './routes/ai.js';
 import emailTestRoutes from './routes/emailTest.js';
-import mediaRoutes from './routes/media.js';
+import mediaRoutes, { cleanOrphanUploads } from './routes/media.js';
 import uploadRoutes from './routes/upload.js';
 import verificationRoutes from './routes/verification.js';
 import promoRoutes from './routes/promo.js';
@@ -240,6 +240,7 @@ app.get('/api/health/system', async (_req, res) => {
 async function start() {
   try {
     await runMigrations();
+    cleanOrphanUploads().catch(console.error);
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
     });

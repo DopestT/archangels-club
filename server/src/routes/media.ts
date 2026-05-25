@@ -199,6 +199,24 @@ router.post(
   }
 );
 
+// cleanOrphanUploads — marks assets stuck in 'uploading' for >30 min as failed.
+// Call on server startup to recover from interrupted deploys/crashes.
+export async function cleanOrphanUploads(): Promise<void> {
+  try {
+    await execute(
+      `UPDATE media_assets
+         SET status = 'failed',
+             failure_reason = 'Upload interrupted — not completed within 30 minutes',
+             updated_at = NOW()
+       WHERE status = 'uploading'
+         AND created_at < NOW() - INTERVAL '30 minutes'`
+    );
+    console.log('[media] cleanOrphanUploads: complete');
+  } catch (err) {
+    console.error('[media] cleanOrphanUploads error:', err);
+  }
+}
+
 // Multer error handler — catches LIMIT_FILE_SIZE and fileFilter rejections
 router.use((err: unknown, _req: Request, res: Response, _next: NextFunction): void => {
   if (err instanceof multer.MulterError) {

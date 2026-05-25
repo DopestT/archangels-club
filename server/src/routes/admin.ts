@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { logAuditEvent } from '../services/audit.js';
 import { triggerAccountApproved } from '../services/triggers.js';
 import {
   sendSetPasswordEmail,
@@ -148,6 +149,9 @@ router.post('/users/:id/approve', async (req, res) => {
     console.log(`[admin] approve — email result for ${email}:`, JSON.stringify(emailResult));
     upsertContact({ email, firstName: displayName }).catch(console.error);
 
+    const approvedUser = await queryOne<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
+    logAuditEvent({ eventType: 'admin_action_taken', actorUserId: req.auth!.userId, targetUserId: approvedUser?.id ?? null, entityType: 'user', entityId: req.params.id, metadata: { action: 'user_approved', email } }).catch(() => {});
+
     res.json({
       ok: true,
       message: 'User approved',
@@ -279,6 +283,7 @@ router.post('/creators/:id/approve', async (req, res) => {
     await execute(`UPDATE users SET role = 'creator', is_verified_creator = 1 WHERE id = $1`, [cp.user_id]);
     const user = await queryOne<{ email: string; display_name: string }>(`SELECT email, display_name FROM users WHERE id = $1`, [cp.user_id]);
     if (user) sendCreatorWelcome(user.email, user.display_name).catch(console.error);
+    logAuditEvent({ eventType: 'creator_approved', actorUserId: req.auth!.userId, targetUserId: cp.user_id, entityType: 'creator_profile', entityId: req.params.id }).catch(() => {});
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve creator.' });
@@ -292,6 +297,7 @@ router.post('/creators/:id/reject', async (req, res) => {
     await execute(`UPDATE creator_profiles SET application_status = 'rejected' WHERE id = $1`, [req.params.id]);
     const user = await queryOne<{ email: string; display_name: string }>(`SELECT email, display_name FROM users WHERE id = $1`, [cp.user_id]);
     if (user) sendCreatorRejected(user.email, user.display_name).catch(console.error);
+    logAuditEvent({ eventType: 'creator_rejected', actorUserId: req.auth!.userId, targetUserId: cp.user_id, entityType: 'creator_profile', entityId: req.params.id }).catch(() => {});
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject creator.' });
@@ -372,6 +378,7 @@ router.post('/content/:id/approve', async (req, res) => {
       [row.creator_id]
     );
     if (user) sendContentApproved(user.email, user.display_name, row.title).catch(console.error);
+    logAuditEvent({ eventType: 'admin_action_taken', actorUserId: req.auth!.userId, entityType: 'content', entityId: req.params.id, metadata: { action: 'content_approved', new_status: newStatus, title: row.title } }).catch(() => {});
     res.json({ success: true, status: newStatus });
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve content.' });
@@ -401,6 +408,7 @@ router.post('/content/:id/reject', async (req, res) => {
       [row.creator_id]
     );
     if (user) sendContentRejected(user.email, user.display_name, row.title).catch(console.error);
+    logAuditEvent({ eventType: 'admin_action_taken', actorUserId: req.auth!.userId, entityType: 'content', entityId: req.params.id, metadata: { action: 'content_rejected', reason: rejection_reason ?? null, title: row.title } }).catch(() => {});
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject content.' });
@@ -453,6 +461,7 @@ router.post('/content/:id/remove', async (req, res) => {
     await execute(
       `UPDATE content SET status = 'removed', updated_at = NOW() WHERE id = $1`, [req.params.id]
     );
+    logAuditEvent({ eventType: 'admin_action_taken', actorUserId: req.auth!.userId, entityType: 'content', entityId: req.params.id, metadata: { action: 'content_removed' } }).catch(() => {});
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove content.' });
@@ -956,6 +965,25 @@ router.get('/pulse', requireAuth, requireAdmin, async (_req, res) => {
   } catch (err) {
     console.error('[admin/pulse] error:', err);
     res.status(500).json({ error: 'Failed to load Pulse data.' });
+  }
+});
+
+// GET /api/admin/upload-failures — recent failed media uploads with creator info
+router.get('/upload-failures', async (_req, res) => {
+  try {
+    const rows = await query<any>(`
+      SELECT ma.id, ma.status, ma.failure_reason, ma.created_at, ma.updated_at,
+             u.id AS creator_user_id, u.email, u.display_name, u.username
+        FROM media_assets ma
+        JOIN users u ON u.id = ma.creator_user_id
+       WHERE ma.status = 'failed'
+       ORDER BY ma.updated_at DESC
+       LIMIT 50
+    `);
+    res.json(rows);
+  } catch (err) {
+    console.error('[admin/upload-failures] error:', err);
+    res.status(500).json({ error: 'Failed to fetch upload failures.' });
   }
 });
 

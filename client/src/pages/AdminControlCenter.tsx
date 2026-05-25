@@ -4,7 +4,7 @@ import {
   Crown, Users, DollarSign, Flag, LayoutDashboard,
   UserCheck, Image, CheckCircle, XCircle, MessageSquare, AlertTriangle,
   RefreshCw, Star, ArrowDownToLine, TrendingUp, Clock, Shield,
-  ChevronRight, Bug,
+  ChevronRight, Bug, Activity, Database, CreditCard, Cloud, Zap,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import Avatar from '../components/ui/Avatar';
@@ -35,6 +35,39 @@ interface Report { id: string; subject_type: string; subject_id: string; reason:
 interface Transaction { id: string; payer_name: string; payer_email: string; payee_name: string; ref_type: string; content_title: string | null; amount: number; platform_fee: number; net_amount: number; status: string; created_at: string; }
 
 type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions';
+
+interface SystemHealthCheck {
+  ok?: boolean;
+  status?: string;
+  configured?: boolean;
+  note?: string | null;
+  webhook_secret_configured?: boolean;
+  webhook_note?: string | null;
+  detail?: string;
+  received_at?: string | null;
+  event_type?: string;
+  error?: string;
+  at?: string | null;
+  creator_user_id?: string;
+  metadata?: unknown;
+}
+
+interface SystemHealth {
+  overall: 'healthy' | 'degraded' | 'critical';
+  degraded: string[];
+  generated_at: string;
+  checks: {
+    auth?: SystemHealthCheck;
+    database?: SystemHealthCheck;
+    cloudinary?: SystemHealthCheck;
+    stripe?: SystemHealthCheck;
+    webhook_last_received?: SystemHealthCheck;
+    last_upload_failure?: SystemHealthCheck;
+    last_payment_failure?: SystemHealthCheck;
+    recent_audit_events?: Array<{ created_at: string; event_type: string; actor_user_id: string; status: string }>;
+    fulfillment_needs_attention?: Array<{ id: string; stripe_session_id: string; last_error: string; created_at: string }>;
+  };
+}
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 
@@ -154,6 +187,8 @@ export default function AdminControlCenter() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [activeQueue, setActiveQueue] = useState<QueueTab>('access');
   const [loading, setLoading] = useState(false);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [healthLoading, setHealthLoading] = useState(false);
 
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [creators, setCreators] = useState<CreatorApplication[]>([]);
@@ -199,7 +234,19 @@ export default function AdminControlCenter() {
     }
   }, [adminFetch, toast]);
 
-  useEffect(() => { loadAll(); }, []);
+  const loadHealth = useCallback(async () => {
+    setHealthLoading(true);
+    try {
+      const data = await adminFetch('/api/health/system');
+      setHealth(data);
+    } catch (e: any) {
+      toast.error('Health check failed', e.message);
+    } finally {
+      setHealthLoading(false);
+    }
+  }, [adminFetch, toast]);
+
+  useEffect(() => { loadAll(); loadHealth(); }, []);
 
   async function action(endpoint: string, successMsg: string, onSuccess: () => void) {
     try {
@@ -278,6 +325,165 @@ export default function AdminControlCenter() {
               <StatCard label="Total Volume" value={stats ? formatCurrency(stats.totalVolume) : '—'} sub="All transactions" icon={<DollarSign className="w-4 h-4" />} />
               <StatCard label="Pending Payouts" value="$0.00" sub="No outstanding" icon={<ArrowDownToLine className="w-4 h-4" />} />
             </div>
+          </section>
+
+          {/* ── System Health ────────────────────────────────────────────── */}
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <p className="section-eyebrow">System Health</p>
+              <button
+                onClick={loadHealth}
+                disabled={healthLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs text-arc-muted hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+              >
+                <RefreshCw className={`w-3 h-3 ${healthLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+
+            {health ? (
+              <div className="space-y-4">
+                {/* Overall banner */}
+                <div className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${
+                  health.overall === 'healthy'
+                    ? 'bg-arc-success/10 border-arc-success/30 text-arc-success'
+                    : health.overall === 'critical'
+                    ? 'bg-arc-error/10 border-arc-error/30 text-arc-error'
+                    : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                }`}>
+                  <Activity className="w-4 h-4 flex-shrink-0" />
+                  <span className="font-medium capitalize">{health.overall}</span>
+                  {health.degraded.length > 0 && (
+                    <span className="text-xs opacity-75">— {health.degraded.join(', ')} degraded</span>
+                  )}
+                  <span className="ml-auto text-xs opacity-50">
+                    {new Date(health.generated_at).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                {/* Service checks */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { key: 'auth', label: 'Auth', icon: <Shield className="w-3.5 h-3.5" /> },
+                    { key: 'database', label: 'Database', icon: <Database className="w-3.5 h-3.5" /> },
+                    { key: 'cloudinary', label: 'Cloudinary', icon: <Cloud className="w-3.5 h-3.5" /> },
+                    { key: 'stripe', label: 'Stripe', icon: <CreditCard className="w-3.5 h-3.5" /> },
+                  ].map(({ key, label, icon }) => {
+                    const check = health.checks[key as keyof typeof health.checks] as SystemHealthCheck | undefined;
+                    const ok = check?.ok ?? false;
+                    return (
+                      <div key={key} className={`card-surface rounded-xl p-4 border ${ok ? 'border-arc-success/20' : 'border-arc-error/30'}`}>
+                        <div className="flex items-center justify-between mb-2">
+                          <span className={ok ? 'text-arc-success' : 'text-arc-error'}>{icon}</span>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${ok ? 'bg-arc-success/10 text-arc-success' : 'bg-arc-error/10 text-arc-error'}`}>
+                            {ok ? 'OK' : 'FAIL'}
+                          </span>
+                        </div>
+                        <p className="text-xs font-medium text-white">{label}</p>
+                        <p className="text-[10px] text-arc-muted mt-0.5 truncate">
+                          {check?.status ?? check?.detail ?? (ok ? 'operational' : 'check failed')}
+                        </p>
+                        {check?.note && <p className="text-[10px] text-amber-400 mt-1 truncate">{check.note}</p>}
+                        {check?.webhook_note && <p className="text-[10px] text-amber-400 mt-1 truncate">{check.webhook_note}</p>}
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Last failures + webhook row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="card-surface rounded-xl p-4 border border-gold-border/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Zap className="w-3.5 h-3.5 text-arc-muted" />
+                      <span className="text-xs text-arc-muted">Webhook Last Received</span>
+                    </div>
+                    <p className="text-xs text-white truncate">
+                      {health.checks.webhook_last_received?.received_at
+                        ? new Date(health.checks.webhook_last_received.received_at).toLocaleString()
+                        : health.checks.webhook_last_received?.event_type
+                        ? `${health.checks.webhook_last_received.event_type}`
+                        : 'None recorded'}
+                    </p>
+                    {health.checks.webhook_last_received?.event_type && health.checks.webhook_last_received?.received_at && (
+                      <p className="text-[10px] text-arc-muted mt-0.5">{health.checks.webhook_last_received.event_type}</p>
+                    )}
+                  </div>
+                  <div className="card-surface rounded-xl p-4 border border-gold-border/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Cloud className="w-3.5 h-3.5 text-arc-muted" />
+                      <span className="text-xs text-arc-muted">Last Upload Failure</span>
+                    </div>
+                    <p className="text-xs text-white truncate">
+                      {health.checks.last_upload_failure?.at
+                        ? new Date(health.checks.last_upload_failure.at).toLocaleString()
+                        : 'None recorded'}
+                    </p>
+                    {health.checks.last_upload_failure?.creator_user_id && (
+                      <p className="text-[10px] text-arc-muted mt-0.5 truncate">
+                        creator: {health.checks.last_upload_failure.creator_user_id}
+                      </p>
+                    )}
+                  </div>
+                  <div className="card-surface rounded-xl p-4 border border-gold-border/20">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CreditCard className="w-3.5 h-3.5 text-arc-muted" />
+                      <span className="text-xs text-arc-muted">Last Payment Failure</span>
+                    </div>
+                    <p className="text-xs text-white truncate">
+                      {health.checks.last_payment_failure?.at
+                        ? new Date(health.checks.last_payment_failure.at).toLocaleString()
+                        : 'None recorded'}
+                    </p>
+                    {(health.checks.last_payment_failure as any)?.event_type && (
+                      <p className="text-[10px] text-arc-muted mt-0.5">{(health.checks.last_payment_failure as any).event_type}</p>
+                    )}
+                  </div>
+                </div>
+
+                {/* Fulfillment needs attention */}
+                {health.checks.fulfillment_needs_attention && health.checks.fulfillment_needs_attention.length > 0 && (
+                  <div className="card-surface rounded-xl p-4 border border-arc-error/30">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="w-3.5 h-3.5 text-arc-error" />
+                      <span className="text-xs font-medium text-arc-error">
+                        {health.checks.fulfillment_needs_attention.length} Fulfillment(s) Needing Attention
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {health.checks.fulfillment_needs_attention.slice(0, 5).map((f) => (
+                        <div key={f.id} className="flex items-start gap-3 text-[11px]">
+                          <span className="text-arc-muted font-mono truncate max-w-[180px]">{f.stripe_session_id}</span>
+                          <span className="text-arc-error truncate flex-1">{f.last_error}</span>
+                          <span className="text-arc-muted flex-shrink-0">{new Date(f.created_at).toLocaleDateString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Recent audit events */}
+                {health.checks.recent_audit_events && health.checks.recent_audit_events.length > 0 && (
+                  <div className="card-surface rounded-xl p-4 border border-gold-border/20">
+                    <p className="text-xs text-arc-muted mb-3">Recent Audit Events</p>
+                    <div className="space-y-1.5">
+                      {health.checks.recent_audit_events.slice(0, 8).map((ev, i) => (
+                        <div key={i} className="flex items-center gap-3 text-[11px]">
+                          <span className={`flex-shrink-0 w-1.5 h-1.5 rounded-full ${ev.status === 'failure' ? 'bg-arc-error' : ev.status === 'pending' ? 'bg-amber-400' : 'bg-arc-success'}`} />
+                          <span className="text-arc-muted font-mono">{new Date(ev.created_at).toLocaleTimeString()}</span>
+                          <span className="text-white">{ev.event_type.replace(/_/g, ' ')}</span>
+                          <span className="text-arc-muted truncate">{ev.actor_user_id ?? '—'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : healthLoading ? (
+              <div className="flex items-center gap-3 p-6 card-surface rounded-xl border border-gold-border/20">
+                <RefreshCw className="w-4 h-4 text-arc-muted animate-spin" />
+                <span className="text-xs text-arc-muted">Running health checks…</span>
+              </div>
+            ) : null}
           </section>
 
           {/* ── Action Queues ─────────────────────────────────────────────── */}

@@ -4,6 +4,7 @@ import { withTransaction, queryOne, execute } from '../db/schema.js';
 import { triggerPurchaseConfirmation } from './triggers.js';
 import { recordSignal, logEvent } from './events.js';
 import { invalidateUserCache } from './memberRecommendations.js';
+import { logAuditEvent } from './audit.js';
 
 // PostgreSQL unique_violation error code — thrown when a UNIQUE constraint fires.
 // Used to detect concurrent fulfillment races and treat them as idempotent success.
@@ -174,6 +175,8 @@ export async function fulfillCheckoutSession(
       console.log('[fulfillment] subscription activated: user=%s → creator=%s amount=%s session=%s',
         userId, creatorProfileId, grossAmount, sessionId);
 
+      logAuditEvent({ eventType: 'payment_completed', actorUserId: userId, entityType: 'subscription', entityId: subId, metadata: { type: 'subscription', amount: grossAmount, creator_id: creatorProfileId, session_id: sessionId } }).catch(() => {});
+
       // Record engagement signal + platform event (non-fatal)
       recordSignal(userId, creatorProfileId, 'subscribe').catch(() => {});
       logEvent({ userId, eventType: 'subscribe_creator', entityType: 'creator', entityId: creatorProfileId, metadata: { amount: grossAmount } }).catch(() => {});
@@ -250,6 +253,8 @@ export async function fulfillCheckoutSession(
       await markFulfillmentDone(fId, 'tip', txnId);
       console.log('[fulfillment] tip recorded: user=%s → creator=%s amount=%s session=%s',
         userId, creatorProfileId, grossAmount, sessionId);
+
+      logAuditEvent({ eventType: 'payment_completed', actorUserId: userId, entityType: 'transaction', entityId: txnId, metadata: { type: 'tip', amount: grossAmount, creator_id: creatorProfileId, session_id: sessionId } }).catch(() => {});
 
       recordSignal(userId, creatorProfileId, 'tip').catch(() => {});
       logEvent({ userId, eventType: 'send_tip', entityType: 'creator', entityId: creatorProfileId, metadata: { amount: grossAmount } }).catch(() => {});
@@ -345,6 +350,9 @@ export async function fulfillCheckoutSession(
       await markFulfillmentDone(fId, 'content', contentId);
       console.log('[fulfillment] unlock complete: user=%s content=%s amount=%s session=%s',
         userId, contentId, grossAmount, sessionId);
+
+      logAuditEvent({ eventType: 'payment_completed', actorUserId: userId, entityType: 'content', entityId: contentId, metadata: { type: 'unlock', amount: grossAmount, creator_id: creatorProfileId, session_id: sessionId } }).catch(() => {});
+      logAuditEvent({ eventType: 'unlock_created', actorUserId: userId, entityType: 'content', entityId: contentId, metadata: { unlock_id: unlockId, transaction_id: txnId, creator_id: creatorProfileId } }).catch(() => {});
 
       // Record engagement signal + platform event (non-fatal)
       recordSignal(userId, creatorProfileId, 'unlock').catch(() => {});
