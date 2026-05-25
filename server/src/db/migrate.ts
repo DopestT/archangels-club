@@ -485,6 +485,57 @@ const DDL = `
 
   CREATE INDEX IF NOT EXISTS idx_creator_daily_stats_date ON creator_daily_stats(stat_date DESC);
 
+  -- ── Audit Log ────────────────────────────────────────────────────────────────
+  -- Structured, append-only event log for all critical platform actions.
+  -- Required events: user_signed_up, login_failed, creator_applied, creator_approved,
+  -- creator_rejected, profile_updated, media_upload_started, media_upload_failed,
+  -- media_upload_ready, drop_created, drop_published, payment_started,
+  -- payment_completed, payment_failed, unlock_created, vault_item_added,
+  -- message_sent, admin_message_sent, payout_setup_started, payout_setup_failed,
+  -- admin_action_taken.
+  CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    event_type TEXT NOT NULL,
+    actor_user_id TEXT,
+    target_user_id TEXT,
+    entity_type TEXT,
+    entity_id TEXT,
+    status TEXT NOT NULL DEFAULT 'success',
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_audit_log_event_type ON audit_log(event_type, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_log_actor ON audit_log(actor_user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_log_status ON audit_log(status, created_at DESC);
+
+  -- ── Media Assets ─────────────────────────────────────────────────────────────
+  -- Tracks every upload attempt with full state machine and metadata.
+  -- States: draft → validating → uploading → processing → ready | failed | cancelled
+  -- Only 'ready' media may be attached to published drops.
+  CREATE TABLE IF NOT EXISTS media_assets (
+    id TEXT PRIMARY KEY,
+    creator_user_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft'
+      CHECK(status IN ('draft','validating','uploading','processing','ready','failed','cancelled')),
+    public_id TEXT,
+    secure_url TEXT,
+    resource_type TEXT,
+    format TEXT,
+    duration NUMERIC(12,3),
+    bytes BIGINT,
+    width INTEGER,
+    height INTEGER,
+    thumbnail_url TEXT,
+    failure_reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_media_assets_creator ON media_assets(creator_user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_media_assets_status ON media_assets(status, created_at DESC);
+
   -- ── ABMIE-X: Platform Daily Stats ────────────────────────────────────────────
   -- Platform-wide aggregates for admin Pulse view. One row per date.
   CREATE TABLE IF NOT EXISTS platform_daily_stats (

@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { query, queryOne, execute } from '../db/schema.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { sendSetPasswordEmail, sendForgotPasswordEmail } from '../services/email.js';
+import { logAuditEvent } from '../services/audit.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -39,6 +40,7 @@ router.post('/register', async (req, res) => {
        date_of_birth ?? null, reason_for_joining ?? null]
     );
 
+    logAuditEvent({ eventType: 'user_signed_up', actorUserId: id, entityType: 'user', entityId: id, metadata: { email: email.toLowerCase(), username: username.toLowerCase() } }).catch(() => {});
     res.status(201).json({ message: 'Application received. Your access request is under review.' });
   } catch (err) {
     console.error(err);
@@ -60,14 +62,17 @@ router.post('/login', async (req, res) => {
     );
 
     if (!user) {
+      logAuditEvent({ eventType: 'login_failed', entityType: 'auth', status: 'failure', metadata: { email: email.toLowerCase(), reason: 'user_not_found' } }).catch(() => {});
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }
     if (!user.password_hash) {
+      logAuditEvent({ eventType: 'login_failed', actorUserId: user.id, entityType: 'auth', status: 'failure', metadata: { reason: 'no_password_hash' } }).catch(() => {});
       res.status(403).json({ error: 'Please set your password first. Check your email for the setup link.' });
       return;
     }
     if (!(await bcrypt.compare(password, user.password_hash))) {
+      logAuditEvent({ eventType: 'login_failed', actorUserId: user.id, entityType: 'auth', status: 'failure', metadata: { reason: 'wrong_password' } }).catch(() => {});
       res.status(401).json({ error: 'Invalid email or password' });
       return;
     }

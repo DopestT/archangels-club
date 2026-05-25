@@ -1,7 +1,9 @@
 console.log('STARTING SERVER...');process.stdout.write('index.ts loading\n');
 import express from 'express';
 import cors from 'cors';
-import { pool, runMigrations } from './db/schema.js';
+import Stripe from 'stripe';
+import { v2 as cloudinary } from 'cloudinary';
+import { pool, query, queryOne, runMigrations } from './db/schema.js';
 import authRoutes from './routes/auth.js';
 import creatorRoutes from './routes/creators.js';
 import contentRoutes from './routes/content.js';
@@ -95,6 +97,143 @@ app.get('/api/health/db', async (_req, res) => {
   } catch (err) {
     res.status(503).json({ ok: false, database: 'error', detail: String(err) });
   }
+});
+
+// GET /api/health/system — admin system health page data
+// Returns status of all critical infrastructure: auth, DB, Cloudinary, Stripe,
+// last webhook received, recent upload/payment failures, and critical audit events.
+app.get('/api/health/system', async (_req, res) => {
+  const checks: Record<string, unknown> = {};
+  const degraded: string[] = [];
+
+  // Auth: check JWT secret is configured
+  checks.auth = {
+    ok: !!process.env.JWT_SECRET,
+    configured: !!process.env.JWT_SECRET,
+    note: process.env.JWT_SECRET ? null : 'JWT_SECRET not set — using insecure default',
+  };
+  if (!process.env.JWT_SECRET) degraded.push('auth');
+
+  // Database
+  try {
+    await pool.query('SELECT 1');
+    checks.database = { ok: true, status: 'connected' };
+  } catch (err) {
+    checks.database = { ok: false, status: 'error', detail: String(err) };
+    degraded.push('database');
+  }
+
+  // Cloudinary
+  const cldConfigured = !!(process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+  if (cldConfigured) {
+    try {
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
+        api_key: process.env.CLOUDINARY_API_KEY!,
+        api_secret: process.env.CLOUDINARY_API_SECRET!,
+        secure: true,
+      });
+      await cloudinary.api.ping();
+      checks.cloudinary = { ok: true, status: 'reachable' };
+    } catch (err) {
+      checks.cloudinary = { ok: false, status: 'error', detail: String(err) };
+      degraded.push('cloudinary');
+    }
+  } else {
+    checks.cloudinary = { ok: false, status: 'not_configured', detail: 'Missing CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, or CLOUDINARY_API_SECRET' };
+    degraded.push('cloudinary');
+  }
+
+  // Stripe
+  const stripeConfigured = !!process.env.STRIPE_SECRET_KEY;
+  const stripeWebhookConfigured = !!process.env.STRIPE_WEBHOOK_SECRET;
+  if (stripeConfigured) {
+    try {
+      const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+      await stripe.balance.retrieve();
+      checks.stripe = {
+        ok: true,
+        status: 'reachable',
+        webhook_secret_configured: stripeWebhookConfigured,
+        webhook_note: stripeWebhookConfigured ? null : 'STRIPE_WEBHOOK_SECRET not set — webhook signature verification is disabled',
+      };
+      if (!stripeWebhookConfigured) degraded.push('stripe_webhook');
+    } catch (err) {
+      checks.stripe = { ok: false, status: 'error', detail: String(err), webhook_secret_configured: stripeWebhookConfigured };
+      degraded.push('stripe');
+    }
+  } else {
+    checks.stripe = { ok: false, status: 'not_configured', detail: 'Missing STRIPE_SECRET_KEY' };
+    degraded.push('stripe');
+  }
+
+  // Webhook last received
+  try {
+    const lastWebhook = await queryOne<{ received_at: string; event_type: string }>(
+      `SELECT received_at, event_type FROM payment_events ORDER BY received_at DESC LIMIT 1`
+    );
+    checks.webhook_last_received = lastWebhook
+      ? { received_at: lastWebhook.received_at, event_type: lastWebhook.event_type }
+      : { received_at: null, note: 'No webhook events recorded yet' };
+  } catch {
+    checks.webhook_last_received = { error: 'Could not query payment_events' };
+  }
+
+  // Last upload failure (from audit_log if available)
+  try {
+    const lastUploadFail = await queryOne<{ created_at: string; actor_user_id: string; metadata: unknown }>(
+      `SELECT created_at, actor_user_id, metadata FROM audit_log
+       WHERE event_type = 'media_upload_failed' ORDER BY created_at DESC LIMIT 1`
+    );
+    checks.last_upload_failure = lastUploadFail
+      ? { at: lastUploadFail.created_at, creator_user_id: lastUploadFail.actor_user_id, metadata: lastUploadFail.metadata }
+      : { at: null };
+  } catch {
+    checks.last_upload_failure = { note: 'audit_log table not yet available' };
+  }
+
+  // Last payment failure
+  try {
+    const lastPayFail = await queryOne<{ received_at: string; event_type: string; error_message: string }>(
+      `SELECT received_at, event_type, error_message FROM payment_events
+       WHERE processing_status = 'failed' ORDER BY received_at DESC LIMIT 1`
+    );
+    checks.last_payment_failure = lastPayFail
+      ? { at: lastPayFail.received_at, event_type: lastPayFail.event_type, error: lastPayFail.error_message }
+      : { at: null };
+  } catch {
+    checks.last_payment_failure = { error: 'Could not query payment_events' };
+  }
+
+  // Recent critical audit events (last 10)
+  try {
+    const recentEvents = await query<{ created_at: string; event_type: string; actor_user_id: string; status: string }>(
+      `SELECT created_at, event_type, actor_user_id, status FROM audit_log
+       ORDER BY created_at DESC LIMIT 10`
+    );
+    checks.recent_audit_events = recentEvents;
+  } catch {
+    checks.recent_audit_events = [];
+  }
+
+  // Fulfillment records needing attention
+  try {
+    const needsReview = await query<{ id: string; stripe_session_id: string; last_error: string; created_at: string }>(
+      `SELECT id, stripe_session_id, last_error, created_at FROM fulfillment_records
+       WHERE status IN ('failed','needs_review') ORDER BY created_at DESC LIMIT 20`
+    );
+    checks.fulfillment_needs_attention = needsReview;
+  } catch {
+    checks.fulfillment_needs_attention = [];
+  }
+
+  const overall = degraded.length === 0 ? 'healthy' : degraded.includes('database') ? 'critical' : 'degraded';
+  res.status(overall === 'critical' ? 503 : 200).json({
+    overall,
+    degraded,
+    checks,
+    generated_at: new Date().toISOString(),
+  });
 });
 
 

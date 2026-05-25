@@ -27,66 +27,52 @@ const DEFAULT_PRICING: PricingConfig = {
   bundlePrice: null,
 };
 
-interface CloudinaryUploadResult {
-  secure_url: string;
-  public_id: string;
-  resource_type: 'image' | 'video' | 'raw';
-  version: number;
+interface ServerUploadResult {
+  success: boolean;
+  media_asset_id?: string;
+  asset: {
+    secure_url: string;
+    public_id: string;
+    resource_type: string;
+    format: string;
+    bytes: number;
+    duration: number | null;
+    width: number | null;
+    height: number | null;
+    thumbnail_url: string | null;
+    preview_url: string;
+  };
 }
 
-function buildPreviewUrl(cloudName: string, result: CloudinaryUploadResult): string {
-  const { public_id, resource_type, version } = result;
-  const v = `v${version}`;
-  if (resource_type === 'video') {
-    return `https://res.cloudinary.com/${cloudName}/video/upload/so_3,e_blur:600,q_30,w_800/${v}/${public_id}.jpg`;
-  }
-  return `https://res.cloudinary.com/${cloudName}/image/upload/e_blur:1800,q_20,w_800/${v}/${public_id}`;
-}
-
-async function signUpload(token: string): Promise<{ signature: string; timestamp: number; api_key: string; cloud_name: string; folder: string }> {
-  const res = await fetch(`${API_BASE}/api/upload/sign`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-  });
-  if (!res.ok) throw new Error('Failed to get upload credentials.');
-  return res.json();
-}
-
-function uploadToCloudinary(
+function uploadViaServer(
   file: File,
-  resourceType: 'image' | 'video' | 'raw',
-  sign: Awaited<ReturnType<typeof signUpload>>,
+  token: string,
   onProgress: (pct: number) => void,
-): Promise<CloudinaryUploadResult> {
+): Promise<ServerUploadResult> {
   return new Promise((resolve, reject) => {
     const form = new FormData();
     form.append('file', file);
-    form.append('api_key', sign.api_key);
-    form.append('timestamp', String(sign.timestamp));
-    form.append('signature', sign.signature);
-    form.append('folder', sign.folder);
 
     const xhr = new XMLHttpRequest();
     xhr.upload.addEventListener('progress', (e) => {
       if (e.lengthComputable) onProgress(Math.round((e.loaded / e.total) * 100));
     });
     xhr.addEventListener('load', () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(JSON.parse(xhr.responseText));
+      let parsed: ServerUploadResult;
+      try { parsed = JSON.parse(xhr.responseText); } catch { reject(new Error('Unexpected server response.')); return; }
+      if (xhr.status >= 200 && xhr.status < 300 && parsed.success) {
+        resolve(parsed);
       } else {
-        reject(new Error(`Upload failed (${xhr.status})`));
+        reject(new Error((parsed as any).error ?? `Upload failed (${xhr.status})`));
       }
     });
-    xhr.addEventListener('error', () => reject(new Error('Network error during upload.')));
-    xhr.open('POST', `https://api.cloudinary.com/v1_1/${sign.cloud_name}/${resourceType}/upload`);
+    xhr.addEventListener('error', () => reject(new Error('Network error during upload. Please check your connection and try again.')));
+    xhr.addEventListener('timeout', () => reject(new Error('Upload timed out. Try a smaller file or check your connection.')));
+    xhr.timeout = 10 * 60 * 1000; // 10-minute timeout for large files
+    xhr.open('POST', `${API_BASE}/api/media/upload`);
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.send(form);
   });
-}
-
-function toResourceType(contentType: ContentType): 'image' | 'video' | 'raw' {
-  if (contentType === 'image') return 'image';
-  if (contentType === 'video') return 'video';
-  return 'raw';
 }
 
 export default function UploadContent() {
@@ -161,6 +147,8 @@ export default function UploadContent() {
     setPreviewDataUrl(null);
     setVideoConfig(null);
     setImageDataUrl(null);
+    setUploadError('');
+    setUploadProgress(0);
     if (f && contentType === 'image') {
       const reader = new FileReader();
       reader.onload = (ev) => setImageDataUrl((ev.target?.result as string) ?? null);
@@ -190,16 +178,10 @@ export default function UploadContent() {
 
       if (activeFile) {
         setStatus('uploading');
-        const sign = await signUpload(token);
-        const result = await uploadToCloudinary(
-          activeFile,
-          toResourceType(contentType),
-          sign,
-          setUploadProgress,
-        );
-        mediaUrl = result.secure_url;
+        const result = await uploadViaServer(activeFile, token, setUploadProgress);
+        mediaUrl = result.asset.secure_url;
         if (!previewUrl) {
-          previewUrl = buildPreviewUrl(sign.cloud_name, result);
+          previewUrl = result.asset.thumbnail_url ?? result.asset.preview_url;
         }
       }
 
