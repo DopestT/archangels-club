@@ -1,20 +1,12 @@
 {
-  "rewrites": [
-    { "source": "/api/:path*", "destination": "https://archangels-club-production.up.railway.app/api/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "headers": [
+  "routes": [
     {
-      "source": "/:path*",
-      "headers": [
-        { "key": "Cache-Control", "value": "no-store" }
-      ]
+      "src": "/api/(.*)",
+      "dest": "https://archangels-club-production.up.railway.app/api/$1"
     },
     {
-      "source": "/assets/:path*",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
-      ]
+      "src": "/(.*)",
+      "dest": "/index.html"
     }
   ]
 }
