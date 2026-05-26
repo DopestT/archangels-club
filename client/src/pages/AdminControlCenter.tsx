@@ -33,6 +33,7 @@ interface CreatorApplication { id: string; user_id: string; bio: string; pitch: 
 interface ContentItem { id: string; title: string; description: string; content_type: string; access_type: string; price: number; status: string; created_at: string; creator_name: string; creator_username: string; creator_avatar: string; }
 interface Report { id: string; subject_type: string; subject_id: string; reason: string; details: string; status: string; created_at: string; reporter_username: string; reporter_name: string; }
 interface Transaction { id: string; payer_name: string; payer_email: string; payee_name: string; ref_type: string; content_title: string | null; amount: number; platform_fee: number; net_amount: number; status: string; created_at: string; }
+interface UploadFailure { id: string; status: string; failure_reason: string | null; created_at: string; updated_at: string; creator_user_id: string; email: string; display_name: string; username: string; }
 
 type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions';
 
@@ -189,6 +190,8 @@ export default function AdminControlCenter() {
   const [loading, setLoading] = useState(false);
   const [health, setHealth] = useState<SystemHealth | null>(null);
   const [healthLoading, setHealthLoading] = useState(false);
+  const [uploadFailures, setUploadFailures] = useState<UploadFailure[]>([]);
+  const [failuresLoading, setFailuresLoading] = useState(false);
 
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [creators, setCreators] = useState<CreatorApplication[]>([]);
@@ -246,7 +249,19 @@ export default function AdminControlCenter() {
     }
   }, [adminFetch, toast]);
 
-  useEffect(() => { loadAll(); loadHealth(); }, []);
+  const loadFailures = useCallback(async () => {
+    setFailuresLoading(true);
+    try {
+      const data = await adminFetch('/api/admin/upload-failures');
+      setUploadFailures(data);
+    } catch {
+      // non-fatal — table may not exist yet
+    } finally {
+      setFailuresLoading(false);
+    }
+  }, [adminFetch]);
+
+  useEffect(() => { loadAll(); loadHealth(); loadFailures(); }, []);
 
   async function action(endpoint: string, successMsg: string, onSuccess: () => void) {
     try {
@@ -485,6 +500,41 @@ export default function AdminControlCenter() {
               </div>
             ) : null}
           </section>
+
+          {/* ── Upload Failures ───────────────────────────────────────────── */}
+          {(uploadFailures.length > 0 || failuresLoading) && (
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <p className="section-eyebrow">Upload Failures</p>
+                <button onClick={loadFailures} className="flex items-center gap-1.5 text-xs text-arc-muted hover:text-white transition-colors">
+                  <RefreshCw className={`w-3 h-3 ${failuresLoading ? 'animate-spin' : ''}`} />
+                  Refresh
+                </button>
+              </div>
+              {failuresLoading ? (
+                <div className="flex items-center gap-3 p-4 card-surface rounded-xl border border-gold-border/20">
+                  <RefreshCw className="w-4 h-4 text-arc-muted animate-spin" />
+                  <span className="text-xs text-arc-muted">Loading…</span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {uploadFailures.slice(0, 10).map((f) => (
+                    <div key={f.id} className="flex items-start gap-3 p-4 card-surface rounded-xl border border-arc-error/20">
+                      <AlertTriangle className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <p className="text-xs font-medium text-white truncate">{f.display_name || f.username}</p>
+                          <span className="text-[10px] text-arc-muted">{f.email}</span>
+                        </div>
+                        <p className="text-[11px] text-arc-error truncate">{f.failure_reason ?? 'Unknown failure'}</p>
+                        <p className="text-[10px] text-arc-muted mt-0.5">{new Date(f.updated_at).toLocaleString()}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          )}
 
           {/* ── Action Queues ─────────────────────────────────────────────── */}
           <section>

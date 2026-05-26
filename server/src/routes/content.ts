@@ -390,6 +390,7 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
 // PATCH /api/content/:id — creator update own editable content
 // Editable when status is: draft, rejected, changes_requested, or failed_processing
 // For rejected/changes_requested: automatically moves to pending_review and clears rejection_reason
+// media_asset_id: if provided, verifies status='ready' and uses DB secure_url as canonical media_url
 router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
   try {
     const row = await queryOne<any>(
@@ -406,7 +407,26 @@ router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
       return;
     }
 
-    const { title, description, access_type, price, preview_url, media_url, publish_at, max_unlocks, subscriber_discount_pct } = req.body;
+    const media_asset_id: string | undefined = req.body.media_asset_id ?? undefined;
+    let { title, description, access_type, price, preview_url, media_url, publish_at, max_unlocks, subscriber_discount_pct } = req.body;
+
+    if (media_asset_id) {
+      const asset = await queryOne<{ status: string; secure_url: string | null; creator_user_id: string }>(
+        `SELECT status, secure_url, creator_user_id FROM media_assets WHERE id = $1`,
+        [media_asset_id]
+      );
+      if (!asset || asset.creator_user_id !== req.auth!.userId) {
+        res.status(400).json({ error: 'Upload not found. Please re-upload the file.' }); return;
+      }
+      if (asset.status !== 'ready') {
+        const reason = asset.status === 'failed'
+          ? 'The upload failed. Please re-upload the file.'
+          : 'The upload is still processing. Please wait and try again.';
+        res.status(400).json({ error: reason }); return;
+      }
+      media_url = asset.secure_url;
+    }
+
     const isResubmit = ['rejected', 'changes_requested'].includes(row.status);
 
     // Title cannot be empty when resubmitting
@@ -683,6 +703,7 @@ router.post('/:id/save', requireAuth, async (req, res) => {
       'INSERT INTO saved_content (id, user_id, content_id) VALUES ($1, $2, $3) ON CONFLICT (user_id, content_id) DO NOTHING',
       [id, req.auth!.userId, req.params.id]
     );
+    logAuditEvent({ eventType: 'vault_item_added', actorUserId: req.auth!.userId, entityType: 'content', entityId: req.params.id, metadata: {} }).catch(() => {});
     res.json({ saved: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to save content.' });

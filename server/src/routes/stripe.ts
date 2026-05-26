@@ -2,6 +2,7 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import { requireAuth, requireCreator } from '../middleware/auth.js';
 import { queryOne, execute } from '../db/schema.js';
+import { logAuditEvent } from '../services/audit.js';
 
 const router = Router();
 const CLIENT_URL = process.env.CLIENT_URL ?? process.env.FRONTEND_URL ?? 'http://localhost:3000';
@@ -135,8 +136,11 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
     });
 
     console.log('[stripe/connect/start] account link generated for:', accountId);
+    logAuditEvent({ eventType: 'payout_setup_started', actorUserId: req.auth!.userId, entityType: 'creator_profile', metadata: { stripe_account_id: accountId } }).catch(() => {});
     res.json({ url: accountLink.url });
   } catch (err: any) {
+    const reason = err?.message ?? 'Unknown error';
+    logAuditEvent({ eventType: 'payout_setup_failed', actorUserId: req.auth!.userId, entityType: 'creator_profile', status: 'failure', metadata: { reason: reason.slice(0, 200), stripe_error_type: err?.type ?? null } }).catch(() => {});
     // Log full Stripe error detail
     if (err?.type) {
       console.error('[stripe/connect/start] Stripe error — type:', err.type, 'code:', err.code, 'message:', err.message);
