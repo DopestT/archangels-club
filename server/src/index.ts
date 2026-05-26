@@ -227,6 +227,18 @@ app.get('/api/health/system', async (_req, res) => {
     checks.fulfillment_needs_attention = [];
   }
 
+  // Stale pending checkouts — transactions in 'pending' >25h (Stripe sessions expire at 24h).
+  // Informational only — these will never complete. Admin can investigate.
+  try {
+    const stale = await queryOne<{ n: string }>(
+      `SELECT COUNT(*) as n FROM transactions
+       WHERE status = 'pending' AND created_at < NOW() - INTERVAL '25 hours'`
+    );
+    checks.stale_pending_checkouts = { count: parseInt(stale?.n ?? '0', 10) };
+  } catch {
+    checks.stale_pending_checkouts = { count: 0, note: 'Could not query transactions' };
+  }
+
   const overall = degraded.length === 0 ? 'healthy' : degraded.includes('database') ? 'critical' : 'degraded';
   res.status(overall === 'critical' ? 503 : 200).json({
     overall,
@@ -237,10 +249,39 @@ app.get('/api/health/system', async (_req, res) => {
 });
 
 
+// syncSubscriptionStatuses — marks subscriptions whose expires_at has passed as 'expired'.
+// Safe: access checks use expires_at directly, not status. This keeps analytics accurate.
+async function syncSubscriptionStatuses(): Promise<void> {
+  try {
+    await execute(
+      `UPDATE subscriptions SET status = 'expired' WHERE expires_at < NOW() AND status = 'active'`
+    );
+    console.log('[startup] syncSubscriptionStatuses: complete');
+  } catch (err) {
+    console.error('[startup] syncSubscriptionStatuses error:', err);
+  }
+}
+
+// fixCreatorProfileConsistency — repairs is_approved flag for creators whose
+// application_status is 'approved' but is_approved is not 1 (safe direction only).
+async function fixCreatorProfileConsistency(): Promise<void> {
+  try {
+    await execute(
+      `UPDATE creator_profiles SET is_approved = 1
+         WHERE application_status = 'approved' AND is_approved != 1`
+    );
+    console.log('[startup] fixCreatorProfileConsistency: complete');
+  } catch (err) {
+    console.error('[startup] fixCreatorProfileConsistency error:', err);
+  }
+}
+
 async function start() {
   try {
     await runMigrations();
     cleanOrphanUploads().catch(console.error);
+    syncSubscriptionStatuses().catch(console.error);
+    fixCreatorProfileConsistency().catch(console.error);
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
     });

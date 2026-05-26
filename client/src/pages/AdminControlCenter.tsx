@@ -67,6 +67,7 @@ interface SystemHealth {
     last_payment_failure?: SystemHealthCheck;
     recent_audit_events?: Array<{ created_at: string; event_type: string; actor_user_id: string; status: string }>;
     fulfillment_needs_attention?: Array<{ id: string; stripe_session_id: string; last_error: string; created_at: string }>;
+    stale_pending_checkouts?: { count: number; note?: string };
   };
 }
 
@@ -454,6 +455,18 @@ export default function AdminControlCenter() {
                     )}
                   </div>
                 </div>
+
+                {/* Stale pending checkouts */}
+                {(health.checks.stale_pending_checkouts?.count ?? 0) > 0 && (
+                  <div className="card-surface rounded-xl p-4 border border-amber-500/30">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-3.5 h-3.5 text-amber-400" />
+                      <span className="text-xs font-medium text-amber-400">
+                        {health.checks.stale_pending_checkouts!.count} stale checkout session{health.checks.stale_pending_checkouts!.count === 1 ? '' : 's'} — Stripe expired, will never complete
+                      </span>
+                    </div>
+                  </div>
+                )}
 
                 {/* Fulfillment needs attention */}
                 {health.checks.fulfillment_needs_attention && health.checks.fulfillment_needs_attention.length > 0 && (
