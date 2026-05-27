@@ -357,8 +357,10 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
     }
 
     const message = status === 'draft' ? 'Draft saved.' : 'Content submitted for review.';
+    console.log(`[content/create] success id=${id} status=${status} creator=${profile.id}`);
     res.status(201).json({ id, status, message });
   } catch (err) {
+    console.error('[content/create] error:', err);
     res.status(500).json({ error: 'Failed to upload content.' });
   }
 });

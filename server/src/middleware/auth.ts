@@ -73,9 +73,15 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     console.log(`[auth] token valid — userId=${payload.userId} role=${payload.role}`);
     req.auth = payload;
     next();
-  } catch (err) {
-    console.log('[auth] token verification failed:', (err as Error).message);
-    res.status(401).json({ error: 'Invalid or expired token' });
+  } catch (err: any) {
+    console.log('[auth] token verification failed:', err.message);
+    const isStale = err?.name === 'JsonWebTokenError' && err?.message === 'invalid signature';
+    res.status(401).json({
+      error: isStale
+        ? 'Your session is no longer valid — please log out and log back in.'
+        : 'Invalid or expired token',
+      ...(isStale ? { code: 'session_reset_required' } : {}),
+    });
   }
 }
 
