@@ -202,7 +202,8 @@ export default function CreatorDashboard() {
         setStripeError('Payout setup unavailable. Please try again shortly.');
         setStripeLoading(false);
       }
-    } catch {
+    } catch (err) {
+      console.error('[stripe/connect/start] fetch error:', err);
       setStripeError('Unable to reach the server. Please try again.');
       setStripeLoading(false);
     }

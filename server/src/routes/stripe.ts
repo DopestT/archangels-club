@@ -4,7 +4,7 @@ import { requireAuth, requireCreator } from '../middleware/auth.js';
 import { queryOne, execute } from '../db/schema.js';
 
 const router = Router();
-const CLIENT_URL = process.env.CLIENT_URL ?? 'http://localhost:3000';
+const CLIENT_URL = process.env.CLIENT_URL ?? process.env.FRONTEND_URL ?? 'http://localhost:3000';
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not set');
@@ -24,7 +24,7 @@ router.get('/test', async (_req, res) => {
     res.json({
       connected: true,
       mode: key.startsWith('sk_test') ? 'test' : 'live',
-      key_prefix: key.substring(0, 7),
+      key_prefix: key.substring(0, 12),
     });
   } catch (err: any) {
     res.json({
@@ -43,6 +43,41 @@ router.get('/connect/status', requireAuth, requireCreator, async (req, res) => {
       'SELECT stripe_account_id, stripe_onboarding_complete FROM creator_profiles WHERE user_id = $1',
       [req.auth!.userId]
     );
+
+    // If account exists, verify real status from Stripe
+    if (profile?.stripe_account_id) {
+      try {
+        const stripe = getStripe();
+        const account = await stripe.accounts.retrieve(profile.stripe_account_id);
+        const isComplete =
+          account.details_submitted &&
+          !account.requirements?.currently_due?.length &&
+          !account.requirements?.past_due?.length;
+
+        // Update DB if newly complete
+        if (isComplete && !profile.stripe_onboarding_complete) {
+          await execute(
+            'UPDATE creator_profiles SET stripe_onboarding_complete = 1 WHERE user_id = $1',
+            [req.auth!.userId]
+          );
+        }
+
+        res.json({
+          has_account: true,
+          onboarded: isComplete || !!profile.stripe_onboarding_complete,
+          account_id: profile.stripe_account_id,
+          details_submitted: account.details_submitted,
+          payouts_enabled: account.payouts_enabled,
+          charges_enabled: account.charges_enabled,
+          currently_due: account.requirements?.currently_due ?? [],
+        });
+        return;
+      } catch (stripeErr: any) {
+        console.error('[stripe/connect/status] Stripe retrieve error:', stripeErr.message);
+        // Fall through to DB-only response
+      }
+    }
+
     res.json({
       has_account: !!profile?.stripe_account_id,
       onboarded: !!profile?.stripe_onboarding_complete,
@@ -88,30 +123,28 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
         'UPDATE creator_profiles SET stripe_account_id = $1 WHERE id = $2',
         [accountId, profile.id]
       );
+      console.log('[stripe/connect/start] created account:', accountId, 'for user:', req.auth!.userId);
     }
 
     const stripe = getStripe();
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${CLIENT_URL}/creator?stripe=refresh`,
-      return_url: `${CLIENT_URL}/creator?stripe=return`,
+      refresh_url: `${CLIENT_URL}/dashboard/studio?connect=refresh`,
+      return_url:  `${CLIENT_URL}/dashboard/studio?connect=return`,
       type: 'account_onboarding',
     });
 
+    console.log('[stripe/connect/start] account link generated for:', accountId);
     res.json({ url: accountLink.url });
   } catch (err: any) {
-    console.error('[stripe/connect] start error:', err);
-    const stripeType = err?.type ?? '';
-    const stripeCode = err?.code ?? '';
-    let msg = 'Failed to start payout setup. Please try again.';
-    if (stripeType === 'StripeAuthenticationError') {
-      msg = 'Stripe API key is invalid. Contact support.';
-    } else if (stripeType === 'StripePermissionError' || stripeCode === 'account_invalid') {
-      msg = 'Stripe Connect is not enabled on this account. Contact support.';
-    } else if (err?.message) {
-      msg = `Payout setup failed: ${err.message}`;
+    // Log full Stripe error detail
+    if (err?.type) {
+      console.error('[stripe/connect/start] Stripe error — type:', err.type, 'code:', err.code, 'message:', err.message);
+      res.status(500).json({ error: `Stripe error: ${err.message}`, type: err.type, code: err.code });
+    } else {
+      console.error('[stripe/connect/start] error:', err);
+      res.status(500).json({ error: err?.message ?? 'Failed to start Stripe onboarding' });
     }
-    res.status(500).json({ error: msg });
   }
 });
 
@@ -130,7 +163,9 @@ router.post('/connect/verify', requireAuth, requireCreator, async (req, res) => 
 
     const stripe = getStripe();
     const account = await stripe.accounts.retrieve(profile.stripe_account_id);
-    const onboarded = account.details_submitted;
+    const onboarded = account.details_submitted &&
+      !account.requirements?.currently_due?.length &&
+      !account.requirements?.past_due?.length;
 
     if (onboarded) {
       await execute(
@@ -139,10 +174,16 @@ router.post('/connect/verify', requireAuth, requireCreator, async (req, res) => 
       );
     }
 
-    res.json({ onboarded, account_id: profile.stripe_account_id });
-  } catch (err) {
-    console.error('[stripe/connect] verify error:', err);
-    res.status(500).json({ error: 'Failed to verify Stripe onboarding' });
+    res.json({
+      onboarded,
+      account_id: profile.stripe_account_id,
+      details_submitted: account.details_submitted,
+      payouts_enabled: account.payouts_enabled,
+      currently_due: account.requirements?.currently_due ?? [],
+    });
+  } catch (err: any) {
+    console.error('[stripe/connect/verify] error:', err.message, err);
+    res.status(500).json({ error: err?.message ?? 'Failed to verify Stripe onboarding' });
   }
 });
 
@@ -162,8 +203,9 @@ router.post('/connect/dashboard-link', requireAuth, requireCreator, async (req, 
     const stripe = getStripe();
     const loginLink = await stripe.accounts.createLoginLink(profile.stripe_account_id);
     res.json({ url: loginLink.url });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to generate dashboard link' });
+  } catch (err: any) {
+    console.error('[stripe/connect/dashboard-link] error:', err.message, err);
+    res.status(500).json({ error: err?.message ?? 'Failed to generate dashboard link' });
   }
 });
 

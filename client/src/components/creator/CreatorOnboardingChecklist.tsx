@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useStripeConnect } from '../../hooks/useStripeConnect';
 import { Check, ChevronDown, ChevronUp, X } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import type { ChecklistItem } from '../../hooks/useCreatorProgress';
@@ -159,6 +160,16 @@ function ChecklistRow({
   isPayoutItem: boolean;
   onStripeSetup?: () => void;
 }) {
+  // Use the real Stripe Connect hook directly for payout items
+  const { isLoading, startOnboarding } = useStripeConnect();
+
+  function handlePayoutClick() {
+    // Prefer the hook's startOnboarding over the legacy prop
+    startOnboarding();
+    // Also call parent callback if provided (e.g. to refetch onboarding state)
+    onStripeSetup?.();
+  }
+
   return (
     <div className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${item.completed ? 'opacity-50' : ''}`}>
       {/* Status dot */}
@@ -184,12 +195,13 @@ function ChecklistRow({
 
       {/* CTA */}
       {!item.completed && (
-        isPayoutItem && onStripeSetup ? (
+        isPayoutItem ? (
           <button
-            onClick={onStripeSetup}
-            className="text-xs font-medium text-gold hover:underline flex-shrink-0"
+            onClick={handlePayoutClick}
+            disabled={isLoading}
+            className="text-xs font-medium text-gold hover:underline flex-shrink-0 disabled:opacity-50"
           >
-            {item.actionLabel}
+            {isLoading ? 'Setting up…' : item.actionLabel}
           </button>
         ) : (
           <Link
