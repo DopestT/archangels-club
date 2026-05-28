@@ -1,10 +1,10 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import type { Request, Response, NextFunction } from 'express';
 
 function resolveKey(req: Request): string {
   if (req.auth?.userId) return req.auth.userId;
-  const raw = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ?? req.ip ?? '';
-  return raw.replace(/^::ffff:/i, '') || 'unknown';
+  const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ?? req.ip ?? '';
+  return ipKeyGenerator(ip) || 'unknown';
 }
 
 // 20 upload attempts per 15 minutes per authenticated creator; falls back to IP.
