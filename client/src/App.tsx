@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SavedProvider } from './context/SavedContext';
 import { ToastProvider } from './components/ui/Toast';
@@ -53,6 +53,7 @@ function ProtectedRoute({
   requireAdmin?: boolean;
 }) {
   const { isAuthenticated, isCreator, isAdmin, userStatus, refreshUser } = useAuth();
+  const location = useLocation();
   // For creator-gated routes: try refreshing stale session once before blocking.
   // This lets newly-approved creators reach the studio without re-login.
   const [creatorCheckDone, setCreatorCheckDone] = useState(
@@ -66,7 +67,8 @@ function ProtectedRoute({
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    const redirect = encodeURIComponent(location.pathname + location.search);
+    return <Navigate to={`/login?redirect=${redirect}`} replace />;
   }
 
   // Admin bypasses all status gates
