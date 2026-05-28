@@ -37,6 +37,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const stored: StoredAuth = JSON.parse(raw);
         setUser(stored.user);
         setToken(stored.token);
+        // Validate token in background — auto-logout if the server rejects it
+        // (e.g. JWT_SECRET rotated after a deployment)
+        fetch(`${API_BASE}/api/auth/me`, {
+          headers: { Authorization: `Bearer ${stored.token}` },
+        }).then(r => {
+          if (r.status === 401) {
+            localStorage.removeItem(STORAGE_KEY);
+            setUser(null);
+            setToken(null);
+          }
+        }).catch(() => {});
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
@@ -59,7 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       data = await res.json();
       console.log('[login] response body:', data);
     } catch {
-      throw new Error(`Server error (HTTP ${res.status}). Please try again.`);
+      throw new Error('Unable to sign in. Please try again.');
     }
 
     if (!res.ok) throw new Error(data.error ?? 'Login failed. Please try again.');
@@ -85,6 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch(`${API_BASE}/api/auth/me`, {
         headers: { Authorization: `Bearer ${storedToken}` },
       });
+      if (res.status === 401) {
+        localStorage.removeItem(STORAGE_KEY);
+        setUser(null);
+        setToken(null);
+        return;
+      }
       if (!res.ok) return;
       // /api/auth/me returns the user object directly (not nested under .user)
       const freshUser = await res.json() as User;

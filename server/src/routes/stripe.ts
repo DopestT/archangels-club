@@ -97,7 +97,7 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
     );
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
-    let profile = await queryOne<{ id: string; stripe_account_id: string | null }>(
+    const profile = await queryOne<{ id: string; stripe_account_id: string | null }>(
       'SELECT id, stripe_account_id FROM creator_profiles WHERE user_id = $1',
       [req.auth!.userId]
     );
@@ -312,7 +312,7 @@ router.post('/checkout', requireAuth, async (req, res) => {
     res.status(400).json({ error: 'type must be "tip" or "subscription".' });
   } catch (err: any) {
     console.error('[stripe/checkout] error:', err.message, err);
-    res.status(500).json({ error: err.message || 'Failed to create checkout session.' });
+    res.status(500).json({ error: 'Payment could not be processed. Please try again.' });
   }
 });
 

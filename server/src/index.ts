@@ -1,4 +1,6 @@
 console.log('STARTING SERVER...');process.stdout.write('index.ts loading\n');
+import { validateConfig } from './config.js';
+validateConfig();
 import express from 'express';
 import cors from 'cors';
 import { pool, runMigrations } from './db/schema.js';
@@ -27,6 +29,7 @@ import eventsRoutes from './routes/events.js';
 import pulseRoutes from './routes/pulse.js';
 import recommendationsRoutes from './routes/recommendations.js';
 import intelligenceRoutes from './routes/intelligence.js';
+import streamRoutes from './routes/stream.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -83,6 +86,7 @@ app.use('/api/events', eventsRoutes);
 app.use('/api/pulse', pulseRoutes);
 app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/stream', streamRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });

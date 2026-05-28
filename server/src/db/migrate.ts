@@ -177,10 +177,6 @@ const DDL = `
 
   ALTER TABLE access_requests ADD COLUMN IF NOT EXISTS name TEXT NOT NULL DEFAULT '';
 
-  ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
-  ALTER TABLE content ADD CONSTRAINT content_status_check
-    CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested'));
-
   CREATE INDEX IF NOT EXISTS idx_access_requests_email ON access_requests(email);
   CREATE INDEX IF NOT EXISTS idx_access_requests_status ON access_requests(status);
 
@@ -387,10 +383,18 @@ const DDL = `
   ALTER TABLE content ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
   ALTER TABLE content ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
 
-  -- Expand status constraint: add scheduled and failed_processing
-  ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
-  ALTER TABLE content ADD CONSTRAINT content_status_check
-    CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested','scheduled','failed_processing'));
+  -- Expand status constraint: add scheduled and failed_processing (idempotent)
+  DO $$ BEGIN
+    IF NOT EXISTS (
+      SELECT 1 FROM pg_constraint c
+      WHERE c.conname = 'content_status_check'
+        AND pg_get_constraintdef(c.oid) LIKE '%failed_processing%'
+    ) THEN
+      ALTER TABLE content DROP CONSTRAINT IF EXISTS content_status_check;
+      ALTER TABLE content ADD CONSTRAINT content_status_check
+        CHECK(status IN ('draft','pending_review','approved','rejected','removed','changes_requested','scheduled','failed_processing'));
+    END IF;
+  END $$;
 
   -- New content defaults to draft so creators can save before submitting for review
   ALTER TABLE content ALTER COLUMN status SET DEFAULT 'draft';
@@ -485,6 +489,10 @@ const DDL = `
 
   CREATE INDEX IF NOT EXISTS idx_creator_daily_stats_date ON creator_daily_stats(stat_date DESC);
 
+  -- ── Infrastructure hardening ─────────────────────────────────────────────────
+  -- fulfilled_at: exact timestamp when fulfillment completed (distinct from updated_at).
+  ALTER TABLE fulfillment_records ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
+
   -- ── ABMIE-X: Platform Daily Stats ────────────────────────────────────────────
   -- Platform-wide aggregates for admin Pulse view. One row per date.
   CREATE TABLE IF NOT EXISTS platform_daily_stats (
@@ -498,6 +506,19 @@ const DDL = `
     content_published INTEGER NOT NULL DEFAULT 0,
     computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  -- ── Demo/test content isolation ───────────────────────────────────────────────
+  -- Marks seed and test content so it can be excluded from public listings.
+  ALTER TABLE content ADD COLUMN IF NOT EXISTS is_demo BOOLEAN NOT NULL DEFAULT false;
+
+  -- Mark all existing demo seed content (fixed IDs start with 'demo-c-') and any
+  -- content uploaded by demo accounts so they don't appear in the public explore feed.
+  UPDATE content SET is_demo = true
+  WHERE id LIKE 'demo-c-%'
+     OR creator_id IN (
+       SELECT id FROM creator_profiles
+       WHERE user_id LIKE 'demo-user-%'
+     );
 `;
 
 export async function runMigrations(): Promise<void> {

@@ -12,16 +12,27 @@ export interface AuthPayload {
   role: string;
 }
 
-declare global {
-  namespace Express {
-    interface Request {
-      auth?: AuthPayload;
-    }
+declare module 'express-serve-static-core' {
+  interface Request {
+    auth?: AuthPayload;
   }
 }
 
 export function signToken(payload: AuthPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+}
+
+// Admin key brute-force guard: 5 attempts/minute/IP
+const _adminKeyAttempts = new Map<string, { count: number; resetAt: number }>();
+function isAdminKeyRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const record = _adminKeyAttempts.get(ip);
+  if (!record || now > record.resetAt) {
+    _adminKeyAttempts.set(ip, { count: 1, resetAt: now + 60_000 });
+    return false;
+  }
+  record.count++;
+  return record.count > 5;
 }
 
 // Attaches auth payload if a valid token is present; never blocks the request.
@@ -37,11 +48,18 @@ export function optionalAuth(req: Request, _res: Response, next: NextFunction) {
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
   const adminKey = req.headers['x-admin-key'];
-  if (adminKey && process.env.ADMIN_KEY && adminKey === process.env.ADMIN_KEY) {
-    req.auth = { userId: 'admin', role: 'admin' };
-    console.log('[auth] admin-key bypass, role=admin');
-    next();
-    return;
+  if (adminKey && process.env.ADMIN_KEY) {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() ?? req.ip ?? '';
+    if (isAdminKeyRateLimited(clientIp)) {
+      res.status(429).json({ error: 'Too many admin key attempts — try again in a minute' });
+      return;
+    }
+    if (adminKey === process.env.ADMIN_KEY) {
+      req.auth = { userId: 'admin', role: 'admin' };
+      console.log('[auth] admin-key bypass, role=admin');
+      next();
+      return;
+    }
   }
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
@@ -55,9 +73,15 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
     console.log(`[auth] token valid — userId=${payload.userId} role=${payload.role}`);
     req.auth = payload;
     next();
-  } catch (err) {
-    console.log('[auth] token verification failed:', (err as Error).message);
-    res.status(401).json({ error: 'Invalid or expired token' });
+  } catch (err: any) {
+    console.log('[auth] token verification failed:', err.message);
+    const isStale = err?.name === 'JsonWebTokenError' && err?.message === 'invalid signature';
+    res.status(401).json({
+      error: isStale
+        ? 'Your session is no longer valid — please log out and log back in.'
+        : 'Invalid or expired token',
+      ...(isStale ? { code: 'session_reset_required' } : {}),
+    });
   }
 }
 

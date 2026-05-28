@@ -1,4 +1,4 @@
-export type LangCode = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'pt';
+export type LangCode = 'en' | 'es' | 'fr' | 'de' | 'ja' | 'pt' | 'vi' | 'zh';
 
 export interface TranslationMap {
   // Navigation

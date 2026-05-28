@@ -60,15 +60,12 @@ function buildPool(real: RealEvent[], content: Content[]): Omit<ToastItem, 'id'>
     for (let i = 0; pool.length < 8 && i < 20; i++) {
       const c = locked[Math.floor(Math.random() * locked.length)];
       const unlockCount = Number(c.unlock_count ?? 0);
-      const variant = Math.floor(Math.random() * 3);
 
-      if (variant === 0) {
-        pool.push({ icon: 'lock', message: `Someone just unlocked "${c.title}"`, sub: 'just now' });
-      } else if (variant === 1 && unlockCount > 2) {
+      if (unlockCount > 2) {
         const n = Math.min(unlockCount, 2 + Math.floor(Math.random() * 4));
         pool.push({ icon: 'users', message: `${n} people unlocked "${c.title}" today`, sub: 'trending' });
       } else {
-        pool.push({ icon: 'zap', message: `High demand — limited unlocks left`, sub: 'right now' });
+        pool.push({ icon: 'lock', message: `Someone just unlocked "${c.title}"`, sub: 'just now' });
       }
     }
   }
@@ -83,11 +80,6 @@ function buildPool(real: RealEvent[], content: Content[]): Omit<ToastItem, 'id'>
         sub: 'today',
       });
     }
-  }
-
-  // Always have a fallback scarcity nudge
-  if (pool.length === 0) {
-    pool.push({ icon: 'zap', message: 'High demand — limited unlocks left', sub: 'right now' });
   }
 
   return pool;

@@ -4,39 +4,64 @@ import {
   ArrowRight, ArrowLeft, Check, X, Zap, TrendingUp, Diamond,
   Camera, Video, Package, Lock, Eye, Upload, Sparkles,
   Crown, ChevronRight, User, DollarSign, Play, Clock, Image,
-  Mic, FileText, Layers,
+  Mic, FileText, Layers, Star, Shield,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { API_BASE } from '../lib/api';
+
+// ─── Dream Drift ambient gradients per step ───────────────────────────────────
+
+const STEP_AMBIENT: Record<string, string> = {
+  'welcome':          'radial-gradient(ellipse at 50% -5%,  rgba(212,175,55,0.16) 0%, transparent 62%)',
+  'content-category': 'radial-gradient(ellipse at 30% 0%,  rgba(212,175,55,0.10) 0%, transparent 55%)',
+  'what-works':       'radial-gradient(ellipse at 70% 5%,  rgba(212,175,55,0.08) 0%, transparent 50%)',
+  'content-types':    'radial-gradient(ellipse at 40% 0%,  rgba(139,92,246,0.08) 0%, transparent 50%)',
+  'pricing':          'radial-gradient(ellipse at 60% 0%,  rgba(212,175,55,0.09) 0%, transparent 50%)',
+  'walkthrough':      'radial-gradient(ellipse at 50% 0%,  rgba(34,197,94,0.07)  0%, transparent 50%)',
+  'first-action':     'radial-gradient(ellipse at 50% 0%,  rgba(212,175,55,0.11) 0%, transparent 55%)',
+  'complete':         'radial-gradient(ellipse at 50% 10%, rgba(212,175,55,0.20) 0%, transparent 62%)',
+};
 
 // ─── Step: Welcome ────────────────────────────────────────────────────────────
 
 function StepWelcome({ onNext, onSkip }: { onNext: () => void; onSkip: () => void }) {
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-6 text-center"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.13) 0%, transparent 65%)' }}
-    >
+    <div className="min-h-screen flex flex-col items-center justify-center px-6 text-center">
       <div className="mb-10 max-w-sm">
-        <div className="w-20 h-20 rounded-full border border-gold/30 bg-gold/8 flex items-center justify-center mx-auto mb-8">
-          <Crown className="w-9 h-9 text-gold" />
+        {/* Crown with pulse ring */}
+        <div className="relative w-20 h-20 mx-auto mb-8 flex items-center justify-center">
+          <span
+            className="absolute inset-0 rounded-full animate-ping"
+            style={{ background: 'rgba(212,175,55,0.15)', animationDuration: '2.5s' }}
+          />
+          <div
+            className="relative w-20 h-20 rounded-full border border-gold/30 flex items-center justify-center"
+            style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(212,175,55,0.18) 0%, rgba(212,175,55,0.04) 100%)' }}
+          >
+            <Crown className="w-9 h-9 text-gold" />
+          </div>
         </div>
-        <p className="section-eyebrow mb-4">Creator Training</p>
+
+        <p className="section-eyebrow mb-4">Studio Briefing</p>
         <h1 className="font-serif text-4xl sm:text-5xl text-white mb-5 leading-tight">
-          You've been selected.<br />Let's get you earning.
+          You're in.<br />
+          Now let's build.
         </h1>
         <p className="text-arc-secondary leading-relaxed">
-          A quick walkthrough covering what content performs, how to price it, and how to publish your first post — in under 5 minutes.
+          A short briefing — what moves here, how to price it, how to publish your first drop. Five minutes, then you're live.
         </p>
       </div>
+
       <div className="w-full max-w-xs space-y-3">
         <button onClick={onNext} className="btn-gold w-full py-3.5 text-base">
-          Start Training
+          Begin
           <ArrowRight className="w-5 h-5" />
         </button>
         <button
           onClick={onSkip}
           className="w-full py-2.5 text-sm text-arc-muted hover:text-white transition-colors"
         >
-          Skip — take me to Creator Studio
+          Skip — take me to Studio
         </button>
       </div>
     </div>
@@ -49,52 +74,53 @@ function StepContentCategory({ onNext }: { onNext: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
 
   const categories = [
-    { id: 'photos', label: 'Photos', sub: 'Photo sets and galleries', icon: <Camera className="w-6 h-6" />, color: 'text-gold', ring: 'border-gold/30 bg-gold/8' },
-    { id: 'video', label: 'Video', sub: 'Short clips and scenes', icon: <Video className="w-6 h-6" />, color: 'text-violet-400', ring: 'border-violet-400/30 bg-violet-400/8' },
-    { id: 'audio', label: 'Audio', sub: 'Spoken word and sound', icon: <Mic className="w-6 h-6" />, color: 'text-blue-400', ring: 'border-blue-400/30 bg-blue-400/8' },
-    { id: 'editorial', label: 'Editorial', sub: 'Written pieces and stories', icon: <FileText className="w-6 h-6" />, color: 'text-rose-400', ring: 'border-rose-400/30 bg-rose-400/8' },
-    { id: 'mixed', label: 'Mixed', sub: 'A bit of everything', icon: <Layers className="w-6 h-6" />, color: 'text-arc-secondary', ring: 'border-white/15 bg-white/4' },
+    { id: 'photos',    label: 'Photos',    sub: 'Photo sets and galleries',   icon: <Camera className="w-6 h-6" />,   color: 'text-gold',         border: 'border-gold/30',         bg: 'bg-gold/8',         glow: 'rgba(212,175,55,0.18)' },
+    { id: 'video',     label: 'Video',     sub: 'Short clips and scenes',     icon: <Video className="w-6 h-6" />,    color: 'text-violet-400',   border: 'border-violet-400/30',   bg: 'bg-violet-400/8',   glow: 'rgba(139,92,246,0.18)'  },
+    { id: 'audio',     label: 'Audio',     sub: 'Spoken word and sound',      icon: <Mic className="w-6 h-6" />,      color: 'text-blue-400',     border: 'border-blue-400/30',     bg: 'bg-blue-400/8',     glow: 'rgba(96,165,250,0.18)'  },
+    { id: 'editorial', label: 'Editorial', sub: 'Written pieces and stories', icon: <FileText className="w-6 h-6" />, color: 'text-rose-400',     border: 'border-rose-400/30',     bg: 'bg-rose-400/8',     glow: 'rgba(251,113,133,0.18)' },
+    { id: 'mixed',     label: 'Mixed',     sub: 'A bit of everything',        icon: <Layers className="w-6 h-6" />,   color: 'text-arc-secondary', border: 'border-white/15',       bg: 'bg-white/4',        glow: 'rgba(255,255,255,0.10)' },
   ];
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-6"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.1) 0%, transparent 60%)' }}
-    >
+    <div className="min-h-screen flex flex-col items-center justify-center px-6">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <p className="section-eyebrow mb-3">Creator Setup</p>
+          <p className="section-eyebrow mb-3">Studio Setup</p>
           <h2 className="font-serif text-3xl sm:text-4xl text-white mb-3">What will you create?</h2>
-          <p className="text-arc-secondary text-sm">We'll tailor your training to what you're making.</p>
+          <p className="text-arc-secondary text-sm">We'll calibrate your training to your format.</p>
         </div>
 
         <div className="space-y-2.5 mb-8">
-          {categories.map((cat) => (
-            <button
-              key={cat.id}
-              onClick={() => setSelected(cat.id)}
-              className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left transition-all duration-200 ${
-                selected === cat.id
-                  ? `${cat.ring} ${cat.color.replace('text-', 'border-').replace('text-arc-secondary', 'border-white/15')}`
-                  : 'border-white/8 hover:border-white/18 hover:bg-bg-surface/50'
-              }`}
-            >
-              <div className={`w-12 h-12 rounded-xl border flex items-center justify-center flex-shrink-0 transition-all ${
-                selected === cat.id ? `${cat.ring} ${cat.color}` : 'border-white/8 text-arc-muted bg-white/3'
-              }`}>
-                {cat.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className={`font-serif text-lg transition-colors ${selected === cat.id ? 'text-white' : 'text-arc-secondary'}`}>{cat.label}</p>
-                <p className="text-xs text-arc-muted">{cat.sub}</p>
-              </div>
-              {selected === cat.id && (
-                <div className="w-5 h-5 rounded-full bg-gold flex items-center justify-center flex-shrink-0">
-                  <Check className="w-3 h-3 text-bg-primary" />
+          {categories.map((cat) => {
+            const isSelected = selected === cat.id;
+            return (
+              <button
+                key={cat.id}
+                onClick={() => setSelected(cat.id)}
+                className={`w-full flex items-center gap-4 p-4 rounded-2xl border text-left transition-all duration-200 ${
+                  isSelected
+                    ? `${cat.border} ${cat.bg}`
+                    : 'border-white/8 hover:border-white/18 hover:bg-bg-surface/50'
+                }`}
+                style={isSelected ? { boxShadow: `0 0 18px ${cat.glow}` } : undefined}
+              >
+                <div className={`w-12 h-12 rounded-xl border flex items-center justify-center flex-shrink-0 transition-all ${
+                  isSelected ? `${cat.border} ${cat.bg} ${cat.color}` : 'border-white/8 text-arc-muted bg-white/3'
+                }`}>
+                  {cat.icon}
                 </div>
-              )}
-            </button>
-          ))}
+                <div className="flex-1 min-w-0">
+                  <p className={`font-serif text-lg transition-colors ${isSelected ? 'text-white' : 'text-arc-secondary'}`}>{cat.label}</p>
+                  <p className="text-xs text-arc-muted">{cat.sub}</p>
+                </div>
+                {isSelected && (
+                  <div className="w-5 h-5 rounded-full bg-gold flex items-center justify-center flex-shrink-0">
+                    <Check className="w-3 h-3 text-bg-primary" />
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <button
@@ -127,7 +153,6 @@ function StepWhatWorks() {
         <p className="text-arc-secondary text-sm">The difference between a scroll-stop and a scroll-past.</p>
       </div>
 
-      {/* Good vs bad */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         {/* Good */}
         <div className="rounded-2xl border border-arc-success/25 overflow-hidden">
@@ -148,10 +173,10 @@ function StepWhatWorks() {
           </div>
           <div className="p-4 bg-bg-surface space-y-2.5">
             {[
-              ['Lighting',     'Bright, soft, and even'],
-              ['Framing',      'Subject centered and clear'],
-              ['Clarity',      'Sharp, high resolution'],
-              ['Composition',  'Clean, uncluttered background'],
+              ['Lighting',    'Bright, soft, and even'],
+              ['Framing',     'Subject centered and clear'],
+              ['Clarity',     'Sharp, high resolution'],
+              ['Composition', 'Clean, uncluttered background'],
             ].map(([label, desc]) => (
               <div key={label} className="flex items-center gap-2.5">
                 <div className="w-4 h-4 rounded-full bg-arc-success/15 border border-arc-success/30 flex items-center justify-center flex-shrink-0">
@@ -186,10 +211,10 @@ function StepWhatWorks() {
           </div>
           <div className="p-4 bg-bg-surface space-y-2.5">
             {[
-              ['Dark or harsh shadows',  'Kills the mood'],
-              ['Blurry or shaky',        'Looks unprofessional'],
-              ['Subject cut off',        'Bad framing loses buyers'],
-              ['Cluttered background',   'Distracts from the subject'],
+              ['Dark or harsh shadows', 'Kills the mood'],
+              ['Blurry or shaky',       'Looks unprofessional'],
+              ['Subject cut off',       'Bad framing loses buyers'],
+              ['Cluttered background',  'Distracts from the subject'],
             ].map(([label, desc]) => (
               <div key={label} className="flex items-center gap-2.5">
                 <div className="w-4 h-4 rounded-full bg-arc-error/10 border border-arc-error/25 flex items-center justify-center flex-shrink-0">
@@ -203,12 +228,35 @@ function StepWhatWorks() {
         </div>
       </div>
 
-      {/* Pro tip */}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20">
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mb-4">
         <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
         <p className="text-xs text-arc-secondary leading-relaxed">
-          <strong className="text-white">Pro tip:</strong> Natural window light is your best tool. Face a window for soft, even lighting — no studio required. Shoot during the day for best results.
+          <strong className="text-white">Lighting shortcut:</strong> Face a window during the day. Soft, even natural light beats studio equipment — no setup, no cost, instantly professional.
         </p>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-white/4 border border-white/10 mb-4">
+        <Eye className="w-4 h-4 text-arc-secondary flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">Buyer psychology:</strong> Members decide in 1.5 seconds. Your preview image is your sales page. One sharp, well-lit, centered shot outperforms ten mediocre ones every time.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 overflow-hidden">
+        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted px-4 pt-3 pb-2">Quick wins</p>
+        <div className="divide-y divide-white/6">
+          {[
+            { icon: <Star className="w-3 h-3" />, tip: 'Use a clean or blurred background — clutter signals low effort to buyers.' },
+            { icon: <Star className="w-3 h-3" />, tip: 'Portrait orientation (9:16) fills mobile screens and feels premium.' },
+            { icon: <Star className="w-3 h-3" />, tip: 'Shoot 20+ shots and choose the top 3 — volume gives you options to select from.' },
+            { icon: <Shield className="w-3 h-3" />, tip: 'Consistency builds trust. Creators who post weekly earn 3–4× more than sporadic posters.' },
+          ].map(({ icon, tip }, i) => (
+            <div key={i} className="flex items-start gap-3 px-4 py-3">
+              <span className="text-gold mt-0.5 flex-shrink-0">{icon}</span>
+              <p className="text-xs text-arc-secondary leading-relaxed">{tip}</p>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -222,7 +270,7 @@ function StepContentTypes() {
       <div className="text-center mb-8">
         <p className="section-eyebrow mb-2">Step 2 of 4</p>
         <h2 className="font-serif text-3xl text-white mb-2">What to post</h2>
-        <p className="text-arc-secondary text-sm">Three content formats that consistently perform on Archangels.</p>
+        <p className="text-arc-secondary text-sm">Three formats that consistently convert on Archangels.</p>
       </div>
 
       <div className="space-y-4">
@@ -295,7 +343,7 @@ function StepContentTypes() {
               <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-white/6 border border-white/15 text-arc-secondary">SMART STRATEGY</span>
             </div>
             <p className="text-xs text-arc-secondary leading-relaxed mb-2.5">
-              Post a free preview that hooks visitors, then lock the premium version. Show enough to make them want more — not enough to satisfy.
+              Post a free preview that hooks visitors, then lock the premium version. Show enough to create desire — not enough to satisfy.
             </p>
             <div className="flex flex-wrap gap-3 text-xs text-arc-muted">
               <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> Free teaser</span>
@@ -303,6 +351,36 @@ function StepContentTypes() {
             </div>
           </div>
         </div>
+
+        {/* Subscriber exclusive */}
+        <div className="card-surface rounded-2xl p-5 flex gap-5 items-start">
+          <div
+            className="w-20 h-20 rounded-xl flex-shrink-0 flex items-center justify-center"
+            style={{ background: 'linear-gradient(135deg, rgba(16,185,129,0.15) 0%, rgba(6,78,59,0.22) 100%)' }}
+          >
+            <Star className="w-7 h-7 text-emerald-400/70" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+              <p className="font-serif text-white">Subscriber Reward</p>
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">LOYALTY BUILDER</span>
+            </div>
+            <p className="text-xs text-arc-secondary leading-relaxed mb-2.5">
+              Content only subscribers can access — no unlock cost on top. Makes the subscription feel worth it every month. One exclusive per week converts casual followers into long-term members.
+            </p>
+            <div className="flex flex-wrap gap-3 text-xs text-arc-muted">
+              <span className="flex items-center gap-1"><Star className="w-3 h-3" /> Subscribers only</span>
+              <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" /> Included in sub</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mt-4">
+        <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">Starting strategy:</strong> Lead with 2–3 photo sets to build unlock history and social proof. Once you have 5+ unlocks, add a short clip teaser. When you hit your first subscriber, reward them — post one exclusive just for them.
+        </p>
       </div>
     </div>
   );
@@ -317,11 +395,12 @@ function StepPricing() {
     {
       id: 'quick',
       price: '$5',
-      label: 'Quick Unlock',
-      badge: 'Fast Sales',
+      label: 'Fast Signal',
+      badge: 'Entry Gate',
       badgeCls: 'text-gold bg-gold/10 border-gold/25',
       iconCls: 'text-gold bg-gold/10 border-gold/25',
       activeBorder: 'border-gold/35 bg-gold/5',
+      activeGlow: '0 0 18px rgba(212,175,55,0.18)',
       icon: <Zap className="w-5 h-5" />,
       desc: 'Lowest friction. Best for new audiences and building your first unlock count.',
       conversion: '~58% conversion',
@@ -330,11 +409,12 @@ function StepPricing() {
     {
       id: 'standard',
       price: '$12',
-      label: 'Premium Post',
+      label: 'Premium Drop',
       badge: 'Most Popular',
       badgeCls: 'text-arc-secondary bg-white/5 border-white/15',
       iconCls: 'text-white bg-white/8 border-white/15',
       activeBorder: 'border-white/20 bg-white/4',
+      activeGlow: '0 0 14px rgba(255,255,255,0.06)',
       icon: <TrendingUp className="w-5 h-5" />,
       desc: 'Sweet spot for exclusive photos and clips. Strong balance of volume and revenue.',
       conversion: '~38% conversion',
@@ -343,11 +423,12 @@ function StepPricing() {
     {
       id: 'premium',
       price: '$25',
-      label: 'Limited Drop',
+      label: 'Limited Edition',
       badge: 'High Value',
       badgeCls: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
       iconCls: 'text-violet-400 bg-violet-500/10 border-violet-500/20',
       activeBorder: 'border-violet-400/35 bg-violet-400/5',
+      activeGlow: '0 0 18px rgba(139,92,246,0.18)',
       icon: <Diamond className="w-5 h-5" />,
       desc: 'Use scarcity. Set a limited unlock count to drive urgency. For your best work only.',
       conversion: '~18% conversion',
@@ -359,8 +440,8 @@ function StepPricing() {
     <div className="max-w-2xl mx-auto px-4 py-10">
       <div className="text-center mb-8">
         <p className="section-eyebrow mb-2">Step 3 of 4</p>
-        <h2 className="font-serif text-3xl text-white mb-2">How to price it</h2>
-        <p className="text-arc-secondary text-sm">Tap each tier to see the strategy. You can always change your price later.</p>
+        <h2 className="font-serif text-3xl text-white mb-2">Pricing signals</h2>
+        <p className="text-arc-secondary text-sm">Tap each tier to read the strategy. You can always adjust later.</p>
       </div>
 
       <div className="space-y-3 mb-6">
@@ -371,6 +452,7 @@ function StepPricing() {
             className={`w-full text-left rounded-2xl border p-4 transition-all duration-200 ${
               selected === t.id ? t.activeBorder : 'border-white/10 hover:border-white/20 hover:bg-bg-hover'
             }`}
+            style={selected === t.id ? { boxShadow: t.activeGlow } : undefined}
           >
             <div className="flex items-center gap-4">
               <div className={`w-11 h-11 rounded-xl border flex items-center justify-center flex-shrink-0 ${t.iconCls}`}>
@@ -394,10 +476,36 @@ function StepPricing() {
         ))}
       </div>
 
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20">
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mb-4">
         <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
         <p className="text-xs text-arc-secondary leading-relaxed">
-          <strong className="text-white">Recommendation:</strong> Start with a $5 post to build social proof and your first unlocks. Once you have 10+ unlocks, raise prices on future drops.
+          <strong className="text-white">First drop rule:</strong> Start at $5 to build unlock history and social proof. Once you have 10+ unlocks, raise prices on future drops. Buyers validate your work — let them.
+        </p>
+      </div>
+
+      <div className="rounded-xl border border-white/10 overflow-hidden mb-4">
+        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted px-4 pt-3 pb-2">Subscription pricing</p>
+        <div className="divide-y divide-white/6">
+          {[
+            { range: '$6–$9 / mo', label: 'Low barrier', desc: 'Grows audience fast. Best when you post frequently (3+ times/week).' },
+            { range: '$10–$15 / mo', label: 'Standard', desc: 'Sustainable for weekly creators. Filters for serious members.' },
+            { range: '$20+ / mo', label: 'Premium', desc: 'Works when you have a strong following or offer exclusive custom content.' },
+          ].map(({ range, label, desc }) => (
+            <div key={range} className="flex items-start gap-4 px-4 py-3">
+              <span className="font-mono text-xs text-gold font-semibold flex-shrink-0 w-20">{range}</span>
+              <div>
+                <p className="text-xs font-medium text-white">{label}</p>
+                <p className="text-xs text-arc-muted leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-error/8 border border-arc-error/20">
+        <X className="w-4 h-4 text-arc-error flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">Overpricing kills momentum.</strong> A $40 photo set with 0 unlocks signals zero social proof — buyers pass. Start low, build proof, then raise. You can always increase prices on future drops without touching past ones.
         </p>
       </div>
     </div>
@@ -413,28 +521,28 @@ function StepWalkthrough() {
     {
       icon: <Upload className="w-6 h-6" />,
       label: 'Upload your content',
-      desc: 'Choose your best photo or video. Use our in-app editor to enhance brightness, add filters, trim your clip, and capture a thumbnail.',
+      desc: 'Choose your best photo or video. Title it clearly — search-friendly titles like "Lingerie Set — Natural Light" outperform vague ones. Add a description that sells the mood, not just the content.',
       color: 'text-gold',
       ring: 'bg-gold/10 border-gold/30',
     },
     {
       icon: <Eye className="w-6 h-6" />,
       label: 'Set a preview',
-      desc: 'Upload a teaser image that visitors see before unlocking. Make it compelling — show just enough to create desire without giving it away.',
+      desc: 'The preview is your storefront window. Upload a teaser image that shows quality and creates desire without revealing the full drop. Close cropping, strong expression, or a compelling angle — these convert. Blurry or generic thumbnails do not.',
       color: 'text-blue-400',
       ring: 'bg-blue-400/10 border-blue-400/30',
     },
     {
       icon: <DollarSign className="w-6 h-6" />,
       label: 'Set your price',
-      desc: 'Start at $5–$12 for your first post. Optionally add a limited unlock count or subscriber discount to drive conversions.',
+      desc: 'Start at $5–$12 for your first post. Optionally add a limited unlock count (e.g., 50 unlocks max) to create urgency. A subscriber discount gives your paying audience a reason to unlock immediately — try 20% off.',
       color: 'text-green-400',
       ring: 'bg-green-400/10 border-green-400/30',
     },
     {
       icon: <Check className="w-6 h-6" />,
       label: 'Submit for review',
-      desc: 'Content is reviewed by our team within 24 hours. Once approved, it goes live and is instantly purchasable by members.',
+      desc: 'Our team reviews every submission within 24 hours — usually much faster. You\'ll receive a notification when it\'s approved and live. While you wait, prepare your next drop so you can publish immediately after approval.',
       color: 'text-violet-400',
       ring: 'bg-violet-400/10 border-violet-400/30',
     },
@@ -444,13 +552,11 @@ function StepWalkthrough() {
     <div className="max-w-2xl mx-auto px-4 py-10">
       <div className="text-center mb-8">
         <p className="section-eyebrow mb-2">Step 4 of 4</p>
-        <h2 className="font-serif text-3xl text-white mb-2">Your first post</h2>
+        <h2 className="font-serif text-3xl text-white mb-2">Your first drop</h2>
         <p className="text-arc-secondary text-sm">Four steps, under 3 minutes. Tap each to expand.</p>
       </div>
 
-      {/* Steps list */}
       <div className="relative">
-        {/* vertical connector */}
         <div className="absolute left-[22px] top-10 bottom-10 w-px bg-white/8" style={{ zIndex: 0 }} />
 
         <div className="space-y-2 relative" style={{ zIndex: 1 }}>
@@ -465,7 +571,6 @@ function StepWalkthrough() {
                   isActive ? 'border-white/20 bg-bg-surface' : 'border-transparent hover:border-white/8 hover:bg-bg-surface/40'
                 }`}
               >
-                {/* Number / icon circle */}
                 <div className={`w-11 h-11 rounded-full border flex items-center justify-center flex-shrink-0 transition-all duration-200 ${
                   done
                     ? 'bg-arc-success/10 border-arc-success/30'
@@ -493,7 +598,6 @@ function StepWalkthrough() {
         </div>
       </div>
 
-      {/* Mini progress nav */}
       {active < walkthroughSteps.length - 1 && (
         <button
           onClick={() => setActive((a) => Math.min(a + 1, walkthroughSteps.length - 1))}
@@ -502,6 +606,32 @@ function StepWalkthrough() {
           Next step →
         </button>
       )}
+
+      <div className="mt-6 rounded-xl border border-white/10 overflow-hidden">
+        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted px-4 pt-3 pb-2">After you submit</p>
+        <div className="divide-y divide-white/6">
+          {[
+            { time: '< 24 hrs', label: 'Review', desc: 'Our team checks every submission for quality and compliance.' },
+            { time: 'Instant', label: 'Goes live', desc: 'Approved drops are immediately visible and purchasable by members.' },
+            { time: 'Your call', label: 'Promote it', desc: 'Share your profile link. Creators who promote within 48 hours of going live see significantly more unlocks.' },
+          ].map(({ time, label, desc }) => (
+            <div key={label} className="flex items-start gap-4 px-4 py-3">
+              <span className="font-mono text-xs text-gold font-semibold flex-shrink-0 w-16">{time}</span>
+              <div>
+                <p className="text-xs font-medium text-white">{label}</p>
+                <p className="text-xs text-arc-muted leading-relaxed">{desc}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-gold/5 border border-gold/20 mt-4">
+        <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-arc-secondary leading-relaxed">
+          <strong className="text-white">The hardest part is clicking submit.</strong> Your first drop doesn't need to be perfect — it needs to exist. Every creator's first $100 starts with one live drop.
+        </p>
+      </div>
     </div>
   );
 }
@@ -514,7 +644,7 @@ function StepFirstAction({ onNavigate }: { onNavigate: (to: string) => void }) {
       <div className="max-w-md w-full">
         <div className="text-center mb-8">
           <p className="section-eyebrow mb-2">First Move</p>
-          <h2 className="font-serif text-3xl text-white mb-2">Pick one. Do it now.</h2>
+          <h2 className="font-serif text-3xl text-white mb-2">Pick one. Execute now.</h2>
           <p className="text-arc-secondary text-sm">Momentum matters more than perfection.</p>
         </div>
 
@@ -522,6 +652,7 @@ function StepFirstAction({ onNavigate }: { onNavigate: (to: string) => void }) {
           <button
             onClick={() => onNavigate('/upload')}
             className="w-full text-left p-5 rounded-2xl border border-gold/30 bg-gold/5 hover:bg-gold/9 transition-all group"
+            style={{ boxShadow: '0 0 18px rgba(212,175,55,0.10)' }}
           >
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-gold/10 border border-gold/25 flex items-center justify-center flex-shrink-0">
@@ -529,7 +660,7 @@ function StepFirstAction({ onNavigate }: { onNavigate: (to: string) => void }) {
               </div>
               <div className="flex-1">
                 <p className="font-serif text-white mb-1 text-lg">Create my first locked post</p>
-                <p className="text-xs text-arc-muted leading-relaxed">Upload a photo or video, set a price, and submit for review. Your first earnings start here.</p>
+                <p className="text-xs text-arc-muted leading-relaxed">Upload a photo or video, set a price, submit for review. Your first earnings start here.</p>
               </div>
               <ChevronRight className="w-5 h-5 text-gold/50 group-hover:text-gold transition-colors flex-shrink-0 mt-1" />
             </div>
@@ -570,7 +701,7 @@ function StepComplete({ onNavigate }: { onNavigate: (to: string) => void }) {
     {
       icon: <Camera className="w-5 h-5" />,
       label: 'Create a photo set',
-      sub: 'Your fastest path to first earnings',
+      sub: 'Fastest path to first earnings',
       to: '/upload',
     },
     {
@@ -594,25 +725,33 @@ function StepComplete({ onNavigate }: { onNavigate: (to: string) => void }) {
   ];
 
   return (
-    <div
-      className="min-h-screen flex flex-col items-center justify-center px-4 py-10"
-      style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(212,175,55,0.11) 0%, transparent 60%)' }}
-    >
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10">
       <div className="max-w-md w-full text-center mb-10">
-        <div className="w-20 h-20 rounded-full bg-arc-success/10 border border-arc-success/30 flex items-center justify-center mx-auto mb-7">
-          <Check className="w-9 h-9 text-arc-success" />
+        {/* Initiation icon — gold crown, not a success check */}
+        <div className="relative w-20 h-20 mx-auto mb-7 flex items-center justify-center">
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{ background: 'radial-gradient(ellipse at 50% 40%, rgba(212,175,55,0.22) 0%, transparent 70%)' }}
+          />
+          <div
+            className="relative w-20 h-20 rounded-full border border-gold/40 flex items-center justify-center"
+            style={{ boxShadow: '0 0 32px rgba(212,175,55,0.22), inset 0 0 20px rgba(212,175,55,0.06)' }}
+          >
+            <Crown className="w-9 h-9 text-gold" />
+          </div>
         </div>
-        <p className="section-eyebrow mb-3">Training Complete</p>
+
+        <p className="section-eyebrow mb-3">Studio Active</p>
         <h1 className="font-serif text-4xl text-white mb-4 leading-tight">
-          You're live.<br />Now let's earn.
+          Your studio is live.<br />Start publishing.
         </h1>
         <p className="text-arc-secondary text-sm leading-relaxed max-w-xs mx-auto">
-          You know what to post, how to price it, and how to publish. Your starter pack is ready — pick one and go.
+          You know the signals. You know the pricing. Pick one move and execute — the first drop is always the hardest to wait on.
         </p>
       </div>
 
       <div className="max-w-md w-full mb-8">
-        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted mb-3">Starter Pack</p>
+        <p className="text-[10px] font-bold tracking-widest uppercase text-arc-muted mb-3">First Moves</p>
         <div className="space-y-2">
           {actions.map(({ icon, label, sub, to }) => (
             <button
@@ -638,7 +777,7 @@ function StepComplete({ onNavigate }: { onNavigate: (to: string) => void }) {
         className="btn-gold px-8 py-3"
       >
         <Crown className="w-4 h-4" />
-        Go to Creator Studio
+        Enter Studio
       </button>
     </div>
   );
@@ -662,26 +801,69 @@ const LEARNING_STEPS: StepId[] = ['what-works', 'content-types', 'pricing', 'wal
 
 export default function CreatorOnboarding() {
   const [stepIndex, setStepIndex] = useState(0);
+  const [entering, setEntering] = useState(true);
   const navigate = useNavigate();
+  const { token } = useAuth();
 
   const current = STEPS[stepIndex];
   const hasNav = (LEARNING_STEPS as string[]).includes(current);
   const dotIndex = LEARNING_STEPS.indexOf(current as typeof LEARNING_STEPS[number]);
 
+  function markTrainingViewed() {
+    if (!token) return;
+    fetch(`${API_BASE}/api/creators/profile`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ training_viewed: true }),
+    }).catch(() => {});
+  }
+
+  function navigateOut(to: string) {
+    markTrainingViewed();
+    navigate(to);
+  }
+
+  // Dream Drift: fade + lift transition between steps
+  function drift(fn: () => void) {
+    setEntering(false);
+    setTimeout(() => {
+      fn();
+      setEntering(true);
+    }, 180);
+  }
+
   function next() {
-    if (stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
-    else navigate('/creator');
+    drift(() => {
+      if (stepIndex < STEPS.length - 1) setStepIndex((i) => i + 1);
+      else navigateOut('/creator');
+    });
   }
 
   function back() {
-    if (stepIndex > 0) setStepIndex((i) => i - 1);
+    drift(() => {
+      if (stepIndex > 0) setStepIndex((i) => i - 1);
+    });
   }
 
+  const ambient = STEP_AMBIENT[current] ?? 'transparent';
+
   return (
-    <div className="fixed inset-0 z-50 flex flex-col overflow-hidden" style={{ background: '#09090B' }}>
+    <div
+      className="fixed inset-0 z-50 flex flex-col overflow-hidden"
+      style={{ background: '#09090B' }}
+    >
+      {/* Ambient glow layer — transitions with the step */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: ambient,
+          transition: 'background 700ms ease',
+        }}
+      />
+
       {/* Gold progress bar — learning steps only */}
       {hasNav && (
-        <div className="flex-shrink-0 h-0.5 bg-white/5">
+        <div className="relative flex-shrink-0 h-0.5 bg-white/5">
           <div
             className="h-full transition-all duration-500"
             style={{
@@ -692,21 +874,31 @@ export default function CreatorOnboarding() {
         </div>
       )}
 
-      {/* Step content */}
-      <div className="flex-1 overflow-y-auto">
-        {current === 'welcome'           && <StepWelcome onNext={next} onSkip={() => navigate('/creator')} />}
+      {/* Step content — Dream Drift wrapper */}
+      <div
+        className="relative flex-1 overflow-y-auto"
+        style={{
+          opacity: entering ? 1 : 0,
+          transform: entering ? 'translateY(0)' : 'translateY(10px)',
+          transition: 'opacity 200ms ease, transform 200ms ease',
+        }}
+      >
+        {current === 'welcome'           && <StepWelcome onNext={next} onSkip={() => navigateOut('/creator')} />}
         {current === 'content-category'  && <StepContentCategory onNext={next} />}
         {current === 'what-works'        && <StepWhatWorks />}
         {current === 'content-types'     && <StepContentTypes />}
-        {current === 'pricing'       && <StepPricing />}
-        {current === 'walkthrough'   && <StepWalkthrough />}
-        {current === 'first-action'  && <StepFirstAction onNavigate={navigate} />}
-        {current === 'complete'      && <StepComplete onNavigate={navigate} />}
+        {current === 'pricing'           && <StepPricing />}
+        {current === 'walkthrough'       && <StepWalkthrough />}
+        {current === 'first-action'      && <StepFirstAction onNavigate={navigateOut} />}
+        {current === 'complete'          && <StepComplete onNavigate={navigateOut} />}
       </div>
 
       {/* Bottom nav — learning steps only */}
       {hasNav && (
-        <div className="flex-shrink-0 flex items-center justify-between px-5 py-4 border-t border-white/8" style={{ background: '#0F0F13' }}>
+        <div
+          className="relative flex-shrink-0 flex items-center justify-between px-5 py-4 border-t border-white/8"
+          style={{ background: 'rgba(9,9,11,0.96)', backdropFilter: 'blur(12px)' }}
+        >
           <button
             onClick={back}
             className="flex items-center gap-1.5 text-sm text-arc-muted hover:text-white transition-colors"

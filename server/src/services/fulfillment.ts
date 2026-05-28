@@ -13,13 +13,15 @@ function isUniqueViolation(err: unknown): boolean {
 
 // ── Fulfillment record helpers ───────────────────────────────────────────────
 
+const MAX_FULFILLMENT_ATTEMPTS = 5;
+
 async function initFulfillmentRecord(
   sessionId: string,
   eventId: string | null,
   userId: string,
   creatorId: string | null,
   purchaseType: string
-): Promise<{ id: string; alreadyFulfilled: boolean }> {
+): Promise<{ id: string; alreadyFulfilled: boolean; shouldEscalate: boolean }> {
   const id = crypto.randomUUID();
   const result = await queryOne<{ id: string; status: string; attempts: number }>(
     `INSERT INTO fulfillment_records
@@ -32,16 +34,20 @@ async function initFulfillmentRecord(
      RETURNING id, status, attempts`,
     [id, sessionId, eventId, userId, creatorId, purchaseType]
   );
+  const status = result!.status;
+  const attempts = result!.attempts;
   return {
     id: result!.id,
-    alreadyFulfilled: result!.status === 'fulfilled',
+    alreadyFulfilled: status === 'fulfilled',
+    shouldEscalate: status !== 'fulfilled' && attempts >= MAX_FULFILLMENT_ATTEMPTS,
   };
 }
 
 async function markFulfillmentDone(recordId: string, refType: string, refId: string): Promise<void> {
   await execute(
     `UPDATE fulfillment_records
-       SET status = 'fulfilled', ref_type = $2, ref_id = $3, last_error = NULL, updated_at = NOW()
+       SET status = 'fulfilled', ref_type = $2, ref_id = $3, last_error = NULL,
+           fulfilled_at = NOW(), updated_at = NOW()
      WHERE id = $1`,
     [recordId, refType, refId]
   );
@@ -99,11 +105,16 @@ export async function fulfillCheckoutSession(
       return;
     }
 
-    const { id: fId, alreadyFulfilled } = await initFulfillmentRecord(
+    const { id: fId, alreadyFulfilled, shouldEscalate } = await initFulfillmentRecord(
       sessionId, stripeEventId, userId, creatorProfileId, 'subscription'
     );
     if (alreadyFulfilled) {
       console.log('[fulfillment] subscription: already fulfilled, skipping session=%s', sessionId);
+      return;
+    }
+    if (shouldEscalate) {
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      console.error('[fulfillment] subscription: auto-escalated to needs_review session=%s', sessionId);
       return;
     }
 
@@ -200,11 +211,16 @@ export async function fulfillCheckoutSession(
       return;
     }
 
-    const { id: fId, alreadyFulfilled } = await initFulfillmentRecord(
+    const { id: fId, alreadyFulfilled, shouldEscalate } = await initFulfillmentRecord(
       sessionId, stripeEventId, userId, creatorProfileId, 'tip'
     );
     if (alreadyFulfilled) {
       console.log('[fulfillment] tip: already fulfilled, skipping session=%s', sessionId);
+      return;
+    }
+    if (shouldEscalate) {
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      console.error('[fulfillment] tip: auto-escalated to needs_review session=%s', sessionId);
       return;
     }
 
@@ -274,11 +290,16 @@ export async function fulfillCheckoutSession(
       return;
     }
 
-    const { id: fId, alreadyFulfilled } = await initFulfillmentRecord(
+    const { id: fId, alreadyFulfilled, shouldEscalate } = await initFulfillmentRecord(
       sessionId, stripeEventId, userId, creatorProfileId, 'unlock'
     );
     if (alreadyFulfilled) {
       console.log('[fulfillment] unlock: already fulfilled, skipping session=%s', sessionId);
+      return;
+    }
+    if (shouldEscalate) {
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      console.error('[fulfillment] unlock: auto-escalated to needs_review session=%s', sessionId);
       return;
     }
 

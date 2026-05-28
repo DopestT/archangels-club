@@ -327,12 +327,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
   } catch (err) {
     if (err instanceof Stripe.errors.StripeError) {
       console.error('[checkout/create] Stripe error — type:', err.type, 'code:', err.code, 'message:', err.message);
-      res.status(500).json({ error: `Checkout failed: ${err.message}` });
     } else {
       console.error('[checkout/create] error:', err);
-      const message = err instanceof Error ? err.message : String(err);
-      res.status(500).json({ error: `Checkout failed: ${message}` });
     }
+    res.status(500).json({ error: 'Payment could not be processed. Please try again.' });
   }
 });
 
