@@ -498,6 +498,10 @@ router.post('/connect/onboard', requireAuth, requireCreator, async (req, res) =>
     if (stripeErr?.type?.startsWith('Stripe')) {
       console.error('[connect/onboard] Stripe error — type:%s code:%s message:%s',
         stripeErr.type, stripeErr.code, stripeErr.message);
+      if (stripeErr.message?.includes('managing losses') || stripeErr.message?.includes('platform-profile')) {
+        res.status(503).json({ error: 'Payout setup is temporarily unavailable. Please try again later.' });
+        return;
+      }
     } else {
       console.error('[connect/onboard] error:', err);
     }
