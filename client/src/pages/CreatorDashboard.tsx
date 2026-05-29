@@ -142,7 +142,11 @@ export default function CreatorDashboard() {
   }, [token]);
 
   useEffect(() => {
-    if (searchParams.get('stripe') !== 'return' || !token) return;
+    // Handle both Connect paths:
+    // ?stripe=return  → CreatorDashboard's own startStripeOnboarding() (stripe.ts)
+    // ?connect=complete → useStripeConnect hook / checklist path (creators.ts)
+    const isReturn = searchParams.get('stripe') === 'return' || searchParams.get('connect') === 'complete';
+    if (!isReturn || !token) return;
     setSearchParams({}, { replace: true });
     fetch(`${API_BASE}/api/stripe/connect/verify`, { method: 'POST', headers: authHeaders })
       .then((r) => r.json())
@@ -451,8 +455,8 @@ export default function CreatorDashboard() {
           </div>
         )}
 
-        {/* ── Enable payouts CTA ───────────────────────────────────────────────── */}
-        {stripeStatus !== null && !stripeStatus.onboarded && (creatorState === 'new' || creatorState === 'first_unlock') && (
+        {/* ── Enable payouts CTA — shown for ALL creators until Stripe is set up ── */}
+        {stripeStatus !== null && !stripeStatus.onboarded && (
           <div className="flex items-start gap-4 p-5 rounded-xl bg-bg-surface border border-gold/30 mb-5">
             <div className="w-9 h-9 rounded-lg bg-gold/10 border border-gold/25 flex items-center justify-center flex-shrink-0">
               <Zap className="w-4 h-4 text-gold" />
@@ -623,7 +627,7 @@ export default function CreatorDashboard() {
             <div className="card-surface p-6 rounded-xl">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="font-serif text-lg text-white">Revenue</h2>
-                {stripeStatus?.onboarded && (
+                {stripeStatus?.onboarded ? (
                   <span className="flex items-center gap-1.5 text-[10px] font-medium text-arc-success">
                     <span
                       className="w-1.5 h-1.5 rounded-full bg-arc-success flex-shrink-0"
@@ -631,6 +635,15 @@ export default function CreatorDashboard() {
                     />
                     Payouts active
                   </span>
+                ) : (
+                  <button
+                    onClick={startStripeOnboarding}
+                    disabled={stripeLoading}
+                    className="text-[10px] font-medium text-amber-400 hover:text-amber-300 flex items-center gap-1 disabled:opacity-50"
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />
+                    {stripeLoading ? 'Connecting…' : 'Set up payouts →'}
+                  </button>
                 )}
               </div>
 
