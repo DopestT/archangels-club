@@ -4,7 +4,7 @@ import AdminSidebar from '../components/admin/AdminSidebar';
 import {
   Users, DollarSign, Crown, Shield, Flag, TrendingUp,
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
-  Image, Video, Music, FileText, MessageSquare, UserCheck, Send, Bug,
+  Image, Video, Music, FileText, MessageSquare, UserCheck, Send, Bug, X,
 } from 'lucide-react';
 import ActionButton from '../components/ui/ActionButton';
 
@@ -89,6 +89,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [activeChanges, setActiveChanges] = useState<string | null>(null);
   const [changesReason, setChangesReason] = useState('');
   const [activeRemove, setActiveRemove] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<any | null>(null);
 
   // Flagged content (reports)
   const [flaggedContent, setFlaggedContent] = useState<Report[]>([]);
@@ -1064,8 +1065,13 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                 return (
                   <div key={item.id} className={`card-surface rounded-xl overflow-hidden transition-all ${action ? 'opacity-60' : ''}`}>
                     <div className="flex flex-col sm:flex-row">
-                      {/* Preview — unblurred for moderator review */}
-                      <div className="relative flex-shrink-0 w-full sm:w-40 h-32 bg-bg-hover overflow-hidden">
+                      {/* Preview — click to open full media viewer */}
+                      <button
+                        type="button"
+                        onClick={() => setPreviewItem(item)}
+                        className="relative flex-shrink-0 w-full sm:w-40 h-32 bg-bg-hover overflow-hidden group focus:outline-none"
+                        title="Click to preview full media"
+                      >
                         {item.preview_url ? (
                           <img src={item.preview_url} alt="" className="w-full h-full object-cover" />
                         ) : (
@@ -1073,13 +1079,18 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                             {TYPE_ICONS[item.content_type] ?? <FileText className="w-8 h-8" />}
                           </div>
                         )}
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                          <span className="opacity-0 group-hover:opacity-100 transition-opacity text-white text-xs font-medium bg-black/60 px-2 py-1 rounded">
+                            Preview
+                          </span>
+                        </div>
                         <div className="absolute top-2 left-2">
                           <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-primary/80 text-xs text-arc-secondary">
                             {TYPE_ICONS[item.content_type]}
                             <span className="capitalize">{item.content_type}</span>
                           </span>
                         </div>
-                      </div>
+                      </button>
 
                       {/* Info */}
                       <div className="flex-1 p-5">
@@ -1239,6 +1250,70 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                   </div>
                   <p className="font-serif text-base text-white mb-1">Queue is clear</p>
                   <p className="text-sm text-arc-muted">All submitted content has been reviewed. New submissions will appear here.</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ── CONTENT MEDIA PREVIEW MODAL ─────────────────────────────────── */}
+        {previewItem && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+            onClick={() => setPreviewItem(null)}
+          >
+            <div
+              className="relative max-w-3xl w-full bg-bg-surface rounded-2xl overflow-hidden shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-white/8">
+                <div>
+                  <p className="text-xs text-arc-muted mb-0.5">{previewItem.creator_name} · <span className="capitalize">{previewItem.content_type}</span></p>
+                  <h3 className="font-serif text-base text-white">{previewItem.title}</h3>
+                </div>
+                <button type="button" onClick={() => setPreviewItem(null)} className="text-arc-muted hover:text-white transition-colors p-1">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Media */}
+              <div className="bg-black flex items-center justify-center" style={{ minHeight: 300, maxHeight: '70vh' }}>
+                {previewItem.content_type === 'image' && previewItem.media_url && (
+                  <img
+                    src={previewItem.media_url}
+                    alt={previewItem.title}
+                    className="max-w-full max-h-full object-contain"
+                    style={{ maxHeight: '70vh' }}
+                  />
+                )}
+                {previewItem.content_type === 'video' && previewItem.media_url && (
+                  <video
+                    src={previewItem.media_url}
+                    controls
+                    className="max-w-full"
+                    style={{ maxHeight: '70vh' }}
+                  />
+                )}
+                {previewItem.content_type === 'audio' && previewItem.media_url && (
+                  <div className="p-8 w-full">
+                    <audio src={previewItem.media_url} controls className="w-full" />
+                  </div>
+                )}
+                {previewItem.content_type === 'text' && (
+                  <div className="p-8 text-arc-secondary text-sm leading-relaxed max-h-96 overflow-y-auto">
+                    {previewItem.description || <span className="text-arc-muted italic">No text content provided.</span>}
+                  </div>
+                )}
+                {!previewItem.media_url && previewItem.content_type !== 'text' && (
+                  <div className="p-12 text-arc-muted text-sm">No media file attached yet.</div>
+                )}
+              </div>
+
+              {/* Description */}
+              {previewItem.description && previewItem.content_type !== 'text' && (
+                <div className="px-5 py-3 border-t border-white/8">
+                  <p className="text-xs text-arc-secondary leading-relaxed">{previewItem.description}</p>
                 </div>
               )}
             </div>
