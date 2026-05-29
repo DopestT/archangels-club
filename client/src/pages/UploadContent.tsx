@@ -224,6 +224,19 @@ export default function UploadContent() {
     setUploadProgress(0);
     setRetryCount(0);
 
+    // Validate that API_BASE doesn't contain embedded credentials before making any calls.
+    // Catches misconfigured VITE_API_URL (e.g. accidentally set to a DB connection string).
+    try {
+      new URL(`${API_BASE || window.location.origin}/api/content`);
+    } catch {
+      setUploadError('Server configuration error — please contact support.');
+      return;
+    }
+    if (API_BASE && /\/\/[^@]+:[^@]+@/.test(API_BASE)) {
+      setUploadError('Server configuration error — please contact support.');
+      return;
+    }
+
     try {
       // 1. Draft-first: create DB record before any media transfer
       let currentDraftId = draftId;
@@ -334,9 +347,11 @@ export default function UploadContent() {
       setDraftId(null);
       setStatus('submitted');
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Unable to reach the server.';
+      const raw = err instanceof Error ? err.message : '';
       console.error('[upload] unhandled error:', err);
-      setUploadError(msg);
+      // Safari throws "URL is not valid or contains user credentials" when API_BASE is misconfigured
+      const isNetworkError = !raw || raw.includes('URL') || raw.includes('credential') || raw.includes('fetch') || raw.includes('network');
+      setUploadError(isNetworkError ? 'Unable to reach the server. Please check your connection and try again.' : raw);
       setStatus('idle');
     }
   }
