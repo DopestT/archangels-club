@@ -519,6 +519,17 @@ const DDL = `
        SELECT id FROM creator_profiles
        WHERE user_id LIKE 'demo-user-%'
      );
+
+  -- Backfill: auto-create approved creator_profiles for any approved creator/both
+  -- users who don't have one yet. Idempotent — safe to run on every startup.
+  INSERT INTO creator_profiles (id, user_id, bio, is_approved, application_status)
+  SELECT gen_random_uuid()::text, u.id, '', 1, 'approved'
+  FROM users u
+  WHERE u.role IN ('creator', 'both')
+    AND u.status = 'approved'
+    AND NOT EXISTS (
+      SELECT 1 FROM creator_profiles cp WHERE cp.user_id = u.id
+    );
 `;
 
 export async function runMigrations(): Promise<void> {

@@ -42,8 +42,8 @@ export default function AuthPage({ mode }: { mode: Mode }) {
   const [forgotLoading, setForgotLoading] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
 
-  // ?redirect= takes priority over router state, then fallback to /explore
-  const from = searchParams.get('redirect') ?? (location.state as { from?: string })?.from ?? '/explore';
+  // ?redirect= or ?next= (used by content/upload pages), then router state, then fallback to /explore
+  const from = searchParams.get('redirect') ?? searchParams.get('next') ?? (location.state as { from?: string })?.from ?? '/explore';
 
   function ageFromDOB(dob: string): number {
     const today = new Date();
