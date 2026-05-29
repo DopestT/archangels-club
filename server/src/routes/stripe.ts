@@ -129,8 +129,8 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
     const stripe = getStripe();
     const accountLink = await stripe.accountLinks.create({
       account: accountId,
-      refresh_url: `${CLIENT_URL}/dashboard/studio?connect=refresh`,
-      return_url:  `${CLIENT_URL}/dashboard/studio?stripe=return`,
+      refresh_url: `${CLIENT_URL}/studio?connect=refresh`,
+      return_url:  `${CLIENT_URL}/studio?stripe=return`,
       type: 'account_onboarding',
     });
 

@@ -1,5 +1,5 @@
 import React, { lazy, Suspense, useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { SavedProvider } from './context/SavedContext';
 import { ToastProvider } from './components/ui/Toast';
@@ -41,6 +41,12 @@ const PulsePreview              = lazy(() => import('./pages/PulsePreview'));
 // If requireApproved: must have status=approved.
 // If requireCreator: must be approved + creator role.
 // If requireAdmin: must be admin role.
+function PreserveQueryRedirect({ to }: { to: string }) {
+  const [searchParams] = useSearchParams();
+  const qs = searchParams.toString();
+  return <Navigate to={`${to}${qs ? '?' + qs : ''}`} replace />;
+}
+
 function ProtectedRoute({
   children,
   requireApproved = true,
@@ -171,6 +177,9 @@ function AppRoutes() {
             <PaymentResultPage type="cancel" />
           </ProtectedRoute>
         } />
+
+        {/* Legacy redirect — Stripe used to return to /dashboard/studio */}
+        <Route path="dashboard/studio" element={<PreserveQueryRedirect to="/studio" />} />
 
         {/* Approved creators */}
         <Route path="creator" element={

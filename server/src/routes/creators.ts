@@ -485,8 +485,8 @@ router.post('/connect/onboard', requireAuth, requireCreator, async (req, res) =>
     // Always generate a fresh Account Link (they expire after ~5 minutes)
     const accountLink = await stripe.accountLinks.create({
       account:     stripeAccountId,
-      refresh_url: `${FRONTEND_URL}/dashboard/studio?connect=refresh`,
-      return_url:  `${FRONTEND_URL}/dashboard/studio?connect=complete`,
+      refresh_url: `${FRONTEND_URL}/studio?connect=refresh`,
+      return_url:  `${FRONTEND_URL}/studio?connect=complete`,
       type:        'account_onboarding',
     });
 
