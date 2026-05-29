@@ -413,6 +413,70 @@ async function handleChargeRefunded(
   }
 }
 
+async function handleIdentityVerified(
+  event: Stripe.Event,
+  session: Stripe.Identity.VerificationSession
+): Promise<void> {
+  const { id: eventRowId, isDuplicate } = await recordEvent(event, {
+    stripeObjectId: session.id,
+    userId: session.metadata?.user_id ?? null,
+  });
+  if (isDuplicate) return;
+
+  try {
+    const userId = session.metadata?.user_id ?? null;
+    if (!userId) {
+      console.warn('[webhook] identity verified: no user_id in metadata session=%s', session.id);
+      await markEventProcessed(eventRowId);
+      return;
+    }
+    await execute(
+      `UPDATE users
+         SET age_verification_status = 'verified',
+             age_verified_at = NOW(),
+             verification_session_id = $2
+       WHERE id = $1`,
+      [userId, session.id]
+    );
+    console.log('[webhook] identity verified: user=%s session=%s', userId, session.id);
+    await markEventProcessed(eventRowId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await markEventFailed(eventRowId, msg);
+    throw err;
+  }
+}
+
+async function handleIdentityRequiresInput(
+  event: Stripe.Event,
+  session: Stripe.Identity.VerificationSession
+): Promise<void> {
+  const { id: eventRowId, isDuplicate } = await recordEvent(event, {
+    stripeObjectId: session.id,
+    userId: session.metadata?.user_id ?? null,
+  });
+  if (isDuplicate) return;
+
+  try {
+    const userId = session.metadata?.user_id ?? null;
+    if (userId) {
+      await execute(
+        `UPDATE users
+           SET age_verification_status = 'failed',
+               verification_session_id = $2
+         WHERE id = $1`,
+        [userId, session.id]
+      );
+      console.log('[webhook] identity requires_input (failed): user=%s session=%s', userId, session.id);
+    }
+    await markEventProcessed(eventRowId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await markEventFailed(eventRowId, msg);
+    throw err;
+  }
+}
+
 async function handleDisputeCreated(
   event: Stripe.Event,
   dispute: Stripe.Dispute
@@ -509,6 +573,14 @@ router.post('/stripe', async (req, res) => {
 
       case 'charge.dispute.created':
         await handleDisputeCreated(event, event.data.object as Stripe.Dispute);
+        break;
+
+      case 'identity.verification_session.verified':
+        await handleIdentityVerified(event, event.data.object as Stripe.Identity.VerificationSession);
+        break;
+
+      case 'identity.verification_session.requires_input':
+        await handleIdentityRequiresInput(event, event.data.object as Stripe.Identity.VerificationSession);
         break;
 
       default:

@@ -35,10 +35,10 @@ export default function VideoProcessor({ file, onSave, onCancel }: Props) {
 
   function handleMetadata() {
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !isFinite(video.duration) || video.duration <= 0) return;
     const d = video.duration;
     setDuration(d);
-    setTrimEnd(Math.min(d, MAX_DURATION));
+    setTrimEnd((prev) => (prev === 0 ? Math.min(d, MAX_DURATION) : prev));
   }
 
   function captureThumbnail() {
@@ -97,8 +97,11 @@ export default function VideoProcessor({ file, onSave, onCancel }: Props) {
               ref={videoRef}
               src={videoUrl}
               controls
+              preload="metadata"
               className="max-w-full max-h-[50vh] rounded-xl"
               onLoadedMetadata={handleMetadata}
+              onDurationChange={handleMetadata}
+              onCanPlay={handleMetadata}
               style={{ background: '#000' }}
             />
           )}

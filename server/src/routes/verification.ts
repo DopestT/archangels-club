@@ -4,7 +4,7 @@ import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { queryOne, execute } from '../db/schema.js';
 
 const router = Router();
-const FRONTEND_URL = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://archangelsclub.com';
+const FRONTEND_URL = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://www.archangelsclub.com';
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not set');
