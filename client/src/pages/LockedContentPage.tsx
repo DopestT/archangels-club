@@ -551,7 +551,7 @@ export default function LockedContentPage() {
           className="relative rounded-2xl overflow-hidden mb-6 bg-bg-surface border border-gold-border/50"
           style={{ minHeight: '400px' }}
         >
-          {content.preview_url && (
+          {content.preview_url && !(unlocked && mediaUrl) && (
             <img
               src={content.preview_url}
               alt={isLocked ? '' : content.title}
