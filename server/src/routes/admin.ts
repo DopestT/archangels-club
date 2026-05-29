@@ -128,6 +128,32 @@ router.post('/users/:id/approve', async (req, res) => {
       [req.params.id, req.auth!.userId]
     ).catch(() => {});
 
+    // Auto-create an approved creator_profiles record for creator/both roles so they
+    // can upload content immediately without a separate profile-approval step.
+    if (userRole === 'creator' || userRole === 'both') {
+      const user = await queryOne<{ id: string }>('SELECT id FROM users WHERE email = $1', [email]);
+      if (user) {
+        const alreadyExists = await queryOne(
+          'SELECT id FROM creator_profiles WHERE user_id = $1', [user.id]
+        );
+        if (!alreadyExists) {
+          await execute(
+            `INSERT INTO creator_profiles (id, user_id, bio, is_approved, application_status)
+             VALUES ($1, $2, '', 1, 'approved')`,
+            [crypto.randomUUID(), user.id]
+          );
+          console.log(`[admin] approve — auto-created creator_profiles for user=${user.id}`);
+        } else {
+          // Profile exists but may not be approved — ensure it is.
+          await execute(
+            `UPDATE creator_profiles SET is_approved = 1, application_status = 'approved' WHERE user_id = $1`,
+            [user.id]
+          );
+          console.log(`[admin] approve — ensured creator_profiles approved for user=${user.id}`);
+        }
+      }
+    }
+
     // If the user already has a password (registered via signup), just notify them to log in.
     // If no password yet (access-request only), send a set-password link.
     const userRecord = await queryOne<{ password_hash: string | null }>(

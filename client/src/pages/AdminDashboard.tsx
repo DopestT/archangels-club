@@ -66,6 +66,9 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const { token } = useAuth();
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
+  // Sync tab when navigating between /admin/* routes (initialTab changes on each route)
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+
   // Access requests
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [accessLoading, setAccessLoading] = useState(false);
