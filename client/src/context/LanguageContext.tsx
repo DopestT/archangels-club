@@ -1,16 +1,16 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { en, es, fr, de, ja, pt, vi, zh } from '../i18n';
+import { en, es, fr, de, ja, pt, vi, zh, tl } from '../i18n';
 import type { LangCode, TranslationMap } from '../i18n';
 
 // ── Translation dictionaries ─────────────────────────────────────────────────
 
-const DICTS: Record<LangCode, TranslationMap> = { en, es, fr, de, ja, pt, vi, zh };
+const DICTS: Record<LangCode, TranslationMap> = { en, es, fr, de, ja, pt, vi, zh, tl };
 
 // ── Persisted language preference ────────────────────────────────────────────
 
 const STORAGE_KEY = 'arc_lang';
 const DEFAULT_LANG: LangCode = 'en';
-const VALID: Set<string> = new Set(['en', 'es', 'fr', 'de', 'ja', 'pt', 'vi', 'zh']);
+const VALID: Set<string> = new Set(['en', 'es', 'fr', 'de', 'ja', 'pt', 'vi', 'zh', 'tl']);
 
 function readStoredLang(): LangCode {
   try {

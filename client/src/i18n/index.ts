@@ -8,6 +8,7 @@ export { default as ja } from './ja';
 export { default as pt } from './pt';
 export { default as vi } from './vi';
 export { default as zh } from './zh';
+export { default as tl } from './tl';
 
 export const LANGUAGES: { code: import('./types').LangCode; label: string; native: string; flag: string }[] = [
   { code: 'en', label: 'English',    native: 'English',    flag: '🇺🇸' },
@@ -18,4 +19,5 @@ export const LANGUAGES: { code: import('./types').LangCode; label: string; nativ
   { code: 'pt', label: 'Portuguese', native: 'Português',  flag: '🇧🇷' },
   { code: 'vi', label: 'Vietnamese', native: 'Tiếng Việt', flag: '🇻🇳' },
   { code: 'zh', label: 'Chinese',    native: '中文',         flag: '🇨🇳' },
+  { code: 'tl', label: 'Filipino',   native: 'Filipino',   flag: '🇵🇭' },
 ];
