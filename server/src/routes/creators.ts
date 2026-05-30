@@ -127,8 +127,8 @@ router.post('/apply', requireAuth, async (req, res) => {
 // GET /api/creators/my/stats — creator's own stats (must be before /:username)
 router.get('/my/stats', requireAuth, requireCreator, async (req, res) => {
   try {
-    const profile = await queryOne<{ id: string; total_earnings: string }>(
-      'SELECT id, total_earnings FROM creator_profiles WHERE user_id = $1',
+    const profile = await queryOne<{ id: string; total_earnings: string; subscription_price: string; starting_price: string }>(
+      'SELECT id, total_earnings, subscription_price, starting_price FROM creator_profiles WHERE user_id = $1',
       [req.auth!.userId]
     );
     if (!profile) { res.status(404).json({ error: 'Creator profile not found.' }); return; }
@@ -161,6 +161,8 @@ router.get('/my/stats', requireAuth, requireCreator, async (req, res) => {
       content_unlocks: parseInt(unlocks?.n ?? '0', 10),
       tips_total: parseFloat(tips?.total ?? '0'),
       content_count: parseInt(posts?.n ?? '0', 10),
+      subscription_price: parseFloat(profile.subscription_price) || 9.99,
+      starting_price: parseFloat(profile.starting_price) || 4.99,
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch stats.' });

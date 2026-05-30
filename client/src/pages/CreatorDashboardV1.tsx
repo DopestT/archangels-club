@@ -29,7 +29,7 @@ import CoachingCard from '../components/creator/CoachingCard';
 import type { Insight } from '../components/creator/CoachingCard';
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
-interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number; content_count: number }
+interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number; content_count: number; subscription_price?: number; starting_price?: number }
 interface Transaction { id: string; ref_type: string; amount: number; net_amount: number; payer_name: string; content_title: string | null; created_at: string }
 interface CustomRequest { id: string; description: string; offered_price: number; status: string; fan_name: string; created_at: string }
 interface PromoStats { views: { total: number; last_7d: number; last_30d: number }; by_source: Record<string, number>; subscribers: number; unlocks: number; conversion_rate: number }
@@ -77,6 +77,13 @@ export default function CreatorDashboardV1() {
   const [aiLoading, setAiLoading] = useState(false);
   const [health, setHealth] = useState<{ score: number; level: string; signals: { label: string; ok: boolean; note: string }[] } | null>(null);
   const [coachingCards, setCoachingCards] = useState<Insight[]>([]);
+
+  // Pricing editor
+  const [showPricingEditor, setShowPricingEditor] = useState(false);
+  const [editSubPrice, setEditSubPrice] = useState('');
+  const [editStartPrice, setEditStartPrice] = useState('');
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [pricingSaved, setPricingSaved] = useState(false);
 
   const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
 
@@ -218,6 +225,28 @@ export default function CreatorDashboardV1() {
     if (!token) return;
     await fetch(`${API_BASE}/api/promo/my/invites/${id}`, { method: 'DELETE', headers: authHeaders });
     setInviteLinks((prev) => prev.filter((l) => l.id !== id));
+  }
+
+  async function savePricing() {
+    if (!token) return;
+    const sub = parseFloat(editSubPrice);
+    const start = parseFloat(editStartPrice);
+    if (sub < 1 || start < 1) return;
+    setPricingSaving(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/creators/profile`, {
+        method: 'PATCH',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription_price: sub, starting_price: start }),
+      });
+      if (res.ok) {
+        setStats(prev => prev ? { ...prev, subscription_price: sub, starting_price: start } : prev);
+        setPricingSaved(true);
+        setTimeout(() => setPricingSaved(false), 2500);
+      }
+    } finally {
+      setPricingSaving(false);
+    }
   }
 
   async function openStripeDashboard() {
@@ -551,12 +580,87 @@ export default function CreatorDashboardV1() {
           )}
 
           {/* ── 4 Stat tiles ─────────────────────────────────────────────────────── */}
-          <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5 mb-10 ${!showContent ? 'hidden' : ''}`}>
+          <div className={`grid grid-cols-2 lg:grid-cols-4 gap-4 xl:gap-5 mb-5 ${!showContent ? 'hidden' : ''}`}>
             <StatCard label="Earnings"  value={stats ? formatCurrency(stats.total_earnings)    : '—'} sub="lifetime net"       icon={<DollarSign    className="w-5 h-5" />} />
             <StatCard label="Audience"  value={stats ? stats.subscriber_count.toLocaleString() : '—'} sub="active subscribers" icon={<Users         className="w-5 h-5" />} />
             <StatCard label="Unlocks"   value={stats ? stats.content_unlocks.toLocaleString()  : '—'} sub="total unlocks"      icon={<TrendingUp    className="w-5 h-5" />} />
             <StatCard label="Requests"  value={String(pendingRequests)}                               sub={pendingRequests > 0 ? 'awaiting reply' : 'custom requests'} icon={<MessageCircle className="w-5 h-5" />} />
           </div>
+
+          {/* ── Pricing editor ────────────────────────────────────────────────────── */}
+          {showContent && stats && (
+            <div className="card-surface rounded-xl mb-10 overflow-hidden">
+              <button
+                onClick={() => {
+                  if (!showPricingEditor) {
+                    setEditSubPrice(String(stats.subscription_price ?? 9.99));
+                    setEditStartPrice(String(stats.starting_price ?? 4.99));
+                  }
+                  setShowPricingEditor(v => !v);
+                  setPricingSaved(false);
+                }}
+                className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-bg-hover transition-colors"
+              >
+                <div className="flex items-center gap-3">
+                  <DollarSign className="w-4 h-4 text-gold/70" />
+                  <span className="font-serif text-base text-white">Pricing</span>
+                  <span className="text-xs text-arc-muted">
+                    Sub {formatCurrency(stats.subscription_price ?? 9.99)}/mo · Content from {formatCurrency(stats.starting_price ?? 4.99)}
+                  </span>
+                </div>
+                <ChevronRight className={`w-4 h-4 text-arc-muted transition-transform duration-200 ${showPricingEditor ? 'rotate-90' : ''}`} />
+              </button>
+              {showPricingEditor && (
+                <div className="px-6 pb-6 border-t border-white/5 pt-5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <label className="block text-xs text-arc-secondary mb-1.5">Monthly Subscription Price ($)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={0.01}
+                        value={editSubPrice}
+                        onChange={e => setEditSubPrice(e.target.value)}
+                        className="input-dark"
+                        placeholder="9.99"
+                      />
+                      <p className="text-[11px] text-arc-muted mt-1">Minimum $1.00</p>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-arc-secondary mb-1.5">Per-Content Starting Price ($)</label>
+                      <input
+                        type="number"
+                        min={1}
+                        step={0.01}
+                        value={editStartPrice}
+                        onChange={e => setEditStartPrice(e.target.value)}
+                        className="input-dark"
+                        placeholder="4.99"
+                      />
+                      <p className="text-[11px] text-arc-muted mt-1">Minimum $1.00</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={savePricing}
+                    disabled={pricingSaving || parseFloat(editSubPrice) < 1 || parseFloat(editStartPrice) < 1}
+                    className="btn-gold px-6 py-2.5 text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {pricingSaving ? (
+                      <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : pricingSaved ? (
+                      <Check className="w-3.5 h-3.5" />
+                    ) : (
+                      <DollarSign className="w-3.5 h-3.5" />
+                    )}
+                    {pricingSaving ? 'Saving…' : pricingSaved ? 'Saved ✓' : 'Save Prices'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* ── Split: Earnings chart left / Activity feed right ─────────────────── */}
           <div className={`grid grid-cols-1 lg:grid-cols-2 gap-6 mb-10 ${!showContent ? 'hidden' : ''}`}>

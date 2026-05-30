@@ -4,7 +4,7 @@ import AdminSidebar from '../components/admin/AdminSidebar';
 import {
   Users, DollarSign, Crown, Shield, Flag, TrendingUp,
   CheckCircle, XCircle, Clock, AlertTriangle, Eye, Lock,
-  Image, Video, Music, FileText, MessageSquare, UserCheck, Send, Bug, X,
+  Image, Video, Music, FileText, MessageSquare, UserCheck, Send, Bug, X, Star,
 } from 'lucide-react';
 import ActionButton from '../components/ui/ActionButton';
 
@@ -38,7 +38,7 @@ import { formatCurrency, timeAgo } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../lib/api';
 
-type Tab = 'overview' | 'pulse' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'verifications';
+type Tab = 'overview' | 'pulse' | 'access-requests' | 'creator-approvals' | 'content-approvals' | 'flagged' | 'transactions' | 'verifications' | 'reviews';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-3.5 h-3.5" />,
@@ -118,6 +118,10 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
   const [verificationsLoading, setVerificationsLoading] = useState(false);
   const [verificationFilter, setVerificationFilter] = useState<string>('all');
 
+  // Reviews
+  const [pendingReviews, setPendingReviews] = useState<any[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+
   const pendingAccessCount = accessRequests.filter((r) => r.status === 'pending').length;
   const pendingContentCount = contentQueue.filter((r) => !contentActions[r.id]).length;
   const pendingCreatorCount = creatorApps.length;
@@ -159,6 +163,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     if (activeTab === 'transactions') loadTransactions();
     if (activeTab === 'verifications') loadVerifications();
     if (activeTab === 'pulse') loadPulse();
+    if (activeTab === 'reviews') loadPendingReviews();
   }, [activeTab]);
 
   async function loadPulse() {
@@ -268,6 +273,24 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
     }
   }
 
+  async function loadPendingReviews() {
+    setReviewsLoading(true);
+    try {
+      const res = await adminFetch('/api/reviews/admin/pending');
+      const data = await res.json();
+      setPendingReviews(Array.isArray(data) ? data : []);
+    } catch {} finally {
+      setReviewsLoading(false);
+    }
+  }
+
+  async function handleReviewAction(id: string, action: 'approve' | 'reject') {
+    try {
+      await adminFetch(`/api/reviews/admin/${id}/${action}`, { method: 'POST' });
+      setPendingReviews(prev => prev.filter(r => r.id !== id));
+    } catch {}
+  }
+
   async function handleAccessAction(id: string, action: 'approved' | 'rejected') {
     const endpoint = action === 'approved' ? 'approve' : 'reject';
     const req = accessRequests.find(r => r.id === id);
@@ -349,6 +372,7 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                 : activeTab === 'content-approvals' ? 'Content Approvals'
                 : activeTab === 'flagged'           ? 'Flagged Content'
                 : activeTab === 'transactions'      ? 'Transactions'
+                : activeTab === 'reviews'           ? 'Content Reviews'
                 : 'Verifications'}
             </h1>
             <p className="text-[10px] text-arc-muted/60 mt-0.5 tracking-wide">Admin · Archangels Platform</p>
@@ -1645,6 +1669,72 @@ export default function AdminDashboard({ initialTab = 'overview' }: { initialTab
                     )}
                   </tbody>
                 </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── REVIEWS ───────────────────────────────────────────────────────── */}
+        {activeTab === 'reviews' && (
+          <div>
+            <div className="mb-6">
+              <p className="section-eyebrow mb-1">Moderation</p>
+              <h2 className="font-serif text-2xl text-white">Content Reviews</h2>
+              <p className="text-sm text-arc-secondary mt-1">Approve or reject fan-submitted reviews before they appear publicly.</p>
+            </div>
+
+            {reviewsLoading ? (
+              <div className="space-y-4">
+                {[1, 2, 3].map(i => <div key={i} className="card-surface p-5 rounded-xl h-28 animate-pulse" />)}
+              </div>
+            ) : pendingReviews.length === 0 ? (
+              <div className="card-surface p-10 rounded-xl text-center">
+                <CheckCircle className="w-8 h-8 text-arc-success mx-auto mb-3" />
+                <p className="text-white font-medium mb-1">All clear</p>
+                <p className="text-sm text-arc-muted">No pending reviews at this time.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingReviews.map(review => (
+                  <div key={review.id} className="card-surface p-5 rounded-xl">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-arc-muted mb-1">{review.content_title}</p>
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-medium text-white">{review.display_name}</p>
+                          <div className="flex items-center gap-0.5">
+                            {[1, 2, 3, 4, 5].map(star => (
+                              <Star
+                                key={star}
+                                className={`w-3.5 h-3.5 ${star <= review.rating ? 'text-gold fill-gold' : 'text-arc-muted/30'}`}
+                              />
+                            ))}
+                          </div>
+                          <span className="text-xs text-arc-muted">{timeAgo(review.created_at)}</span>
+                        </div>
+                        {review.body && (
+                          <p className="text-sm text-arc-secondary leading-relaxed">{review.body}</p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <ActionButton
+                          onAction={async () => handleReviewAction(review.id, 'approve')}
+                          label={<><CheckCircle className="w-3.5 h-3.5" /> Approve</>}
+                          loadingLabel="…"
+                          successLabel="Approved"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-arc-success/10 text-arc-success hover:bg-arc-success/20 border border-arc-success/25 transition-colors"
+                        />
+                        <ActionButton
+                          onAction={async () => handleReviewAction(review.id, 'reject')}
+                          label={<><XCircle className="w-3.5 h-3.5" /> Reject</>}
+                          loadingLabel="…"
+                          successLabel="Rejected"
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-arc-error/10 text-arc-error hover:bg-arc-error/20 border border-arc-error/25 transition-colors"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import {
   Lock, Unlock, Image, Video, Music, FileText, Crown, ArrowLeft,
-  Shield, CheckCircle, Star, X as XIcon, AlertCircle, Eye, MessageSquare,
+  Shield, CheckCircle, Star, X as XIcon, AlertCircle, Eye, MessageSquare, Send,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Avatar from '../components/ui/Avatar';
@@ -218,6 +218,16 @@ export default function LockedContentPage() {
   const [streamLoading, setStreamLoading] = useState(false);
   const [moreContent,   setMoreContent]   = useState<GlobalContent[]>([]);
 
+  // Reviews
+  interface Review { id: string; rating: number; body: string; created_at: string; display_name: string; avatar_url: string | null }
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoaded, setReviewsLoaded] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewBody, setReviewBody] = useState('');
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
+
   const paymentSuccess  = searchParams.get('payment') === 'success';
   const alreadyUnlocked = searchParams.get('unlocked') === 'true';
 
@@ -244,6 +254,16 @@ export default function LockedContentPage() {
       .then(data => { if (Array.isArray(data)) setMoreContent(data); })
       .catch(() => {});
   }, [content?.creator_id, content?.id]);
+
+  // Load approved reviews
+  useEffect(() => {
+    if (!id) return;
+    fetch(`${API_BASE}/api/reviews/${id}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setReviews(data); })
+      .catch(() => {})
+      .finally(() => setReviewsLoaded(true));
+  }, [id]);
 
   // Check unlock status / subscriber discount once content + token known
   useEffect(() => {
@@ -423,6 +443,29 @@ export default function LockedContentPage() {
     } catch {
       setPaying(false);
       setError('Unable to reach the server. Please try again.');
+    }
+  }
+
+  async function handleSubmitReview() {
+    if (!token || !id || reviewRating < 1 || reviewSubmitting) return;
+    setReviewSubmitting(true);
+    setReviewError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/reviews`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content_id: id, rating: reviewRating, body: reviewBody.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setReviewError(data.error ?? 'Failed to submit review.');
+      } else {
+        setReviewSubmitted(true);
+      }
+    } catch {
+      setReviewError('Unable to reach the server. Please try again.');
+    } finally {
+      setReviewSubmitting(false);
     }
   }
 
@@ -794,6 +837,128 @@ export default function LockedContentPage() {
                 Request Custom Content
               </Link>
             </div>
+          </div>
+        )}
+
+        {/* Reviews section */}
+        {reviewsLoaded && (
+          <div className="mt-8">
+            <h2 className="font-serif text-xl text-white mb-5 flex items-center gap-2">
+              <Star className="w-5 h-5 text-gold" />
+              Reviews
+              {reviews.length > 0 && (
+                <span className="text-sm font-sans text-arc-muted">({reviews.length})</span>
+              )}
+            </h2>
+
+            {/* Leave a review form — shown only when unlocked and not yet submitted */}
+            {unlocked && !isAdminPreview && !isCreatorPreview && isAuthenticated && !reviewSubmitted && (
+              <div className="card-surface p-6 rounded-xl mb-6">
+                <h3 className="text-sm font-medium text-white mb-4">Leave a Review</h3>
+
+                {/* Star rating selector */}
+                <div className="flex items-center gap-1 mb-4">
+                  {[1, 2, 3, 4, 5].map(star => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setReviewRating(star)}
+                      className="transition-transform hover:scale-110"
+                      aria-label={`Rate ${star} star${star !== 1 ? 's' : ''}`}
+                    >
+                      <Star
+                        className={`w-6 h-6 transition-colors ${
+                          star <= reviewRating ? 'text-gold fill-gold' : 'text-arc-muted/40'
+                        }`}
+                      />
+                    </button>
+                  ))}
+                  {reviewRating > 0 && (
+                    <span className="ml-2 text-xs text-arc-muted">
+                      {['', 'Poor', 'Fair', 'Good', 'Great', 'Excellent'][reviewRating]}
+                    </span>
+                  )}
+                </div>
+
+                <textarea
+                  value={reviewBody}
+                  onChange={e => setReviewBody(e.target.value)}
+                  placeholder="Share your thoughts about this content…"
+                  rows={3}
+                  maxLength={1000}
+                  className="w-full bg-bg-hover border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-arc-muted resize-none focus:outline-none focus:border-gold/40 transition-colors mb-3"
+                />
+                <p className="text-xs text-arc-muted mb-3 text-right">{reviewBody.length}/1000</p>
+
+                {reviewError && (
+                  <p className="text-xs text-arc-error mb-3">{reviewError}</p>
+                )}
+
+                <button
+                  onClick={handleSubmitReview}
+                  disabled={reviewRating < 1 || reviewSubmitting}
+                  className="btn-gold text-sm px-5 py-2.5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {reviewSubmitting ? (
+                    <svg className="animate-spin h-3.5 w-3.5" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <Send className="w-3.5 h-3.5" />
+                  )}
+                  {reviewSubmitting ? 'Submitting…' : 'Submit Review'}
+                </button>
+              </div>
+            )}
+
+            {/* Review submitted confirmation */}
+            {reviewSubmitted && (
+              <div className="flex items-start gap-3 p-4 rounded-xl bg-arc-success/8 border border-arc-success/25 mb-6">
+                <CheckCircle className="w-4 h-4 text-arc-success flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-arc-success">Review submitted — pending approval.</p>
+              </div>
+            )}
+
+            {/* Approved reviews list */}
+            {reviews.length > 0 ? (
+              <div className="space-y-4">
+                {reviews.map(review => (
+                  <div key={review.id} className="card-surface p-5 rounded-xl">
+                    <div className="flex items-start gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0 text-xs text-gold font-serif">
+                        {review.avatar_url ? (
+                          <img src={review.avatar_url} alt={review.display_name} className="w-full h-full rounded-full object-cover" />
+                        ) : (
+                          (review.display_name[0] ?? '?').toUpperCase()
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <p className="text-sm font-medium text-white">{review.display_name}</p>
+                          <p className="text-xs text-arc-muted flex-shrink-0">{timeAgo(review.created_at)}</p>
+                        </div>
+                        <div className="flex items-center gap-0.5 mb-2">
+                          {[1, 2, 3, 4, 5].map(star => (
+                            <Star
+                              key={star}
+                              className={`w-3.5 h-3.5 ${star <= review.rating ? 'text-gold fill-gold' : 'text-arc-muted/30'}`}
+                            />
+                          ))}
+                        </div>
+                        {review.body && (
+                          <p className="text-sm text-arc-secondary leading-relaxed">{review.body}</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-arc-muted text-center py-6">
+                No reviews yet.{unlocked ? ' Be the first to leave one.' : ''}
+              </p>
+            )}
           </div>
         )}
 

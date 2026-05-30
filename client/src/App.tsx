@@ -259,6 +259,11 @@ function AppRoutes() {
             <AdminDashboard initialTab="pulse" />
           </ProtectedRoute>
         } />
+        <Route path="admin/reviews" element={
+          <ProtectedRoute requireAdmin>
+            <AdminDashboard initialTab="reviews" />
+          </ProtectedRoute>
+        } />
         <Route path="admin/control-center" element={
           <ProtectedRoute requireAdmin>
             <AdminControlCenter />
