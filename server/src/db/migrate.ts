@@ -530,6 +530,18 @@ const DDL = `
     AND NOT EXISTS (
       SELECT 1 FROM creator_profiles cp WHERE cp.user_id = u.id
     );
+
+  -- ── Content reviews ──────────────────────────────────────────────────────────
+  CREATE TABLE IF NOT EXISTS content_reviews (
+    id TEXT PRIMARY KEY,
+    content_id TEXT NOT NULL REFERENCES content(id) ON DELETE CASCADE,
+    reviewer_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    rating SMALLINT NOT NULL CHECK(rating BETWEEN 1 AND 5),
+    body TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(content_id, reviewer_id)
+  );
 `;
 
 export async function runMigrations(): Promise<void> {

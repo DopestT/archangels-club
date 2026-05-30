@@ -135,6 +135,8 @@ export default function UploadContent() {
   const [submittedTitle, setSubmittedTitle] = useState('');
   const [draftSaved, setDraftSaved] = useState(false);
   const [showErrorDetails, setShowErrorDetails] = useState(false);
+  const [scheduleEnabled, setScheduleEnabled] = useState(false);
+  const [publishAt, setPublishAt] = useState('');
   const [draftNotice, setDraftNotice] = useState<{
     title: string;
     description: string;
@@ -311,6 +313,7 @@ export default function UploadContent() {
       };
       if (mediaUrl) patchBody.media_url = mediaUrl;
       if (previewUrl) patchBody.preview_url = previewUrl;
+      if (scheduleEnabled && publishAt) patchBody.publish_at = new Date(publishAt).toISOString();
 
       const patchRes = await fetch(`${API_BASE}/api/content/${currentDraftId}`, {
         method: 'PATCH',
@@ -370,6 +373,8 @@ export default function UploadContent() {
     setPricingConfig(DEFAULT_PRICING);
     setSubmittedTitle('');
     setDraftId(null);
+    setScheduleEnabled(false);
+    setPublishAt('');
   }
 
   if (status === 'submitted') {
@@ -624,6 +629,57 @@ export default function UploadContent() {
 
             {/* Pricing */}
             <PricingPanel config={pricingConfig} onChange={setPricingConfig} />
+
+            {/* Schedule for later */}
+            <div className="card-surface p-6 rounded-xl">
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div
+                  onClick={() => { setScheduleEnabled(v => !v); if (scheduleEnabled) setPublishAt(''); }}
+                  className={`relative w-10 h-5.5 rounded-full transition-colors duration-200 flex-shrink-0 ${scheduleEnabled ? 'bg-gold' : 'bg-white/15'}`}
+                  style={{ width: 40, height: 22 }}
+                  role="switch"
+                  aria-checked={scheduleEnabled}
+                >
+                  <span
+                    className="absolute top-0.5 left-0.5 w-4.5 h-4.5 rounded-full bg-white shadow transition-transform duration-200"
+                    style={{
+                      width: 18, height: 18,
+                      transform: scheduleEnabled ? 'translateX(18px)' : 'translateX(0)',
+                    }}
+                  />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-white">Schedule for later</p>
+                  <p className="text-xs text-arc-muted mt-0.5">Set a future date and time for this drop to go live</p>
+                </div>
+              </label>
+
+              {scheduleEnabled && (
+                <div className="mt-4">
+                  <label className="block text-xs text-arc-secondary mb-1.5">Publish Date &amp; Time</label>
+                  <input
+                    type="datetime-local"
+                    value={publishAt}
+                    min={(() => {
+                      const d = new Date(Date.now() + 60 * 60 * 1000);
+                      return d.toISOString().slice(0, 16);
+                    })()}
+                    onChange={e => setPublishAt(e.target.value)}
+                    className="input-dark"
+                  />
+                  {publishAt && (
+                    <p className="text-xs text-arc-secondary mt-2 flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-gold flex-shrink-0" />
+                      This drop will go live on{' '}
+                      <strong className="text-white">
+                        {new Date(publishAt).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
+                      </strong>{' '}
+                      after admin approval.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Draft creation progress */}
             {status === 'creating_draft' && (
