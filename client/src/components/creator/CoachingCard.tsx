@@ -25,6 +25,7 @@ const CTA_ROUTES: Record<string, string> = {
   go_to_messages:  '/messages',
   go_to_profile:   '/creator',
   go_to_bundles:   '/creator',
+  go_to_edit_content: '/creator/media',
 };
 
 const TYPE_STYLES: Record<string, { icon: React.ReactNode; color: string; bg: string; border: string }> = {
@@ -38,6 +39,8 @@ const TYPE_STYLES: Record<string, { icon: React.ReactNode; color: string; bg: st
   bundle_suggestion:          { icon: <Package className="w-3.5 h-3.5" />,    color: 'text-gold',      bg: 'bg-gold/8',        border: 'border-gold/20' },
   custom_request_opportunity: { icon: <MessageSquare className="w-3.5 h-3.5" />, color: 'text-gold',   bg: 'bg-gold/8',        border: 'border-gold/20' },
   profile_incomplete:         { icon: <User className="w-3.5 h-3.5" />,       color: 'text-arc-secondary', bg: 'bg-white/4',   border: 'border-white/10' },
+  content_low_conversion:     { icon: <TrendingUp className="w-3.5 h-3.5" />, color: 'text-amber-400',  bg: 'bg-amber-500/8',   border: 'border-amber-500/20' },
+  content_top_performer:      { icon: <Crown className="w-3.5 h-3.5" />,      color: 'text-emerald-400', bg: 'bg-emerald-500/8', border: 'border-emerald-500/20' },
 };
 
 function getStyle(type: string) {

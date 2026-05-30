@@ -12,6 +12,7 @@ import {
   Star, CheckCircle, Crown, ExternalLink, Zap, Copy, Check,
   LayoutGrid, AlertCircle, Eye, Sparkles, Link2, Trash2,
   Plus, Share2, BarChart2, Lock, ArrowRight, XCircle, X, Camera,
+  RefreshCw, Brain,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
@@ -77,6 +78,8 @@ export default function CreatorDashboardV1() {
   const [aiLoading, setAiLoading] = useState(false);
   const [health, setHealth] = useState<{ score: number; level: string; signals: { label: string; ok: boolean; note: string }[] } | null>(null);
   const [coachingCards, setCoachingCards] = useState<Insight[]>([]);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [lastInsightsRefresh, setLastInsightsRefresh] = useState<Date | null>(null);
 
   // Pricing editor
   const [showPricingEditor, setShowPricingEditor] = useState(false);
@@ -94,6 +97,29 @@ export default function CreatorDashboardV1() {
     navigator.clipboard.writeText(link).catch(() => {});
     setProfileLinkCopied(true);
     setTimeout(() => setProfileLinkCopied(false), 2000);
+  }
+
+  async function refreshInsights() {
+    if (!token || !isVerifiedCreator || insightsLoading || aiLoading) return;
+    setInsightsLoading(true);
+    setAiLoading(true);
+    await Promise.all([
+      fetch(`${API_BASE}/api/intelligence/my-insights`, { headers: authHeaders })
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d.insights)) setCoachingCards(d.insights); })
+        .catch(() => {})
+        .finally(() => setInsightsLoading(false)),
+      fetch(`${API_BASE}/api/ai/creator-insights`, {
+        method: 'POST',
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+        .then(r => r.json())
+        .then(d => { if (Array.isArray(d.suggestions)) setAiSuggestions(d.suggestions); })
+        .catch(() => {})
+        .finally(() => setAiLoading(false)),
+    ]);
+    setLastInsightsRefresh(new Date());
   }
 
   const progress = useCreatorProgress(
@@ -167,10 +193,12 @@ export default function CreatorDashboardV1() {
       .then(r => r.json())
       .then(d => { if (d.score !== undefined) setHealth(d); })
       .catch(() => {});
+    setInsightsLoading(true);
     fetch(`${API_BASE}/api/intelligence/my-insights`, { headers: authHeaders })
       .then(r => r.json())
       .then(d => { if (Array.isArray(d.insights)) setCoachingCards(d.insights); })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => { setInsightsLoading(false); setLastInsightsRefresh(new Date()); });
   }, [token, isVerifiedCreator]);
 
   useEffect(() => {
@@ -902,54 +930,102 @@ export default function CreatorDashboardV1() {
                 </div>
               )}
 
-              {/* Studio Coaching */}
-              {coachingCards.length > 0 && (
-                <div className="card-surface p-5 rounded-xl">
-                  <div className="flex items-center gap-2 mb-4">
-                    <AlertCircle className="w-4 h-4 text-gold/70" />
-                    <h3 className="font-serif text-base text-white">Studio Coaching</h3>
+              {/* ABMIE-X Advisor — full-width panel */}
+              {isVerifiedCreator && (
+                <div className="card-surface rounded-xl overflow-hidden">
+                  {/* Header */}
+                  <div className="flex items-center gap-3 px-6 py-5 border-b border-white/5">
+                    <div className="w-9 h-9 rounded-xl bg-gold/10 border border-gold/20 flex items-center justify-center flex-shrink-0">
+                      <Brain className="w-4.5 h-4.5 text-gold" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2.5">
+                        <h3 className="font-serif text-lg text-white">ABMIE-X Advisor</h3>
+                        <span className="text-[9px] font-bold tracking-[0.14em] uppercase text-gold/70 border border-gold/25 bg-gold/8 rounded px-1.5 py-0.5">AI</span>
+                      </div>
+                      <p className="text-xs text-arc-muted mt-0.5">Personalized insights from your real studio data</p>
+                    </div>
+                    <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+                      {lastInsightsRefresh && !insightsLoading && !aiLoading && (
+                        <span className="text-[10px] text-arc-muted hidden sm:block">
+                          Updated {timeAgo(lastInsightsRefresh.toISOString())}
+                        </span>
+                      )}
+                      <button
+                        onClick={refreshInsights}
+                        disabled={insightsLoading || aiLoading}
+                        title="Refresh insights"
+                        aria-label="Refresh ABMIE-X insights"
+                        className="p-2 rounded-lg text-arc-muted hover:text-white hover:bg-white/6 transition-colors disabled:opacity-40"
+                      >
+                        <RefreshCw className={`w-4 h-4 ${insightsLoading || aiLoading ? 'animate-spin' : ''}`} />
+                      </button>
+                    </div>
                   </div>
-                  <div className="space-y-3">
-                    {coachingCards.map(card => <CoachingCard key={card.type} insight={card} />)}
-                  </div>
-                </div>
-              )}
 
-              {/* AI Studio Advisor */}
-              {isVerifiedCreator && (aiLoading || aiSuggestions.length > 0) && (
-                <div className="card-surface p-5 rounded-xl">
-                  <div className="flex items-center gap-2 mb-4">
-                    <Sparkles className="w-4 h-4 text-gold/70" />
-                    <h3 className="font-serif text-base text-white">Studio Advisor</h3>
-                    <span className="ml-auto text-[10px] text-arc-muted tracking-widest uppercase">AI</span>
-                  </div>
-                  {aiLoading ? (
-                    <div className="space-y-3">
-                      {[80, 65, 90, 55, 75].map(w => (
-                        <div key={w} className="flex flex-col gap-1.5">
-                          <div className="h-2.5 rounded-full bg-white/6 animate-pulse" style={{ width: `${w * 0.4}%` }} />
-                          <div className="h-3 rounded-full bg-white/4 animate-pulse" style={{ width: `${w}%` }} />
+                  {/* Rule-based coaching cards */}
+                  {insightsLoading && coachingCards.length === 0 ? (
+                    <div className="px-6 py-6 space-y-4">
+                      {[72, 88, 60, 80].map(w => (
+                        <div key={w} className="flex flex-col gap-2">
+                          <div className="h-2.5 rounded-full bg-white/6 animate-pulse" style={{ width: `${w * 0.45}%` }} />
+                          <div className="h-10 rounded-xl bg-white/4 animate-pulse" style={{ width: `${w}%` }} />
                         </div>
                       ))}
                     </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {aiSuggestions.map((s, i) => {
-                        const catColor: Record<string, string> = {
-                          Pricing: 'text-gold bg-gold/10 border-gold/25',
-                          Growth: 'text-arc-success bg-arc-success/10 border-arc-success/25',
-                          Content: 'text-blue-400 bg-blue-400/10 border-blue-400/25',
-                          Profile: 'text-arc-secondary bg-white/5 border-white/10',
-                          Bundles: 'text-amber-300 bg-amber-300/10 border-amber-300/25',
-                          'Custom Requests': 'text-violet-300 bg-violet-500/10 border-violet-500/25',
-                        };
-                        return (
-                          <div key={i} className="flex flex-col gap-1.5">
-                            <span className={`self-start text-[10px] font-medium px-2 py-0.5 rounded-full border ${catColor[s.category] ?? catColor.Profile}`}>{s.category}</span>
-                            <p className="text-xs text-arc-secondary leading-relaxed">{s.text}</p>
-                          </div>
-                        );
-                      })}
+                  ) : coachingCards.length > 0 ? (
+                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                      {coachingCards.map(card => <CoachingCard key={card.type} insight={card} />)}
+                    </div>
+                  ) : !aiLoading && aiSuggestions.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-3 px-6 py-12 text-center">
+                      <div className="w-10 h-10 rounded-full bg-arc-success/10 border border-arc-success/20 flex items-center justify-center">
+                        <CheckCircle className="w-5 h-5 text-arc-success" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-arc-success">Your studio looks healthy</p>
+                        <p className="text-xs text-arc-muted mt-1">No active issues detected. Keep posting and your audience will grow.</p>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {/* AI Advisor section */}
+                  {(aiLoading || aiSuggestions.length > 0) && (
+                    <div className={`border-t border-white/5 px-6 py-5 ${coachingCards.length === 0 && !insightsLoading ? '' : ''}`}>
+                      <div className="flex items-center gap-2 mb-4">
+                        <Sparkles className="w-3.5 h-3.5 text-gold/60" />
+                        <p className="text-[10px] font-semibold tracking-[0.14em] uppercase text-arc-muted">AI-Generated Suggestions</p>
+                      </div>
+                      {aiLoading && aiSuggestions.length === 0 ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {[80, 65, 90, 55].map(w => (
+                            <div key={w} className="flex flex-col gap-2 p-3 rounded-xl bg-white/3 border border-white/5">
+                              <div className="h-2.5 rounded-full bg-white/6 animate-pulse" style={{ width: `${w * 0.45}%` }} />
+                              <div className="h-3 rounded-full bg-white/4 animate-pulse" style={{ width: `${w}%` }} />
+                              <div className="h-3 rounded-full bg-white/4 animate-pulse" style={{ width: `${w * 0.75}%` }} />
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          {aiSuggestions.map((s, i) => {
+                            const catColor: Record<string, string> = {
+                              Pricing: 'text-gold bg-gold/10 border-gold/25',
+                              Growth: 'text-arc-success bg-arc-success/10 border-arc-success/25',
+                              Content: 'text-blue-400 bg-blue-400/10 border-blue-400/25',
+                              Profile: 'text-arc-secondary bg-white/5 border-white/10',
+                              Bundles: 'text-amber-300 bg-amber-300/10 border-amber-300/25',
+                              'Custom Requests': 'text-violet-300 bg-violet-500/10 border-violet-500/25',
+                            };
+                            return (
+                              <div key={i} className="flex flex-col gap-2 p-4 rounded-xl bg-white/3 border border-white/6 hover:border-white/10 transition-colors">
+                                <span className={`self-start text-[10px] font-semibold px-2 py-0.5 rounded-full border ${catColor[s.category] ?? catColor.Profile}`}>{s.category}</span>
+                                <p className="text-xs text-arc-secondary leading-relaxed">{s.text}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
