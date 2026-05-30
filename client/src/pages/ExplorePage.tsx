@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Search, SlidersHorizontal, Lock, TrendingUp, Sparkles, Crown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Reveal } from '../components/motion';
 import CreatorCard from '../components/creators/CreatorCard';
 import FeedCard from '../components/content/FeedCard';
 import LiveActivity from '../components/explore/LiveActivity';
@@ -595,9 +596,9 @@ export default function ExplorePage() {
             {!creatorLoading && creatorError && <p className="text-arc-error text-sm text-center py-10">{creatorError}</p>}
 
             {!creatorLoading && !creatorError && creators.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 xl:gap-7">
+              <Reveal stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 xl:gap-7">
                 {creators.map((creator) => <CreatorCard key={creator.id} creator={creator} />)}
-              </div>
+              </Reveal>
             )}
 
             {!creatorLoading && !creatorError && creators.length === 0 && (

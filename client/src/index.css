@@ -41,6 +41,23 @@
   .btn-gold {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-sans font-medium text-sm tracking-wide text-bg-primary bg-gold hover:bg-gold-hover rounded transition-all duration-200;
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.25);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .btn-gold::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(
+      105deg,
+      transparent 40%,
+      rgba(255,255,255,0.10) 50%,
+      transparent 60%
+    );
+    background-size: 200% 100%;
+    animation: shimmer-sweep 3s linear infinite;
+    pointer-events: none;
   }
 
   .btn-gold:hover {
