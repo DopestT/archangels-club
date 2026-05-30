@@ -10,6 +10,7 @@ interface CreatorOnboardingChecklistProps {
   allComplete: boolean;
   userId: string;
   onStripeSetup?: () => void;
+  onEditProfile?: () => void;
 }
 
 const STORAGE_PREFIX = 'arc_checklist_dismissed_';
@@ -20,6 +21,7 @@ export default function CreatorOnboardingChecklist({
   allComplete,
   userId,
   onStripeSetup,
+  onEditProfile,
 }: CreatorOnboardingChecklistProps) {
   const storageKey = `${STORAGE_PREFIX}${userId}`;
 
@@ -116,7 +118,9 @@ export default function CreatorOnboardingChecklist({
                 key={item.key}
                 item={item}
                 isPayoutItem={item.key === 'payout_setup'}
+                isProfileItem={item.key === 'avatar_set'}
                 onStripeSetup={onStripeSetup}
+                onEditProfile={onEditProfile}
               />
             ))
           )}
@@ -154,25 +158,25 @@ export default function CreatorOnboardingChecklist({
 function ChecklistRow({
   item,
   isPayoutItem,
+  isProfileItem,
   onStripeSetup,
+  onEditProfile,
 }: {
   item: ChecklistItem;
   isPayoutItem: boolean;
+  isProfileItem: boolean;
   onStripeSetup?: () => void;
+  onEditProfile?: () => void;
 }) {
-  // Use the real Stripe Connect hook directly for payout items
   const { isLoading, startOnboarding } = useStripeConnect();
 
   function handlePayoutClick() {
-    // Prefer the hook's startOnboarding over the legacy prop
     startOnboarding();
-    // Also call parent callback if provided (e.g. to refetch onboarding state)
     onStripeSetup?.();
   }
 
   return (
     <div className={`flex items-center gap-4 px-5 py-3.5 transition-colors ${item.completed ? 'opacity-50' : ''}`}>
-      {/* Status dot */}
       <div className={`w-5 h-5 rounded-full border flex items-center justify-center flex-shrink-0 transition-all ${
         item.completed
           ? 'bg-arc-success/15 border-arc-success/30'
@@ -183,7 +187,6 @@ function ChecklistRow({
           : <span className="w-1.5 h-1.5 rounded-full bg-white/30 inline-block" />}
       </div>
 
-      {/* Label + hint */}
       <div className="flex-1 min-w-0">
         <p className={`text-sm ${item.completed ? 'text-arc-muted line-through' : 'text-white'}`}>
           {item.label}
@@ -193,7 +196,6 @@ function ChecklistRow({
         )}
       </div>
 
-      {/* CTA */}
       {!item.completed && (
         isPayoutItem ? (
           <button
@@ -202,6 +204,13 @@ function ChecklistRow({
             className="text-xs font-medium text-gold hover:underline flex-shrink-0 disabled:opacity-50"
           >
             {isLoading ? 'Setting up…' : item.actionLabel}
+          </button>
+        ) : isProfileItem && onEditProfile ? (
+          <button
+            onClick={onEditProfile}
+            className="text-xs font-medium text-gold hover:underline flex-shrink-0"
+          >
+            {item.actionLabel}
           </button>
         ) : (
           <Link

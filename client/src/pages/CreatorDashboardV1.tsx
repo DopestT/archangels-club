@@ -11,7 +11,7 @@ import {
   Upload, DollarSign, Users, TrendingUp, MessageCircle, ChevronRight,
   Star, CheckCircle, Crown, ExternalLink, Zap, Copy, Check,
   LayoutGrid, AlertCircle, Eye, Sparkles, Link2, Trash2,
-  Plus, Share2, BarChart2, Lock, ArrowRight, XCircle,
+  Plus, Share2, BarChart2, Lock, ArrowRight, XCircle, X, Camera,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
@@ -72,6 +72,7 @@ export default function CreatorDashboardV1() {
   const [creatingInvite, setCreatingInvite] = useState(false);
   const [contentCounts, setContentCounts] = useState<ContentCounts | null>(null);
   const [profileLinkCopied, setProfileLinkCopied] = useState(false);
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [aiSuggestions, setAiSuggestions] = useState<{ category: string; text: string }[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [health, setHealth] = useState<{ score: number; level: string; signals: { label: string; ok: boolean; note: string }[] } | null>(null);
@@ -95,6 +96,7 @@ export default function CreatorDashboardV1() {
     stripeStatus?.onboarded ?? false,
     user?.avatar_url,
     contentCounts?.published ?? null,
+    user?.username ?? '',
   );
 
   useEffect(() => {
@@ -301,6 +303,16 @@ export default function CreatorDashboardV1() {
 
   return (
     <>
+      {/* ── Profile edit modal ─────────────────────────────────────────────── */}
+      {showProfileEdit && (
+        <ProfileEditModal
+          user={user}
+          token={token}
+          onClose={() => setShowProfileEdit(false)}
+          onSaved={() => { refreshUser(); setShowProfileEdit(false); }}
+        />
+      )}
+
       {user && (
         <CreatorWelcomeReveal
           userId={user.id}
@@ -510,6 +522,7 @@ export default function CreatorDashboardV1() {
               allComplete={progress.checklistAllComplete}
               userId={user.id}
               onStripeSetup={startStripeOnboarding}
+              onEditProfile={() => setShowProfileEdit(true)}
             />
           )}
 
@@ -1130,5 +1143,141 @@ export default function CreatorDashboardV1() {
         </div>
       </div>
     </>
+  );
+}
+
+// ─── Profile Edit Modal ────────────────────────────────────────────────────────
+
+function ProfileEditModal({
+  user,
+  token,
+  onClose,
+  onSaved,
+}: {
+  user: any;
+  token: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [bio, setBio] = useState('');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(user?.avatar_url ?? null);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    setSaving(true);
+    setError(null);
+    try {
+      let avatarUrl: string | null = null;
+
+      if (avatarFile) {
+        const form = new FormData();
+        form.append('file', avatarFile);
+        const uploadRes = await fetch(`${API_BASE}/api/media/upload`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: form,
+        });
+        const uploadData = await uploadRes.json();
+        if (!uploadData.success) throw new Error(uploadData.error ?? 'Upload failed');
+        avatarUrl = uploadData.asset.secure_url;
+      }
+
+      if (avatarUrl) {
+        const r = await fetch(`${API_BASE}/api/auth/profile`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ avatar_url: avatarUrl }),
+        });
+        if (!r.ok) throw new Error('Failed to save avatar');
+      }
+
+      if (bio.trim()) {
+        const r = await fetch(`${API_BASE}/api/creators/profile`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ bio: bio.trim() }),
+        });
+        if (!r.ok) throw new Error('Failed to save bio');
+      }
+
+      onSaved();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    setAvatarFile(f);
+    setAvatarPreview(URL.createObjectURL(f));
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-bg-surface border border-white/10 rounded-2xl overflow-hidden">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-white/8">
+          <h2 className="font-serif text-lg text-white">Edit Profile</h2>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-arc-muted hover:text-white hover:bg-white/8 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Avatar */}
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <div className="w-20 h-20 rounded-full overflow-hidden border-2 border-gold/30 bg-bg-hover flex items-center justify-center">
+                {avatarPreview
+                  ? <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" />
+                  : <span className="font-serif text-2xl text-gold">{(user?.display_name ?? 'C')[0]}</span>
+                }
+              </div>
+              <label className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-gold flex items-center justify-center cursor-pointer hover:bg-gold/90 transition-colors">
+                <Camera className="w-3.5 h-3.5 text-black" />
+                <input type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              </label>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-white">{user?.display_name}</p>
+              <p className="text-xs text-arc-muted mt-0.5">Click the camera to upload a photo</p>
+            </div>
+          </div>
+
+          {/* Bio */}
+          <div>
+            <label className="block text-xs text-arc-secondary mb-1.5">Bio</label>
+            <textarea
+              value={bio}
+              onChange={e => setBio(e.target.value)}
+              placeholder={user?.bio || 'Tell members about yourself…'}
+              rows={3}
+              maxLength={300}
+              className="w-full bg-bg-hover border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder:text-arc-muted resize-none focus:outline-none focus:border-gold/40 transition-colors"
+            />
+            <p className="text-xs text-arc-muted mt-1 text-right">{bio.length}/300</p>
+          </div>
+
+          {error && <p className="text-xs text-arc-error">{error}</p>}
+        </div>
+
+        <div className="flex items-center gap-3 px-6 py-4 border-t border-white/8">
+          <button onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-white/12 text-sm text-arc-secondary hover:text-white transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || (!avatarFile && !bio.trim())}
+            className="flex-1 py-2.5 rounded-xl text-sm font-medium bg-gold text-black hover:bg-gold/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {saving ? 'Saving…' : 'Save Profile'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
