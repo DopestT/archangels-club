@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { Lock, ChevronRight, Shield, Crown, Star, ArrowRight, Check, Users, Image, TrendingUp, Zap, MessageCircle, Gift } from 'lucide-react';
 import { sampleCreators, sampleContent } from '../data/seed';
 import Avatar from '../components/ui/Avatar';
@@ -8,6 +9,7 @@ import Logo from '../components/brand/Logo';
 import { formatCurrency } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { useT } from '../context/LanguageContext';
+import { Reveal, AmbientCanvas } from '../components/motion';
 
 interface PlatformStats { creator_count: number; member_count: number; content_count: number }
 interface LiveCreator { id: string; display_name: string; username: string; avatar_url: string; subscription_price: number; is_verified_creator: boolean; tags: string[] }
@@ -60,43 +62,65 @@ export default function LandingPage() {
         </video>
         <div className="absolute inset-0 bg-black/35 pointer-events-none" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/50 pointer-events-none" />
+        <AmbientCanvas className="absolute inset-0 w-full h-full opacity-70" particleCount={32} />
 
         <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-16 pb-24">
-          <div className="flex justify-center mb-10">
-            <Logo variant="primary" size="lg" />
-          </div>
+          <Reveal delay={0.1}>
+            <div className="flex justify-center mb-10">
+              <Logo variant="primary" size="lg" />
+            </div>
 
-          <div className="inline-flex items-center gap-2 members-pill mb-8">
-            <Lock className="w-3 h-3" />
-            {t('landing.access_only')}
-          </div>
+            <div className="inline-flex items-center gap-2 members-pill mb-8">
+              <Lock className="w-3 h-3" />
+              {t('landing.access_only')}
+            </div>
 
-          <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl text-white mb-6 leading-tight">
-            {t('landing.hero_line1')}<br />
-            <em className="text-gradient-gold not-italic">{t('landing.hero_line2')}</em>
-          </h1>
+            <motion.h1
+              className="font-serif text-5xl sm:text-6xl lg:text-7xl text-white mb-6 leading-tight"
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.85, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {t('landing.hero_line1')}<br />
+              <em className="text-gradient-gold not-italic">{t('landing.hero_line2')}</em>
+            </motion.h1>
 
-          <p className="text-lg text-arc-secondary max-w-2xl mx-auto leading-relaxed mb-10">
-            {t('landing.hero_body')}
-          </p>
+            <p className="text-lg text-arc-secondary max-w-2xl mx-auto leading-relaxed mb-10">
+              {t('landing.hero_body')}
+            </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
-            {isAuthenticated ? (
-              <>
-                <Link to="/explore" className="btn-gold px-8 py-4 text-base gap-3">
-                  {t('landing.cta_secondary')} <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link to="/dashboard" className="btn-outline px-8 py-4 text-base">{t('nav.dashboard')}</Link>
-              </>
-            ) : (
-              <>
-                <Link to="/signup" className="btn-gold px-8 py-4 text-base gap-3">
-                  {t('landing.cta_primary')} <ArrowRight className="w-4 h-4" />
-                </Link>
-                <Link to="/explore" className="btn-outline px-8 py-4 text-base">{t('landing.cta_explore')}</Link>
-              </>
-            )}
-          </div>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-10">
+              {isAuthenticated ? (
+                <>
+                  <div className="relative inline-flex">
+                    <motion.span
+                      className="absolute inset-0 rounded-xl pointer-events-none"
+                      animate={{ boxShadow: ['0 0 0 0px rgba(212,175,55,0)', '0 0 0 6px rgba(212,175,55,0.12)', '0 0 0 0px rgba(212,175,55,0)'] }}
+                      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <Link to="/explore" className="btn-gold px-8 py-4 text-base gap-3">
+                      {t('landing.cta_secondary')} <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                  <Link to="/dashboard" className="btn-outline px-8 py-4 text-base">{t('nav.dashboard')}</Link>
+                </>
+              ) : (
+                <>
+                  <div className="relative inline-flex">
+                    <motion.span
+                      className="absolute inset-0 rounded-xl pointer-events-none"
+                      animate={{ boxShadow: ['0 0 0 0px rgba(212,175,55,0)', '0 0 0 6px rgba(212,175,55,0.12)', '0 0 0 0px rgba(212,175,55,0)'] }}
+                      transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+                    />
+                    <Link to="/signup" className="btn-gold px-8 py-4 text-base gap-3">
+                      {t('landing.cta_primary')} <ArrowRight className="w-4 h-4" />
+                    </Link>
+                  </div>
+                  <Link to="/explore" className="btn-outline px-8 py-4 text-base">{t('landing.cta_explore')}</Link>
+                </>
+              )}
+            </div>
+          </Reveal>
 
           {/* Live platform stats */}
           {(creatorCount !== null || memberCount !== null) && (
@@ -178,7 +202,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          <Reveal stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
               { icon: <Lock className="w-5 h-5" />, title: 'Exclusive Content', body: 'Access locked drops, private photo sets, and video content not available anywhere else.' },
               { icon: <MessageCircle className="w-5 h-5" />, title: 'Direct Messaging', body: 'Message creators directly. No bots, no middlemen — real conversations.' },
@@ -195,7 +219,7 @@ export default function LandingPage() {
                 <p className="text-sm text-arc-secondary leading-relaxed">{body}</p>
               </div>
             ))}
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -248,7 +272,7 @@ export default function LandingPage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <Reveal stagger className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {displayCreators.map((creator) => (
               <Link key={creator.id} to={`/creator/${creator.username}`} className="group text-center">
                 <div className="relative mx-auto mb-3 w-16 h-16">
@@ -263,7 +287,7 @@ export default function LandingPage() {
                 <p className="text-xs text-arc-muted">{formatCurrency(creator.subscription_price)}/mo</p>
               </Link>
             ))}
-          </div>
+          </Reveal>
         </div>
       </section>
 
