@@ -161,23 +161,25 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
       if (!isPubliclyVisible) { res.status(404).json({ error: 'Content not found' }); return; }
     }
 
+    const textBody = content.content_type === 'text' ? (content.content_body ?? '') : undefined;
+
     // Admin: unrestricted access to all content
     if (req.auth!.role === 'admin') {
-      res.json({ unlocked: true, media_url: null, is_subscribed: false,
+      res.json({ unlocked: true, media_url: null, content_body: textBody, is_subscribed: false,
         discounted_price: null, is_admin_preview: true, is_creator_preview: false });
       return;
     }
 
     // Creator viewing their own content: no paywall, cannot purchase
     if (content.creator_user_id === req.auth!.userId) {
-      res.json({ unlocked: true, media_url: null, is_subscribed: false,
+      res.json({ unlocked: true, media_url: null, content_body: textBody, is_subscribed: false,
         discounted_price: null, is_admin_preview: false, is_creator_preview: true });
       return;
     }
 
     if (content.access_type === 'free') {
       // Free content: return URL directly, no token needed
-      res.json({ unlocked: true, media_url: content.media_url, is_subscribed: false,
+      res.json({ unlocked: true, media_url: content.media_url, content_body: textBody, is_subscribed: false,
         discounted_price: null, is_admin_preview: false, is_creator_preview: false });
       return;
     }
@@ -198,8 +200,7 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     // Subscriber-only content: accessible to active subscribers without unlock fee
     if (content.access_type === 'subscribers') {
       if (isSubscribed) {
-        // media_url omitted — client fetches via /api/content/:id/stream-url
-        res.json({ unlocked: true, media_url: null, is_subscribed: true,
+        res.json({ unlocked: true, media_url: null, content_body: textBody, is_subscribed: true,
           discounted_price: null, is_admin_preview: false, is_creator_preview: false });
       } else {
         res.json({ unlocked: false, media_url: null, is_subscribed: false,
@@ -214,8 +215,7 @@ router.get('/:id/my-access', requireAuth, async (req, res) => {
     );
 
     if (unlock) {
-      // media_url omitted — client fetches via /api/content/:id/stream-url
-      res.json({ unlocked: true, media_url: null, is_subscribed: isSubscribed,
+      res.json({ unlocked: true, media_url: null, content_body: textBody, is_subscribed: isSubscribed,
         discounted_price: null, is_admin_preview: false, is_creator_preview: false });
     } else {
       res.json({ unlocked: false, media_url: null, is_subscribed: isSubscribed,
@@ -285,13 +285,19 @@ router.get('/:id/stream-url', requireAuth, async (req, res) => {
 // publish_at: ISO timestamp; if set and future, admin approval will result in 'scheduled'
 router.post('/', requireAuth, requireCreator, async (req, res) => {
   try {
-    const { title, description, content_type, access_type, preview_url, media_url, price, publish_at } = req.body;
+    const { title, description, content_type, access_type, preview_url, media_url, price, publish_at, content_body } = req.body;
     const rawStatus = req.body.status;
     const status: 'draft' | 'pending_review' = rawStatus === 'pending_review' ? 'pending_review' : 'draft';
     console.log(`[content/create] userId=${req.auth!.userId} status=${status} content_type=${content_type}`);
 
     if (!title || !content_type || !access_type) {
       res.status(400).json({ error: 'title, content_type, and access_type are required.' });
+      return;
+    }
+
+    // Text content requires a body when submitting for review
+    if (status === 'pending_review' && content_type === 'text' && !String(content_body ?? '').trim()) {
+      res.status(400).json({ error: 'Text content requires a body before submitting for review.' });
       return;
     }
 
@@ -339,10 +345,11 @@ router.post('/', requireAuth, requireCreator, async (req, res) => {
 
     const id = crypto.randomUUID();
     await execute(
-      `INSERT INTO content (id, creator_id, title, description, content_type, access_type, preview_url, media_url, price, status, publish_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      `INSERT INTO content (id, creator_id, title, description, content_type, access_type, preview_url, media_url, price, status, publish_at, content_body)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [id, profile.id, title, description ?? '', content_type, access_type,
-       preview_url ?? null, media_url ?? null, price ?? 0, status, publishAt]
+       preview_url ?? null, media_url ?? null, price ?? 0, status, publishAt,
+       String(content_body ?? '').trim()]
     );
 
     // First-post trigger fires only when submitting for review, not on drafts
@@ -385,7 +392,7 @@ router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
       return;
     }
 
-    const { title, description, access_type, price, preview_url, media_url, publish_at, max_unlocks, subscriber_discount_pct } = req.body;
+    const { title, description, content_body, access_type, price, preview_url, media_url, publish_at, max_unlocks, subscriber_discount_pct } = req.body;
     const isResubmit = ['rejected', 'changes_requested'].includes(row.status);
 
     // Title cannot be empty when resubmitting
@@ -430,6 +437,7 @@ router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
 
     if (title               !== undefined) { setClauses.push(`title = $${pIdx++}`);                vals.push(title); }
     if (description         !== undefined) { setClauses.push(`description = $${pIdx++}`);          vals.push(description); }
+    if (content_body        !== undefined) { setClauses.push(`content_body = $${pIdx++}`);         vals.push(String(content_body ?? '').trim()); }
     if (access_type         !== undefined) { setClauses.push(`access_type = $${pIdx++}`);          vals.push(access_type); }
     if (price               !== undefined) { setClauses.push(`price = $${pIdx++}`);                vals.push(price); }
     if (preview_url         !== undefined) { setClauses.push(`preview_url = $${pIdx++}`);          vals.push(preview_url ?? null); }

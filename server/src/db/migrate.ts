@@ -542,6 +542,8 @@ const DDL = `
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(content_id, reviewer_id)
   );
+
+  ALTER TABLE content ADD COLUMN IF NOT EXISTS content_body TEXT NOT NULL DEFAULT '';
 `;
 
 export async function runMigrations(): Promise<void> {

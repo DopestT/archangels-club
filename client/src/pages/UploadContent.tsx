@@ -137,6 +137,7 @@ export default function UploadContent() {
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [publishAt, setPublishAt] = useState('');
+  const [textBody, setTextBody] = useState('');
   const [draftNotice, setDraftNotice] = useState<{
     title: string;
     description: string;
@@ -255,6 +256,7 @@ export default function UploadContent() {
             access_type: pricingConfig.accessType,
             price: pricingConfig.price ?? 0,
             status: 'draft',
+            ...(contentType === 'text' ? { content_body: textBody.trim() } : {}),
           }),
         });
         if (draftRes.status === 401) { logout(); navigate('/login?next=/upload'); return; }
@@ -311,6 +313,7 @@ export default function UploadContent() {
         access_type: pricingConfig.accessType,
         price: pricingConfig.price ?? 0,
       };
+      if (contentType === 'text') patchBody.content_body = textBody.trim();
       if (mediaUrl) patchBody.media_url = mediaUrl;
       if (previewUrl) patchBody.preview_url = previewUrl;
       if (scheduleEnabled && publishAt) patchBody.publish_at = new Date(publishAt).toISOString();
@@ -532,11 +535,25 @@ export default function UploadContent() {
               </div>
             </div>
 
-            {/* File upload */}
+            {/* File upload / Text editor */}
             <div className="card-surface p-6 rounded-xl">
-              <h3 className="font-serif text-lg text-white mb-4">File</h3>
+              <h3 className="font-serif text-lg text-white mb-4">{contentType === 'text' ? 'Content' : 'File'}</h3>
 
-              {!activeFile ? (
+              {contentType === 'text' ? (
+                <div>
+                  <textarea
+                    value={textBody}
+                    onChange={e => setTextBody(e.target.value)}
+                    placeholder="Write your locked content here. Members pay to read this — make it worth it."
+                    className="input-dark min-h-64 resize-y w-full leading-relaxed text-sm"
+                    maxLength={50000}
+                  />
+                  <div className="flex items-center justify-between mt-2">
+                    <p className="text-xs text-arc-muted">Markdown is supported</p>
+                    <p className="text-xs text-arc-muted">{textBody.length.toLocaleString()} / 50,000</p>
+                  </div>
+                </div>
+              ) : !activeFile ? (
                 <div
                   onClick={() => fileRef.current?.click()}
                   className="border-2 border-dashed border-white/10 hover:border-gold/40 rounded-xl p-10 text-center cursor-pointer transition-all duration-200 hover:bg-gold-muted/20"
@@ -549,9 +566,7 @@ export default function UploadContent() {
                       ? 'JPG, PNG, GIF, WebP'
                       : contentType === 'video'
                       ? 'MP4, MOV, WebM'
-                      : contentType === 'audio'
-                      ? 'MP3, M4A, WAV, OGG, AAC'
-                      : 'PDF, TXT, MD'}
+                      : 'MP3, M4A, WAV, OGG, AAC'}
                   </p>
                 </div>
               ) : (
@@ -619,9 +634,7 @@ export default function UploadContent() {
                     ? 'image/*'
                     : contentType === 'video'
                     ? 'video/*'
-                    : contentType === 'audio'
-                    ? 'audio/*'
-                    : '.pdf,.txt,.md'
+                    : 'audio/*'
                 }
                 onChange={handleFileChange}
               />
@@ -798,7 +811,7 @@ export default function UploadContent() {
               </button>
               <button
                 onClick={handleSave}
-                disabled={busy || !title.trim()}
+                disabled={busy || !title.trim() || (contentType === 'text' && !textBody.trim())}
                 className="btn-gold flex-1 py-3.5 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {busy ? (

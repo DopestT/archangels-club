@@ -216,6 +216,7 @@ export default function LockedContentPage() {
   const [subscribing,     setSubscribing]    = useState(false);
   const [subscribeError,  setSubscribeError] = useState<string | null>(null);
   const [streamLoading, setStreamLoading] = useState(false);
+  const [contentBody, setContentBody] = useState<string | null>(null);
   const [moreContent,   setMoreContent]   = useState<GlobalContent[]>([]);
 
   // Reviews
@@ -283,7 +284,9 @@ export default function LockedContentPage() {
         if (data.is_creator_preview) setIsCreatorPreview(true);
         if (data.unlocked) {
           setUnlocked(true);
-          if (data.media_url) {
+          if (data.content_body != null) {
+            setContentBody(data.content_body);
+          } else if (data.media_url) {
             setMediaUrl(data.media_url);
           } else {
             fetchStreamUrl();
@@ -322,7 +325,9 @@ export default function LockedContentPage() {
       .then(data => {
         if (data.unlocked) {
           setUnlocked(true);
-          if (data.media_url) {
+          if (data.content_body != null) {
+            setContentBody(data.content_body);
+          } else if (data.media_url) {
             setMediaUrl(data.media_url);
           } else {
             fetchStreamUrl();
@@ -613,6 +618,14 @@ export default function LockedContentPage() {
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-bg-primary/80 backdrop-blur-sm">
               <div className="w-10 h-10 border-2 border-gold/30 border-t-gold rounded-full animate-spin" />
               <p className="text-xs text-arc-secondary">Loading media…</p>
+            </div>
+          )}
+
+          {unlocked && content.content_type === 'text' && contentBody != null && (
+            <div className="p-6 md:p-8">
+              <div className="prose prose-invert prose-sm max-w-none text-arc-secondary leading-relaxed whitespace-pre-wrap">
+                {contentBody || <span className="text-arc-muted italic">No content body.</span>}
+              </div>
             </div>
           )}
 
