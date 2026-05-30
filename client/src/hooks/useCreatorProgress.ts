@@ -126,7 +126,7 @@ export function useCreatorProgress(
         hint: 'Your photo is the first thing members see. Own it.',
         completed: avatarSet,
         actionLabel: 'Edit Profile',
-        actionTo: '/settings',
+        actionTo: '/creator/onboarding',
       },
       {
         key: 'first_upload',

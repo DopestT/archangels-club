@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import Stripe from 'stripe';
+import crypto from 'crypto';
 import { requireAuth, requireCreator } from '../middleware/auth.js';
 import { queryOne, execute } from '../db/schema.js';
 
@@ -97,11 +98,18 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
     );
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
 
+    await execute(
+      `INSERT INTO creator_profiles (id, user_id, bio, is_approved, application_status)
+       VALUES ($1, $2, '', 1, 'approved')
+       ON CONFLICT (user_id) DO NOTHING`,
+      [crypto.randomUUID(), req.auth!.userId]
+    );
+
     const profile = await queryOne<{ id: string; stripe_account_id: string | null }>(
       'SELECT id, stripe_account_id FROM creator_profiles WHERE user_id = $1',
       [req.auth!.userId]
     );
-    if (!profile) { res.status(404).json({ error: 'Creator profile not found' }); return; }
+    if (!profile) { res.status(500).json({ error: 'Failed to initialize creator profile' }); return; }
 
     let accountId = profile.stripe_account_id;
 
@@ -137,13 +145,17 @@ router.post('/connect/start', requireAuth, requireCreator, async (req, res) => {
     console.log('[stripe/connect/start] account link generated for:', accountId);
     res.json({ url: accountLink.url });
   } catch (err: any) {
-    // Log full Stripe error detail
     if (err?.type) {
       console.error('[stripe/connect/start] Stripe error — type:', err.type, 'code:', err.code, 'message:', err.message);
-      res.status(500).json({ error: `Stripe error: ${err.message}`, type: err.type, code: err.code });
+      // Platform Connect profile not configured yet — don't leak the internal Stripe URL to users
+      if (err.message?.includes('managing losses') || err.message?.includes('platform-profile')) {
+        res.status(503).json({ error: 'Payout setup is temporarily unavailable. Please try again later.' });
+      } else {
+        res.status(500).json({ error: 'Payout setup unavailable. Please try again shortly.' });
+      }
     } else {
       console.error('[stripe/connect/start] error:', err);
-      res.status(500).json({ error: err?.message ?? 'Failed to start Stripe onboarding' });
+      res.status(500).json({ error: 'Payout setup unavailable. Please try again shortly.' });
     }
   }
 });

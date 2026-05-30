@@ -431,6 +431,14 @@ router.post('/connect/onboard', requireAuth, requireCreator, async (req, res) =>
   try {
     const stripe = getStripe();
 
+    // Auto-create creator profile if the approved creator somehow lacks one
+    await execute(
+      `INSERT INTO creator_profiles (id, user_id, bio, is_approved, application_status)
+       VALUES ($1, $2, '', 1, 'approved')
+       ON CONFLICT (user_id) DO NOTHING`,
+      [crypto.randomUUID(), req.auth!.userId]
+    );
+
     const profile = await queryOne<{
       id: string;
       stripe_account_id: string | null;
@@ -442,7 +450,7 @@ router.post('/connect/onboard', requireAuth, requireCreator, async (req, res) =>
     );
 
     if (!profile) {
-      res.status(404).json({ error: 'Creator profile not found.' });
+      res.status(500).json({ error: 'Failed to initialize creator profile.' });
       return;
     }
 
@@ -498,6 +506,10 @@ router.post('/connect/onboard', requireAuth, requireCreator, async (req, res) =>
     if (stripeErr?.type?.startsWith('Stripe')) {
       console.error('[connect/onboard] Stripe error — type:%s code:%s message:%s',
         stripeErr.type, stripeErr.code, stripeErr.message);
+      if (stripeErr.message?.includes('managing losses') || stripeErr.message?.includes('platform-profile')) {
+        res.status(503).json({ error: 'Payout setup is temporarily unavailable. Please try again later.' });
+        return;
+      }
     } else {
       console.error('[connect/onboard] error:', err);
     }
