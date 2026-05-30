@@ -1,0 +1,69 @@
+import type { TranslationMap } from './types';
+
+const tl: TranslationMap = {
+  'nav.explore': 'I-explore',
+  'nav.dashboard': 'Dashboard',
+  'nav.creator_studio': 'Creator Studio',
+  'nav.admin': 'Admin',
+  'nav.sign_in': 'Mag-sign In',
+  'nav.request_access': 'Humiling ng Access',
+  'nav.sign_out': 'Mag-sign Out',
+
+  'landing.access_only': 'Pribadong Access Lamang',
+  'landing.hero_line1': 'Kung Saan Ang Access',
+  'landing.hero_line2': 'Ay Ipinagkakaloob.',
+  'landing.hero_body': 'Isang members-only na platform para sa eksklusibong content ng mga creator, pribadong drops, at custom na kahilingan. Hindi pampubliko. Hindi para sa lahat. Ang access ay kinukuha.',
+  'landing.cta_primary': 'Humiling ng Access',
+  'landing.cta_secondary': 'I-explore ang mga Creator',
+  'landing.cta_explore': 'I-explore ang Preview',
+  'landing.verified_creators': 'Mga Verified na Creator',
+  'landing.active_members': 'Mga Aktibong Miyembro',
+
+  'auth.sign_in_title': 'Mag-sign In',
+  'auth.create_account': 'Gumawa ng Account',
+  'auth.email': 'Email',
+  'auth.password': 'Password',
+  'auth.display_name': 'Display Name',
+  'auth.username': 'Username',
+  'auth.sign_in_btn': 'Mag-sign In',
+  'auth.sign_up_btn': 'Gumawa ng Account',
+  'auth.forgot_password': 'Nakalimutan ang password?',
+  'auth.no_account': 'Wala pang account?',
+  'auth.have_account': 'Mayroon nang account?',
+  'auth.request_access': 'Humiling ng Access',
+
+  'common.loading': 'Naglo-load…',
+  'common.save': 'I-save',
+  'common.cancel': 'Kanselahin',
+  'common.back': 'Bumalik',
+  'common.continue': 'Magpatuloy',
+  'common.submit': 'Isumite',
+  'common.unlock': 'I-unlock',
+  'common.subscribe': 'Mag-subscribe',
+  'common.upload': 'Mag-upload',
+  'common.members_only': 'Para sa Miyembro Lamang',
+
+  'explore.title': 'I-explore ang mga Creator',
+  'explore.subtitle': 'Tuklasin ang mga eksklusibong creator at ang kanilang mga pribadong drops.',
+  'explore.search_placeholder': 'Maghanap ng mga creator…',
+  'explore.no_creators': 'Walang nahanap na creator.',
+
+  'access.locked': 'Naka-lock',
+  'access.free': 'Libre',
+  'access.subscribers_only': 'Para sa mga Subscriber Lamang',
+  'access.unlock_now': 'I-unlock Ngayon',
+  'access.checkout_preparing': 'Inihahanda ang checkout…',
+
+  'creator.studio': 'Creator Studio',
+  'creator.upload': 'Mag-upload ng Content',
+  'creator.earnings': 'Mga Kita',
+  'creator.subscribers': 'Mga Subscriber',
+  'creator.enable_payouts': 'I-enable ang Mga Bayad',
+
+  'member.dashboard': 'Member Dashboard',
+  'member.vault': 'Aking Vault',
+  'member.subscriptions': 'Mga Subscription',
+  'member.messages': 'Mga Mensahe',
+};
+
+export default tl;

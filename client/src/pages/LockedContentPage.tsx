@@ -13,6 +13,7 @@ import type { Content as GlobalContent } from '../types';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { API_BASE } from '../lib/api';
 import { logEvent } from '../lib/logEvent';
+import { GoldPulseButton } from '../components/motion';
 
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
@@ -162,7 +163,8 @@ function UnlockModal({
           )}
 
           {/* Primary CTA */}
-          <button
+          <GoldPulseButton
+            pulse={!paying}
             onClick={onUnlock}
             disabled={paying}
             className="btn-gold w-full py-3.5 text-base gap-2.5 disabled:opacity-70 disabled:cursor-not-allowed"
@@ -172,7 +174,7 @@ function UnlockModal({
             ) : (
               <>🔓 Unlock Now</>
             )}
-          </button>
+          </GoldPulseButton>
 
           {/* Cancel */}
           <button

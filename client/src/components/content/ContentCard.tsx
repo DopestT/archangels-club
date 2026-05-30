@@ -8,6 +8,7 @@ import { formatCurrency, formatCompactNumber, timeAgo } from '../../lib/utils';
 import { useAuth } from '../../context/AuthContext';
 import { useSaved } from '../../context/SavedContext';
 import ActionButton from '../ui/ActionButton';
+import { HoverCard } from '../motion';
 
 const TYPE_ICONS: Record<string, React.ReactNode> = {
   image: <Image className="w-3.5 h-3.5" />,
@@ -89,6 +90,7 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
+      <HoverCard goldGlow intensity="low">
       <div className="card-surface overflow-hidden transition-all duration-300 group-hover:shadow-gold group-hover:-translate-y-0.5">
 
         {/* ── Media area ─────────────────────────────────────────────────── */}
@@ -275,6 +277,7 @@ export default function ContentCard({ content, showCreator = true }: ContentCard
           </div>
         </div>
       </div>
+      </HoverCard>
     </Link>
   );
 }
