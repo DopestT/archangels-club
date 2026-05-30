@@ -230,4 +230,22 @@ router.get('/me', requireAuth, async (req, res) => {
   }
 });
 
+// PATCH /api/auth/profile — update own display_name and/or avatar_url
+router.patch('/profile', requireAuth, async (req, res) => {
+  try {
+    const { display_name, avatar_url } = req.body as { display_name?: string; avatar_url?: string };
+    await execute(
+      `UPDATE users
+         SET display_name = COALESCE($1, display_name),
+             avatar_url   = COALESCE($2, avatar_url)
+       WHERE id = $3`,
+      [display_name?.trim() || null, avatar_url || null, req.auth!.userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth/profile] error:', err);
+    res.status(500).json({ error: 'Failed to update profile.' });
+  }
+});
+
 export default router;

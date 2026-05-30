@@ -88,6 +88,7 @@ export function useCreatorProgress(
   // NOTE for Claude A: add `content_count` and `has_cover` to GET /api/creators/my/stats
   // Until then, contentCount stays null and the checklist degrades gracefully.
   contentCount: number | null | undefined,
+  username?: string,
 ): CreatorProgressState {
   return useMemo(() => {
     const earnings    = stats?.total_earnings   ?? 0;
@@ -126,7 +127,7 @@ export function useCreatorProgress(
         hint: 'Your photo is the first thing members see. Own it.',
         completed: avatarSet,
         actionLabel: 'Edit Profile',
-        actionTo: '/creator/onboarding',
+        actionTo: '#edit-profile',
       },
       {
         key: 'first_upload',
@@ -142,7 +143,7 @@ export function useCreatorProgress(
         hint: 'When a member pays to access your content, your studio starts earning. Share your profile and let it happen.',
         completed: hasUnlock,
         actionLabel: 'View Profile',
-        actionTo: '/creator',
+        actionTo: username ? `/creator/${username}` : '/studio',
       },
       {
         key: 'first_subscriber',
@@ -150,7 +151,7 @@ export function useCreatorProgress(
         hint: 'One subscriber is proof of concept. Recurring income starts with a single commitment.',
         completed: hasSubscriber,
         actionLabel: 'View Profile',
-        actionTo: '/creator',
+        actionTo: username ? `/creator/${username}` : '/studio',
       },
     ];
 
