@@ -12,7 +12,9 @@ export type InsightType =
   | 'subscription_opportunity'
   | 'bundle_suggestion'
   | 'profile_incomplete'
-  | 'custom_request_opportunity';
+  | 'custom_request_opportunity'
+  | 'content_low_conversion'
+  | 'content_top_performer';
 
 export type InsightPriority = 'high' | 'medium' | 'low';
 
@@ -111,6 +113,8 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
     messagesSent30d,
     customRequests30d,
     lapsedSubs30d,
+    lowConversionContent,
+    topPerformerContent,
   ] = await Promise.all([
     queryOne<{ count: string }>(
       `SELECT COUNT(*) AS count FROM creator_page_views
@@ -176,6 +180,26 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
       `SELECT COUNT(*) AS count FROM subscriptions
        WHERE creator_id = $1 AND status = 'cancelled'
          AND updated_at >= NOW() - INTERVAL '30 days'`,
+      [creatorProfileId]
+    ),
+    // Approved piece with 0 unlocks that has been live the longest (most overdue)
+    queryOne<{ title: string; price: string; days_live: number } | null>(
+      `SELECT title, price::text,
+              EXTRACT(DAY FROM NOW() - created_at)::int AS days_live
+       FROM content
+       WHERE creator_id = $1 AND status = 'approved' AND current_unlocks = 0
+         AND created_at < NOW() - INTERVAL '14 days'
+       ORDER BY created_at ASC
+       LIMIT 1`,
+      [creatorProfileId]
+    ),
+    // Best-performing approved piece by unlock count
+    queryOne<{ title: string; current_unlocks: number } | null>(
+      `SELECT title, current_unlocks
+       FROM content
+       WHERE creator_id = $1 AND status = 'approved' AND current_unlocks >= 3
+       ORDER BY current_unlocks DESC
+       LIMIT 1`,
       [creatorProfileId]
     ),
   ]);
@@ -445,6 +469,39 @@ export async function computeCreatorInsights(creatorProfileId: string): Promise<
       cta_action: 'go_to_upload',
       signal: `${lapsed} cancellation${lapsed !== 1 ? 's' : ''} in last 30 days, ${subs} still active`,
       confidence: lapsed >= 5 ? 0.82 : 0.68,
+    });
+  }
+
+  // ── Rule 14: Specific drop with 0 unlocks despite time live ─────────────
+  if (lowConversionContent) {
+    const daysLive = lowConversionContent.days_live;
+    const price = parseFloat(lowConversionContent.price ?? '0');
+    const suggestedPrice = price > 5 ? `$${(price * 0.7).toFixed(2)}` : null;
+    cards.push({
+      type: 'content_low_conversion',
+      priority: 'medium',
+      title: `"${lowConversionContent.title}" hasn't sold yet`,
+      body: suggestedPrice
+        ? `This drop has been live for ${daysLive} days with no unlocks. Try reducing the price to ${suggestedPrice} or refreshing the preview to generate interest.`
+        : `This drop has been live for ${daysLive} days with no unlocks. A stronger preview image and tighter description can help fans understand why it's worth it.`,
+      cta_label: 'Edit content',
+      cta_action: 'go_to_content',
+      signal: `${daysLive} days live, 0 unlocks, priced at $${price.toFixed(2)}`,
+      confidence: 0.85,
+    });
+  }
+
+  // ── Rule 15: Surface the top performer so the creator knows what works ───
+  if (topPerformerContent) {
+    cards.push({
+      type: 'content_top_performer',
+      priority: 'low',
+      title: `"${topPerformerContent.title}" is your best drop`,
+      body: `This piece has ${topPerformerContent.current_unlocks} unlocks — more than anything else in your library. More content in this style or theme is likely to perform just as well.`,
+      cta_label: 'Upload similar content',
+      cta_action: 'go_to_upload',
+      signal: `${topPerformerContent.current_unlocks} unlocks — highest in your library`,
+      confidence: 0.80,
     });
   }
 
