@@ -55,7 +55,7 @@ export default function LandingPage() {
         <video
           key={videoKey}
           ref={videoRef}
-          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+          className="absolute inset-0 w-full h-full object-cover hero-video pointer-events-none"
           autoPlay muted playsInline
         >
           <source src="/archangelshero.mp4" type="video/mp4" />
