@@ -35,6 +35,7 @@ const PaymentResultPage        = lazy(() => import('./pages/PaymentResultPage'))
 const MagicLoginPage           = lazy(() => import('./pages/MagicLoginPage'));
 const PaymentSuccessPage       = lazy(() => import('./pages/PaymentSuccessPage'));
 const AgeVerificationReturnPage = lazy(() => import('./pages/AgeVerificationReturnPage'));
+const CreatorGuidePage           = lazy(() => import('./pages/CreatorGuidePage'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -123,6 +124,7 @@ function AppRoutes() {
         <Route path="contact" element={<StaticPage page="contact" />} />
         <Route path="report" element={<StaticPage page="report" />} />
         <Route path="help" element={<StaticPage page="help" />} />
+        <Route path="creator-guide" element={<CreatorGuidePage />} />
 
         {/* Status-gated pages — authenticated but no approval required */}
         <Route path="pending" element={
