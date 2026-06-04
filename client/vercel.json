@@ -4,6 +4,7 @@
       "src": "/api/(.*)",
       "dest": "https://archangels-club-production.up.railway.app/api/$1"
     },
+    { "handle": "filesystem" },
     {
       "src": "/(.*)",
       "dest": "/index.html"
