@@ -45,7 +45,11 @@ const ALLOWED_ORIGINS = [
 ];
 const corsOptions = {
   origin: (origin: string | undefined, cb: (e: Error | null, ok?: boolean) => void) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    if (!origin) return cb(null, true);
+    if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+    // Allow any Vercel preview deployment (*.vercel.app) for staging/PR reviews
+    if (/^https:\/\/[a-z0-9-]+-dopestts-projects\.vercel\.app$/.test(origin)) return cb(null, true);
+    if (origin === 'https://archangels-club.vercel.app') return cb(null, true);
     cb(new Error(`CORS: origin not allowed — ${origin}`));
   },
   credentials: true,
