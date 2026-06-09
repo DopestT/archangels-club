@@ -36,7 +36,6 @@ const MagicLoginPage           = lazy(() => import('./pages/MagicLoginPage'));
 const PaymentSuccessPage       = lazy(() => import('./pages/PaymentSuccessPage'));
 const AgeVerificationReturnPage = lazy(() => import('./pages/AgeVerificationReturnPage'));
 const PulsePreview              = lazy(() => import('./pages/PulsePreview'));
-const LegacyWorksPublishing     = lazy(() => import('./pages/LegacyWorksPublishing'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -273,11 +272,6 @@ function AppRoutes() {
         <Route path="admin/bug-control" element={
           <ProtectedRoute requireAdmin>
             <BugControlPage />
-          </ProtectedRoute>
-        } />
-        <Route path="admin/legacy-works" element={
-          <ProtectedRoute requireAdmin>
-            <LegacyWorksPublishing />
           </ProtectedRoute>
         } />
 
