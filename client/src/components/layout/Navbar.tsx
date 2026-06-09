@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, User } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, User, Bookmark } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../context/LanguageContext';
 import Avatar from '../ui/Avatar';
@@ -30,6 +30,7 @@ export default function Navbar() {
   const navLinks = [
     { to: '/explore',  label: t('nav.explore') },
     ...(isAuthenticated ? [{ to: '/dashboard', label: t('nav.dashboard') }] : []),
+    ...(isAuthenticated && !isAdmin ? [{ to: '/vault', label: t('member.vault') }] : []),
     ...(isCreator ? [{ to: '/creator', label: t('nav.creator_studio') }] : []),
     ...(isAdmin ? [{ to: '/admin', label: t('nav.admin') }] : []),
   ];
@@ -76,6 +77,11 @@ export default function Navbar() {
                         <Link to="/dashboard" className="flex items-center gap-3 px-3 py-2 text-sm text-arc-secondary hover:text-white hover:bg-bg-hover rounded-lg transition-colors">
                           <LayoutDashboard className="w-4 h-4" /> {t('nav.dashboard')}
                         </Link>
+                        {!isAdmin && (
+                          <Link to="/vault" className="flex items-center gap-3 px-3 py-2 text-sm text-arc-secondary hover:text-white hover:bg-bg-hover rounded-lg transition-colors">
+                            <Bookmark className="w-4 h-4" /> {t('member.vault')}
+                          </Link>
+                        )}
                         {isCreator && (
                           <Link to="/creator" className="flex items-center gap-3 px-3 py-2 text-sm text-arc-secondary hover:text-white hover:bg-bg-hover rounded-lg transition-colors">
                             <User className="w-4 h-4" /> {t('nav.creator_studio')}

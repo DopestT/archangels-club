@@ -284,6 +284,17 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
         return;
       }
 
+      const existingSub = await queryOne<{ id: string }>(
+        `SELECT id FROM subscriptions
+         WHERE subscriber_id = $1 AND creator_id = $2
+           AND expires_at > NOW() AND status IN ('active','cancelled')`,
+        [req.auth!.userId, creator_id]
+      );
+      if (existingSub) {
+        res.status(409).json({ error: 'You already have an active subscription to this creator.' });
+        return;
+      }
+
       const subscriptionPrice = Number(creator.subscription_price);
       if (subscriptionPrice <= 0) {
         res.status(400).json({ error: 'Creator has not set a subscription price.' });
