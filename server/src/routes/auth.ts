@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
+import rateLimit from 'express-rate-limit';
 import { query, queryOne, execute } from '../db/schema.js';
 import { signToken, requireAuth } from '../middleware/auth.js';
 import { sendSetPasswordEmail, sendForgotPasswordEmail } from '../services/email.js';
@@ -7,7 +8,16 @@ import crypto from 'crypto';
 
 const router = Router();
 
-router.post('/register', async (req, res) => {
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again in 15 minutes.' },
+  skipSuccessfulRequests: false,
+});
+
+router.post('/register', authLimiter, async (req, res) => {
   try {
     const { email, username, password, display_name, date_of_birth, reason_for_joining } = req.body;
 
@@ -46,7 +56,7 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', authLimiter, async (req, res) => {
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -134,7 +144,7 @@ router.post('/set-password', async (req, res) => {
   }
 });
 
-router.post('/resend-setup', async (req, res) => {
+router.post('/resend-setup', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {
@@ -174,7 +184,7 @@ router.post('/resend-setup', async (req, res) => {
   }
 });
 
-router.post('/forgot-password', async (req, res) => {
+router.post('/forgot-password', authLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email) {

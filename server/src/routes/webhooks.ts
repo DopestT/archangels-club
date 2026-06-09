@@ -272,44 +272,48 @@ async function handleInvoicePaid(
       ? new Date(lineItem.period.start * 1000).toISOString()
       : null;
 
-    // Check for duplicate renewal transaction
-    const dupTxn = await queryOne('SELECT id FROM transactions WHERE stripe_invoice_id = $1', [invoice.id]);
-    if (!dupTxn) {
-      const creator = await queryOne<{ user_id: string }>(
-        'SELECT user_id FROM creator_profiles WHERE id = $1', [sub.creator_id]
+    await withTransaction(async (client) => {
+      // Dedup check + transaction insert + earnings update + subscription extension
+      // are all atomic: if the subscription UPDATE fails, no transaction is recorded.
+      const { rows: [dupTxn] } = await client.query(
+        'SELECT id FROM transactions WHERE stripe_invoice_id = $1', [invoice.id]
       );
-      if (creator) {
-        const grossAmount = (invoice.amount_paid ?? 0) / 100;
-        const platformFee = Math.round(grossAmount * 0.3 * 100) / 100;
-        const netAmount = Math.round((grossAmount - platformFee) * 100) / 100;
+      if (!dupTxn) {
+        const { rows: [creator] } = await client.query<{ user_id: string }>(
+          'SELECT user_id FROM creator_profiles WHERE id = $1', [sub.creator_id]
+        );
+        if (creator) {
+          const grossAmount = (invoice.amount_paid ?? 0) / 100;
+          const platformFee = Math.round(grossAmount * 0.3 * 100) / 100;
+          const netAmount = Math.round((grossAmount - platformFee) * 100) / 100;
 
-        await execute(
-          `INSERT INTO transactions
-             (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
-              status, stripe_payment_intent_id, stripe_invoice_id, stripe_subscription_id, currency)
-           VALUES ($1, $2, $3, 'subscription', $4, $5, $6, $7, 'completed', $8, $9, $10, $11)`,
-          [crypto.randomUUID(), sub.subscriber_id, creator.user_id, sub.id,
-           grossAmount, platformFee, netAmount, piId, invoice.id, stripeSubId,
-           invoice.currency ?? 'usd']
-        );
-        await execute(
-          'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
-          [netAmount, sub.creator_id]
-        );
+          await client.query(
+            `INSERT INTO transactions
+               (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
+                status, stripe_payment_intent_id, stripe_invoice_id, stripe_subscription_id, currency)
+             VALUES ($1, $2, $3, 'subscription', $4, $5, $6, $7, 'completed', $8, $9, $10, $11)`,
+            [crypto.randomUUID(), sub.subscriber_id, creator.user_id, sub.id,
+             grossAmount, platformFee, netAmount, piId, invoice.id, stripeSubId,
+             invoice.currency ?? 'usd']
+          );
+          await client.query(
+            'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
+            [netAmount, sub.creator_id]
+          );
+        }
       }
-    }
 
-    // Extend subscription
-    await execute(
-      `UPDATE subscriptions
-         SET status = 'active',
-             expires_at = $1,
-             current_period_start = COALESCE($2, current_period_start),
-             current_period_end = $1,
-             updated_at = NOW()
-       WHERE stripe_subscription_id = $3`,
-      [newExpiresAt, periodStart, stripeSubId]
-    );
+      await client.query(
+        `UPDATE subscriptions
+           SET status = 'active',
+               expires_at = $1,
+               current_period_start = COALESCE($2, current_period_start),
+               current_period_end = $1,
+               updated_at = NOW()
+         WHERE stripe_subscription_id = $3`,
+        [newExpiresAt, periodStart, stripeSubId]
+      );
+    });
 
     console.log('[webhook] invoice.paid: renewal extended sub=%s to %s', sub.id, newExpiresAt);
     await markEventProcessed(eventRowId);
@@ -363,17 +367,23 @@ async function handleChargeRefunded(
   try {
     const piId = typeof charge.payment_intent === 'string' ? charge.payment_intent : null;
     if (piId) {
-      // Find original transaction
+      // Find original transaction — include platform_fee and net_amount so the reversal
+      // mirrors the actual split rather than re-applying a hardcoded 30%.
       const origTxn = await queryOne<{
-        id: string; payer_id: string; payee_id: string; ref_type: string; ref_id: string; amount: string;
+        id: string; payer_id: string; payee_id: string; ref_type: string; ref_id: string;
+        amount: string; platform_fee: string; net_amount: string;
       }>(
-        'SELECT id, payer_id, payee_id, ref_type, ref_id, amount FROM transactions WHERE stripe_payment_intent_id = $1 LIMIT 1',
+        `SELECT id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount
+           FROM transactions WHERE stripe_payment_intent_id = $1 LIMIT 1`,
         [piId]
       );
       if (origTxn) {
         const refundAmount = (charge.amount_refunded ?? 0) / 100;
-        const platformFeeOnRefund = Math.round(refundAmount * 0.3 * 100) / 100;
-        const netRefund = Math.round((refundAmount - platformFeeOnRefund) * 100) / 100;
+        const origAmount = Number(origTxn.amount);
+        // Proportional split: partial refunds reverse the same fraction of each component.
+        const ratio = origAmount > 0 ? Math.min(refundAmount / origAmount, 1) : 1;
+        const platformFeeOnRefund = Math.round(Number(origTxn.platform_fee) * ratio * 100) / 100;
+        const netRefund = Math.round(Number(origTxn.net_amount) * ratio * 100) / 100;
 
         // Mark original as refunded
         await execute(
@@ -382,7 +392,7 @@ async function handleChargeRefunded(
         );
 
         if (refundAmount > 0) {
-          // Create reversal record
+          // Create reversal record — negative amounts mirror the original split exactly.
           await execute(
             `INSERT INTO transactions
                (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
@@ -393,7 +403,7 @@ async function handleChargeRefunded(
              piId, charge.currency ?? 'usd']
           );
 
-          // Correct creator earnings — find which creator_profile earned from this transaction
+          // Reverse only the net the creator actually received for this fraction.
           await execute(
             `UPDATE creator_profiles
                SET total_earnings = GREATEST(0, total_earnings - $1)
@@ -517,8 +527,10 @@ router.post('/stripe', async (req, res) => {
 
   let event: Stripe.Event;
 
-  if (process.env.NODE_ENV === 'production' && !secret) {
-    console.error('[webhook] STRIPE_WEBHOOK_SECRET not set — rejecting unverified event');
+  const isDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test';
+
+  if (!secret && !isDev) {
+    console.error('[webhook] STRIPE_WEBHOOK_SECRET not set — rejecting unverified event in non-development environment');
     res.status(500).send('Webhook secret not configured');
     return;
   }
@@ -531,7 +543,7 @@ router.post('/stripe', async (req, res) => {
       res.status(400).send('Webhook signature verification failed');
       return;
     }
-  } else {
+  } else if (isDev) {
     try {
       event = (typeof req.body === 'string' || Buffer.isBuffer(req.body))
         ? JSON.parse(req.body.toString())
@@ -540,6 +552,9 @@ router.post('/stripe', async (req, res) => {
       res.status(400).send('Invalid payload');
       return;
     }
+  } else {
+    res.status(400).send('Webhook signature required');
+    return;
   }
 
   console.log('[webhook] received: %s %s', event.type, event.id);

@@ -89,7 +89,9 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
                 cp.stripe_account_id, cp.stripe_onboarding_complete
          FROM content c
          JOIN creator_profiles cp ON cp.id = c.creator_id
-         WHERE c.id = $1`,
+         WHERE c.id = $1
+           AND cp.is_approved = 1
+           AND cp.application_status = 'approved'`,
         [content_id]
       );
 
@@ -190,6 +192,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
       const tipAmount = Number(amount);
       if (!tipAmount || tipAmount < 1) {
         res.status(400).json({ error: 'Tip amount must be at least $1.' });
+        return;
+      }
+      if (tipAmount > 10000) {
+        res.status(400).json({ error: 'Tip amount cannot exceed $10,000.' });
         return;
       }
 
