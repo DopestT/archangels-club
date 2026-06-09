@@ -544,6 +544,86 @@ const DDL = `
   );
 
   ALTER TABLE content ADD COLUMN IF NOT EXISTS content_body TEXT NOT NULL DEFAULT '';
+
+  -- ── Legacy Works Publishing — Amazon KDP Automation ──────────────────────────
+
+  CREATE TABLE IF NOT EXISTS lw_books (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    subtitle TEXT NOT NULL DEFAULT '',
+    series_name TEXT NOT NULL DEFAULT '',
+    series_number INTEGER,
+    genre TEXT NOT NULL,
+    subgenre TEXT NOT NULL DEFAULT '',
+    target_audience TEXT NOT NULL DEFAULT '',
+    word_count_target INTEGER NOT NULL DEFAULT 25000,
+    word_count_actual INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'idea'
+      CHECK(status IN ('idea','blueprinting','generating','review','epub_ready','queued','published','cancelled')),
+    pipeline_stage TEXT NOT NULL DEFAULT 'idle'
+      CHECK(pipeline_stage IN ('idle','research','blueprint','generating_chapters','assembling','metadata','quality_check','complete','failed')),
+    pipeline_progress INTEGER NOT NULL DEFAULT 0,
+    pipeline_error TEXT,
+    bisac_primary TEXT NOT NULL DEFAULT '',
+    bisac_secondary TEXT NOT NULL DEFAULT '',
+    keywords TEXT NOT NULL DEFAULT '[]',
+    description TEXT NOT NULL DEFAULT '',
+    author_name TEXT NOT NULL DEFAULT 'Legacy Works Publishing',
+    price_usd NUMERIC(12,2) NOT NULL DEFAULT 4.99,
+    kdp_asin TEXT,
+    kdp_status TEXT,
+    ai_disclosure BOOLEAN NOT NULL DEFAULT true,
+    epub_base64 TEXT,
+    cover_url TEXT,
+    niche_score NUMERIC(5,2),
+    niche_notes TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS lw_chapters (
+    id TEXT PRIMARY KEY,
+    book_id TEXT NOT NULL REFERENCES lw_books(id) ON DELETE CASCADE,
+    chapter_number INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    outline TEXT NOT NULL DEFAULT '',
+    content TEXT NOT NULL DEFAULT '',
+    word_count INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK(status IN ('pending','generating','complete','failed')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(book_id, chapter_number)
+  );
+
+  CREATE TABLE IF NOT EXISTS lw_queue (
+    id TEXT PRIMARY KEY,
+    book_id TEXT NOT NULL REFERENCES lw_books(id) ON DELETE CASCADE,
+    scheduled_date DATE NOT NULL,
+    slot INTEGER NOT NULL CHECK(slot BETWEEN 1 AND 3),
+    status TEXT NOT NULL DEFAULT 'scheduled'
+      CHECK(status IN ('scheduled','uploading','published','failed','cancelled')),
+    kdp_upload_log TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(scheduled_date, slot)
+  );
+
+  CREATE TABLE IF NOT EXISTS lw_niche_research (
+    id TEXT PRIMARY KEY,
+    query TEXT NOT NULL,
+    genre TEXT NOT NULL,
+    profitability_score NUMERIC(5,2),
+    competition_score NUMERIC(5,2),
+    demand_score NUMERIC(5,2),
+    recommended_price NUMERIC(12,2),
+    keyword_suggestions TEXT NOT NULL DEFAULT '[]',
+    title_hooks TEXT NOT NULL DEFAULT '[]',
+    notes TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_lw_books_status ON lw_books(status);
+  CREATE INDEX IF NOT EXISTS idx_lw_chapters_book ON lw_chapters(book_id, chapter_number);
+  CREATE INDEX IF NOT EXISTS idx_lw_queue_date ON lw_queue(scheduled_date, slot);
 `;
 
 export async function runMigrations(): Promise<void> {

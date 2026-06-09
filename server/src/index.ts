@@ -31,6 +31,7 @@ import recommendationsRoutes from './routes/recommendations.js';
 import intelligenceRoutes from './routes/intelligence.js';
 import streamRoutes from './routes/stream.js';
 import reviewRoutes from './routes/reviews.js';
+import legacyWorksRoutes from './routes/legacyWorks.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -89,6 +90,7 @@ app.use('/api/recommendations', recommendationsRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
 app.use('/api/stream', streamRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/legacy-works', legacyWorksRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });
