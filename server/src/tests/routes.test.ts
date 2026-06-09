@@ -370,7 +370,8 @@ describe('POST /api/checkout/create — subscription', () => {
     const token = makeToken('fan', 'fan-user-id');
     mockQueryOne
       .mockResolvedValueOnce({ status: 'approved' })   // requireApproved
-      .mockResolvedValueOnce(CREATOR_PROFILE);          // creator lookup
+      .mockResolvedValueOnce(CREATOR_PROFILE)           // creator lookup
+      .mockResolvedValueOnce(null);                     // no existing subscription
     const res = await request(app)
       .post('/api/checkout/create')
       .set('Authorization', `Bearer ${token}`)

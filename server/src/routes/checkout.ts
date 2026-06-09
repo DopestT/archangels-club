@@ -89,7 +89,9 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
                 cp.stripe_account_id, cp.stripe_onboarding_complete
          FROM content c
          JOIN creator_profiles cp ON cp.id = c.creator_id
-         WHERE c.id = $1`,
+         WHERE c.id = $1
+           AND cp.is_approved = 1
+           AND cp.application_status = 'approved'`,
         [content_id]
       );
 
@@ -192,6 +194,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
         res.status(400).json({ error: 'Tip amount must be at least $1.' });
         return;
       }
+      if (tipAmount > 10000) {
+        res.status(400).json({ error: 'Tip amount cannot exceed $10,000.' });
+        return;
+      }
 
       const creator = await queryOne<any>(
         `SELECT cp.id, cp.user_id, cp.stripe_account_id, cp.stripe_onboarding_complete,
@@ -275,6 +281,17 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
       if (creator.user_id === req.auth!.userId) {
         res.status(403).json({ error: 'You cannot subscribe to yourself.' });
+        return;
+      }
+
+      const existingSub = await queryOne<{ id: string }>(
+        `SELECT id FROM subscriptions
+         WHERE subscriber_id = $1 AND creator_id = $2
+           AND expires_at > NOW() AND status IN ('active','cancelled')`,
+        [req.auth!.userId, creator_id]
+      );
+      if (existingSub) {
+        res.status(409).json({ error: 'You already have an active subscription to this creator.' });
         return;
       }
 

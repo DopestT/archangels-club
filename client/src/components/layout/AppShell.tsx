@@ -1,16 +1,17 @@
 import React from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
-import { Home, Compass, LayoutDashboard, Bell, Crown } from 'lucide-react';
+import { Home, Compass, LayoutDashboard, Bell, Crown, Bookmark } from 'lucide-react';
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { useAuth } from '../../context/AuthContext';
 
 const MOBILE_NAV = [
-  { to: '/',         icon: <Home className="w-5 h-5" />,          label: 'Home',    public: true },
-  { to: '/explore',  icon: <Compass className="w-5 h-5" />,       label: 'Explore', public: true },
-  { to: '/dashboard',icon: <LayoutDashboard className="w-5 h-5" />,label: 'Dashboard', public: false },
-  { to: '/notifications', icon: <Bell className="w-5 h-5" />,     label: 'Alerts',  public: false },
-  { to: '/creator',  icon: <Crown className="w-5 h-5" />,         label: 'Studio',  creatorOnly: true },
+  { to: '/',              icon: <Home className="w-5 h-5" />,           label: 'Home',      public: true },
+  { to: '/explore',       icon: <Compass className="w-5 h-5" />,        label: 'Explore',   public: true },
+  { to: '/dashboard',     icon: <LayoutDashboard className="w-5 h-5" />,label: 'Dashboard', public: false },
+  { to: '/vault',         icon: <Bookmark className="w-5 h-5" />,       label: 'Vault',     public: false, nonCreatorOnly: true },
+  { to: '/notifications', icon: <Bell className="w-5 h-5" />,           label: 'Alerts',    public: false },
+  { to: '/creator',       icon: <Crown className="w-5 h-5" />,          label: 'Studio',    creatorOnly: true },
 ];
 
 export default function AppShell() {
@@ -19,6 +20,7 @@ export default function AppShell() {
 
   const navItems = MOBILE_NAV.filter(n => {
     if (n.creatorOnly) return isAuthenticated && isCreator;
+    if ((n as { nonCreatorOnly?: boolean }).nonCreatorOnly) return isAuthenticated && !isCreator;
     if (!n.public) return isAuthenticated;
     return true;
   });

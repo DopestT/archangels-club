@@ -37,6 +37,7 @@ const PaymentSuccessPage       = lazy(() => import('./pages/PaymentSuccessPage')
 const AgeVerificationReturnPage = lazy(() => import('./pages/AgeVerificationReturnPage'));
 const PulsePreview              = lazy(() => import('./pages/PulsePreview'));
 const LegacyWorksPublishing     = lazy(() => import('./pages/LegacyWorksPublishing'));
+const VaultPage                 = lazy(() => import('./pages/VaultPage'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -166,6 +167,11 @@ function AppRoutes() {
         <Route path="notifications" element={
           <ProtectedRoute>
             <NotificationsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="vault" element={
+          <ProtectedRoute>
+            <VaultPage />
           </ProtectedRoute>
         } />
         <Route path="success" element={

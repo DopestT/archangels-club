@@ -28,5 +28,9 @@ export async function apiFetch(path: string, opts?: RequestInit) {
       ...opts?.headers,
     },
   });
+  if (res.status === 401) {
+    localStorage.removeItem('arc_auth');
+    window.location.href = '/login';
+  }
   return res.json();
 }
