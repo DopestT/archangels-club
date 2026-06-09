@@ -26,6 +26,7 @@ interface Book {
   updated_at: string;
   chapter_count: number;
   completed_chapters: number;
+  epub_base64: string | null;
 }
 
 interface QueueEntry {
@@ -130,7 +131,7 @@ const GENRES = [
 ];
 
 function CreateBookModal({ onClose, onCreated }: { onClose: () => void; onCreated: (book: Book) => void }) {
-  const { showToast } = useToast();
+  const toast = useToast();
   const [form, setForm] = useState({
     genre: '',
     subgenre: '',
@@ -144,7 +145,7 @@ function CreateBookModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.genre) { showToast('Select a genre', 'error'); return; }
+    if (!form.genre) { toast.error('Select a genre'); return; }
     setLoading(true);
     try {
       const res = await apiFetch('/api/legacy-works/books', {
@@ -155,10 +156,10 @@ function CreateBookModal({ onClose, onCreated }: { onClose: () => void; onCreate
         }),
       });
       if (res.error) throw new Error(res.error);
-      showToast('Book created', 'success');
+      toast.success('Book created');
       onCreated(res.book as Book);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to create book', 'error');
+      toast.error(err instanceof Error ? err.message : 'Failed to create book');
     } finally {
       setLoading(false);
     }
@@ -272,14 +273,14 @@ function CreateBookModal({ onClose, onCreated }: { onClose: () => void; onCreate
 // ── Niche research modal ──────────────────────────────────────────────────────
 
 function NicheResearchModal({ onClose }: { onClose: () => void }) {
-  const { showToast } = useToast();
+  const toast = useToast();
   const [genre, setGenre] = useState('');
   const [topic, setTopic] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<NicheResearch | null>(null);
 
   const run = async () => {
-    if (!genre || !topic) { showToast('Fill in genre and topic', 'error'); return; }
+    if (!genre || !topic) { toast.error('Fill in genre and topic'); return; }
     setLoading(true);
     setResult(null);
     try {
@@ -290,7 +291,7 @@ function NicheResearchModal({ onClose }: { onClose: () => void }) {
       if (res.error) throw new Error(res.error);
       setResult(res.research as NicheResearch);
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Research failed', 'error');
+      toast.error(err instanceof Error ? err.message : 'Research failed');
     } finally {
       setLoading(false);
     }
@@ -395,7 +396,7 @@ function BookDetailPanel({
   onClose: () => void;
   onRefresh: () => void;
 }) {
-  const { showToast } = useToast();
+  const toast = useToast();
   const [running, setRunning] = useState(false);
   const [queueing, setQueueing] = useState(false);
   const [chapters, setChapters] = useState<{ chapter_number: number; title: string; word_count: number; status: string }[]>([]);
@@ -421,10 +422,10 @@ function BookDetailPanel({
     try {
       const res = await apiFetch(`/api/legacy-works/books/${book.id}/pipeline/run`, { method: 'POST' });
       if (res.error) throw new Error(res.error);
-      showToast('Pipeline started — check progress below', 'success');
+      toast.success('Pipeline started — check progress below');
       onRefresh();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to start pipeline', 'error');
+      toast.error(err instanceof Error ? err.message : 'Failed to start pipeline');
     } finally {
       setRunning(false);
     }
@@ -435,10 +436,10 @@ function BookDetailPanel({
     try {
       const res = await apiFetch(`/api/legacy-works/books/${book.id}/queue`, { method: 'POST' });
       if (res.error) throw new Error(res.error);
-      showToast(`Scheduled for ${res.scheduled_date} (slot ${res.slot})`, 'success');
+      toast.success(`Scheduled for ${res.scheduled_date} (slot ${res.slot})`);
       onRefresh();
     } catch (err) {
-      showToast(err instanceof Error ? err.message : 'Failed to schedule', 'error');
+      toast.error(err instanceof Error ? err.message : 'Failed to schedule');
     } finally {
       setQueueing(false);
     }
