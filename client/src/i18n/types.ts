@@ -72,4 +72,15 @@ export interface TranslationMap {
   'member.vault': string;
   'member.subscriptions': string;
   'member.messages': string;
+
+  // Live rooms
+  'live.now': string;
+  'live.go_live': string;
+  'live.end_stream': string;
+  'live.join_room': string;
+  'live.get_ticket': string;
+  'live.chat_placeholder': string;
+  'live.send_tip': string;
+  'live.no_rooms': string;
+  'live.studio_title': string;
 }

@@ -64,6 +64,16 @@ const pt: TranslationMap = {
   'member.vault': 'Meu cofre',
   'member.subscriptions': 'Assinaturas',
   'member.messages': 'Mensagens',
+
+  'live.now': 'Ao vivo agora',
+  'live.go_live': 'Ir ao vivo',
+  'live.end_stream': 'Encerrar transmissão',
+  'live.join_room': 'Entrar',
+  'live.get_ticket': 'Obter ingresso',
+  'live.chat_placeholder': 'Diga algo…',
+  'live.send_tip': 'Enviar gorjeta',
+  'live.no_rooms': 'Nenhuma sala ao vivo agora.',
+  'live.studio_title': 'Estúdio ao vivo',
 };
 
 export default pt;

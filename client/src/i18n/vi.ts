@@ -64,6 +64,16 @@ const vi: TranslationMap = {
   'member.vault': 'Kho của tôi',
   'member.subscriptions': 'Đăng ký',
   'member.messages': 'Tin nhắn',
+
+  'live.now': 'Đang phát trực tiếp',
+  'live.go_live': 'Phát trực tiếp',
+  'live.end_stream': 'Kết thúc phát sóng',
+  'live.join_room': 'Tham gia',
+  'live.get_ticket': 'Mua vé',
+  'live.chat_placeholder': 'Nhập tin nhắn…',
+  'live.send_tip': 'Gửi tiền thưởng',
+  'live.no_rooms': 'Không có phòng trực tiếp nào.',
+  'live.studio_title': 'Studio trực tiếp',
 };
 
 export default vi;

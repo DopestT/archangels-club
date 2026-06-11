@@ -64,6 +64,16 @@ const zh: TranslationMap = {
   'member.vault': '我的收藏',
   'member.subscriptions': '订阅',
   'member.messages': '消息',
+
+  'live.now': '正在直播',
+  'live.go_live': '开始直播',
+  'live.end_stream': '结束直播',
+  'live.join_room': '加入房间',
+  'live.get_ticket': '购买门票',
+  'live.chat_placeholder': '说点什么…',
+  'live.send_tip': '发送打赏',
+  'live.no_rooms': '当前没有直播间。',
+  'live.studio_title': '直播工作室',
 };
 
 export default zh;

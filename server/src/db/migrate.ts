@@ -624,6 +624,84 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_lw_books_status ON lw_books(status);
   CREATE INDEX IF NOT EXISTS idx_lw_chapters_book ON lw_chapters(book_id, chapter_number);
   CREATE INDEX IF NOT EXISTS idx_lw_queue_date ON lw_queue(scheduled_date, slot);
+
+  -- ── LIVE ROOMS ───────────────────────────────────────────────────────────────
+
+  CREATE TABLE IF NOT EXISTS live_rooms (
+    id TEXT PRIMARY KEY,
+    creator_id TEXT NOT NULL REFERENCES creator_profiles(id) ON DELETE CASCADE,
+    creator_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    access_type TEXT NOT NULL DEFAULT 'free'
+      CHECK (access_type IN ('free', 'subscribers', 'paid')),
+    price_cents INTEGER,
+    status TEXT NOT NULL DEFAULT 'idle'
+      CHECK (status IN ('idle', 'live', 'ended')),
+    started_at TIMESTAMPTZ,
+    ended_at TIMESTAMPTZ,
+    peak_viewer_count INTEGER NOT NULL DEFAULT 0,
+    replay_url TEXT,
+    replay_available BOOLEAN NOT NULL DEFAULT false,
+    replay_duration_seconds INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS live_access_purchases (
+    id TEXT PRIMARY KEY,
+    live_room_id TEXT NOT NULL REFERENCES live_rooms(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    stripe_session_id TEXT,
+    amount_cents INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'active', 'refunded')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(live_room_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS live_chat_messages (
+    id TEXT PRIMARY KEY,
+    live_room_id TEXT NOT NULL REFERENCES live_rooms(id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    display_name TEXT NOT NULL,
+    message TEXT NOT NULL,
+    is_deleted BOOLEAN NOT NULL DEFAULT false,
+    is_reported BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS live_tips (
+    id TEXT PRIMARY KEY,
+    live_room_id TEXT NOT NULL REFERENCES live_rooms(id) ON DELETE CASCADE,
+    tipper_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    creator_id TEXT NOT NULL REFERENCES creator_profiles(id) ON DELETE CASCADE,
+    transaction_id TEXT,
+    amount_cents INTEGER NOT NULL,
+    stripe_session_id TEXT,
+    display_name TEXT,
+    message TEXT,
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'completed', 'refunded')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS live_moderation_events (
+    id TEXT PRIMARY KEY,
+    live_room_id TEXT NOT NULL REFERENCES live_rooms(id) ON DELETE CASCADE,
+    admin_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    action TEXT NOT NULL
+      CHECK (action IN ('end_stream', 'delete_message', 'warn_creator', 'ban_user')),
+    target_id TEXT,
+    reason TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_live_rooms_status ON live_rooms(status, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_live_rooms_creator ON live_rooms(creator_id);
+  CREATE INDEX IF NOT EXISTS idx_live_chat_room ON live_chat_messages(live_room_id, created_at ASC);
+  CREATE INDEX IF NOT EXISTS idx_live_access_user ON live_access_purchases(user_id, live_room_id);
+  CREATE INDEX IF NOT EXISTS idx_live_tips_room ON live_tips(live_room_id, created_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {

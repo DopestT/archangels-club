@@ -38,6 +38,9 @@ const AgeVerificationReturnPage = lazy(() => import('./pages/AgeVerificationRetu
 const PulsePreview              = lazy(() => import('./pages/PulsePreview'));
 const LegacyWorksPublishing     = lazy(() => import('./pages/LegacyWorksPublishing'));
 const VaultPage                 = lazy(() => import('./pages/VaultPage'));
+const LiveRoomsPage             = lazy(() => import('./pages/LiveRoomsPage'));
+const LiveRoomPage              = lazy(() => import('./pages/LiveRoomPage'));
+const CreatorLiveStudio         = lazy(() => import('./pages/CreatorLiveStudio'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -174,6 +177,16 @@ function AppRoutes() {
             <VaultPage />
           </ProtectedRoute>
         } />
+        <Route path="live" element={
+          <ProtectedRoute>
+            <LiveRoomsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="live/:id" element={
+          <ProtectedRoute>
+            <LiveRoomPage />
+          </ProtectedRoute>
+        } />
         <Route path="success" element={
           <ProtectedRoute>
             <PaymentResultPage type="success" />
@@ -202,6 +215,11 @@ function AppRoutes() {
         <Route path="studio" element={
           <ProtectedRoute requireCreator>
             <CreatorDashboard />
+          </ProtectedRoute>
+        } />
+        <Route path="studio/live" element={
+          <ProtectedRoute requireCreator>
+            <CreatorLiveStudio />
           </ProtectedRoute>
         } />
         <Route path="upload" element={

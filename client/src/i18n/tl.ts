@@ -64,6 +64,16 @@ const tl: TranslationMap = {
   'member.vault': 'Aking Vault',
   'member.subscriptions': 'Mga Subscription',
   'member.messages': 'Mga Mensahe',
+
+  'live.now': 'Live Ngayon',
+  'live.go_live': 'Mag-live',
+  'live.end_stream': 'Tapusin ang Stream',
+  'live.join_room': 'Sumali sa Kwarto',
+  'live.get_ticket': 'Kumuha ng Tiket',
+  'live.chat_placeholder': 'Sabihin ang isang bagay…',
+  'live.send_tip': 'Magpadala ng Tip',
+  'live.no_rooms': 'Walang live rooms ngayon.',
+  'live.studio_title': 'Live Studio',
 };
 
 export default tl;
