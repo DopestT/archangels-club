@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save, ChevronDown, RefreshCw } from 'lucide-react';
+import { Upload, Image, Video, Music, FileText, ArrowLeft, Check, AlertCircle, Clock, Sparkles, X, Save, ChevronDown, RefreshCw, Radio } from 'lucide-react';
 import { timeAgo } from '../lib/utils';
 import type { ContentType, PricingConfig, VideoProcessingConfig } from '../types';
 import ImageEditor from '../components/editor/ImageEditor';
@@ -480,7 +480,7 @@ export default function UploadContent() {
             {/* Content type */}
             <div className="card-surface p-6 rounded-xl">
               <h3 className="font-serif text-lg text-white mb-4">Content Type</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {CONTENT_TYPES.map(({ id, icon, label }) => (
                   <button
                     key={id}
@@ -502,6 +502,13 @@ export default function UploadContent() {
                     <span className="text-xs font-sans">{label}</span>
                   </button>
                 ))}
+                <Link
+                  to="/studio/live"
+                  className="flex flex-col items-center gap-2 p-4 rounded-xl border border-dashed border-red-500/40 text-red-400 hover:border-red-400 hover:text-red-300 transition-all duration-200"
+                >
+                  <Radio className="w-5 h-5" />
+                  <span className="text-xs font-sans">Go Live</span>
+                </Link>
               </div>
             </div>
 
