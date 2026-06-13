@@ -64,6 +64,16 @@ const es: TranslationMap = {
   'member.vault': 'Mi bóveda',
   'member.subscriptions': 'Suscripciones',
   'member.messages': 'Mensajes',
+
+  'live.now': 'En vivo ahora',
+  'live.go_live': 'Ir en vivo',
+  'live.end_stream': 'Terminar transmisión',
+  'live.join_room': 'Unirse',
+  'live.get_ticket': 'Obtener entrada',
+  'live.chat_placeholder': 'Di algo…',
+  'live.send_tip': 'Enviar propina',
+  'live.no_rooms': 'No hay transmisiones en vivo ahora.',
+  'live.studio_title': 'Estudio en vivo',
 };
 
 export default es;

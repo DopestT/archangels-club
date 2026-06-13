@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, X, LogOut, LayoutDashboard, User, Bookmark } from 'lucide-react';
+import { Menu, X, LogOut, LayoutDashboard, User, Bookmark, Radio } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useT } from '../../context/LanguageContext';
 import Avatar from '../ui/Avatar';
@@ -29,11 +29,12 @@ export default function Navbar() {
 
   const navLinks = [
     { to: '/explore',  label: t('nav.explore') },
+    ...(isAuthenticated ? [{ to: '/live', label: t('live.now'), live: true }] : []),
     ...(isAuthenticated ? [{ to: '/dashboard', label: t('nav.dashboard') }] : []),
     ...(isAuthenticated && !isAdmin ? [{ to: '/vault', label: t('member.vault') }] : []),
     ...(isCreator ? [{ to: '/creator', label: t('nav.creator_studio') }] : []),
     ...(isAdmin ? [{ to: '/admin', label: t('nav.admin') }] : []),
-  ];
+  ] as { to: string; label: string; live?: boolean }[];
 
   return (
     <header className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? 'bg-bg-primary/96 backdrop-blur-md border-b border-gold-border/50' : 'bg-transparent'}`}>
@@ -48,8 +49,9 @@ export default function Navbar() {
 
           {/* Desktop nav */}
           <nav className="hidden md:flex items-center gap-1 xl:gap-2">
-            {navLinks.map(({ to, label }) => (
-              <Link key={to} to={to} className={`px-4 py-2 xl:px-5 text-sm font-sans rounded transition-colors ${location.pathname === to ? 'text-gold' : 'text-arc-secondary hover:text-white'}`}>
+            {navLinks.map(({ to, label, live }) => (
+              <Link key={to} to={to} className={`relative px-4 py-2 xl:px-5 text-sm font-sans rounded transition-colors flex items-center gap-1.5 ${location.pathname === to || location.pathname.startsWith(to + '/') ? 'text-gold' : 'text-arc-secondary hover:text-white'}`}>
+                {live && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
                 {label}
               </Link>
             ))}
@@ -114,8 +116,9 @@ export default function Navbar() {
       {mobileOpen && (
         <div className="md:hidden bg-bg-surface border-t border-gold-border/50 px-4 py-4">
           <nav className="flex flex-col gap-1 mb-4">
-            {navLinks.map(({ to, label }) => (
-              <Link key={to} to={to} className="px-4 py-3 text-sm font-sans text-arc-secondary hover:text-white rounded-lg hover:bg-bg-hover transition-colors">
+            {navLinks.map(({ to, label, live }) => (
+              <Link key={to} to={to} className="px-4 py-3 text-sm font-sans text-arc-secondary hover:text-white rounded-lg hover:bg-bg-hover transition-colors flex items-center gap-2">
+                {live && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
                 {label}
               </Link>
             ))}

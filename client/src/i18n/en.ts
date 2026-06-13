@@ -64,6 +64,16 @@ const en: TranslationMap = {
   'member.vault': 'My Vault',
   'member.subscriptions': 'Subscriptions',
   'member.messages': 'Messages',
+
+  'live.now': 'Live Now',
+  'live.go_live': 'Go Live',
+  'live.end_stream': 'End Stream',
+  'live.join_room': 'Join Room',
+  'live.get_ticket': 'Get Ticket',
+  'live.chat_placeholder': 'Say something…',
+  'live.send_tip': 'Send Tip',
+  'live.no_rooms': 'No live rooms right now.',
+  'live.studio_title': 'Live Studio',
 };
 
 export default en;

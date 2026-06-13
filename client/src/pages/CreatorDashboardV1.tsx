@@ -12,7 +12,7 @@ import {
   Star, CheckCircle, Crown, ExternalLink, Zap, Copy, Check,
   LayoutGrid, AlertCircle, Eye, Sparkles, Link2, Trash2,
   Plus, Share2, BarChart2, Lock, ArrowRight, XCircle, X, Camera,
-  RefreshCw, Brain,
+  RefreshCw, Brain, Radio,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
@@ -1082,6 +1082,7 @@ export default function CreatorDashboardV1() {
                   <div className="space-y-1.5">
                     {[
                       { to: '/upload', icon: <Upload className="w-4 h-4" />, label: 'Create a Drop', sub: '', primary: true },
+                      { to: '/studio/live', icon: <Radio className="w-4 h-4" />, label: 'Live Studio', sub: 'Go live with your audience', primary: false },
                       { to: '/creator/media', icon: <LayoutGrid className="w-4 h-4" />, label: 'Media Library', sub: contentCounts ? `${contentCounts.published} live${contentCounts.pending > 0 ? ` · ${contentCounts.pending} in review` : ''}` : '' },
                       { to: `/creator/${user?.username ?? ''}`, icon: <Eye className="w-4 h-4" />, label: 'View Profile', sub: '' },
                       { to: '/messages', icon: <MessageCircle className="w-4 h-4" />, label: 'Messages', sub: pendingRequests > 0 ? `${pendingRequests} request${pendingRequests !== 1 ? 's' : ''} waiting` : '' },

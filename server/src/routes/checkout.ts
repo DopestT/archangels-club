@@ -70,8 +70,8 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
   }
 
   try {
-    if (!type || !['unlock', 'tip', 'subscription'].includes(type)) {
-      res.status(400).json({ error: 'type must be "unlock", "tip", or "subscription".' });
+    if (!type || !['unlock', 'tip', 'subscription', 'live_ticket', 'live_tip'].includes(type)) {
+      res.status(400).json({ error: 'type must be "unlock", "tip", "subscription", "live_ticket", or "live_tip".' });
       return;
     }
 
@@ -346,6 +346,163 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
       });
 
       console.log('Stripe session URL:', session.url);
+      if (!session.url) throw new Error('Stripe session created but no URL returned.');
+      res.json({ url: session.url });
+      return;
+    }
+
+    // ── LIVE TICKET ──────────────────────────────────────────────────────────
+    if (type === 'live_ticket') {
+      const { live_room_id } = req.body;
+      if (!live_room_id) {
+        res.status(400).json({ error: 'live_room_id is required for type "live_ticket".' });
+        return;
+      }
+
+      const room = await queryOne<any>(
+        `SELECT lr.*, cp.user_id as creator_user_id, cp.stripe_account_id,
+                cp.stripe_onboarding_complete, u.display_name as creator_name
+         FROM live_rooms lr
+         JOIN creator_profiles cp ON cp.id = lr.creator_id
+         JOIN users u ON u.id = cp.user_id
+         WHERE lr.id = $1 AND lr.status != 'ended'`,
+        [live_room_id]
+      );
+      if (!room) {
+        res.status(404).json({ error: 'Live room not found or has ended.' });
+        return;
+      }
+      if (room.access_type !== 'paid') {
+        res.status(400).json({ error: 'This room does not require a ticket.' });
+        return;
+      }
+      if (room.creator_user_id === req.auth!.userId) {
+        res.status(403).json({ error: 'You cannot purchase a ticket to your own room.' });
+        return;
+      }
+      if (!room.price_cents || room.price_cents <= 0) {
+        res.status(400).json({ error: 'Room has no price set.' });
+        return;
+      }
+
+      const alreadyHasAccess = await queryOne(
+        `SELECT id FROM live_access_purchases WHERE live_room_id = $1 AND user_id = $2 AND status = 'active'`,
+        [live_room_id, req.auth!.userId]
+      );
+      if (alreadyHasAccess) {
+        res.json({ already_purchased: true });
+        return;
+      }
+
+      const priceDollars = room.price_cents / 100;
+      const feeCents     = Math.round(room.price_cents * PLATFORM_FEE_RATE);
+      const hasConnect   = !!room.stripe_account_id && !!room.stripe_onboarding_complete;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `Live Room Ticket: ${room.title}` },
+            unit_amount: room.price_cents,
+          },
+          quantity: 1,
+        }],
+        ...(hasConnect ? {
+          payment_intent_data: {
+            application_fee_amount: feeCents,
+            transfer_data: { destination: room.stripe_account_id },
+          },
+        } : {}),
+        metadata: {
+          type:            'live_ticket',
+          user_id:         req.auth!.userId,
+          creator_id:      room.creator_id,
+          creator_user_id: room.creator_user_id,
+          live_room_id,
+          amount:          String(priceDollars),
+        },
+        success_url: `${FRONTEND_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}&returnTo=${encodeURIComponent(`/live/${live_room_id}`)}`,
+        cancel_url:  `${FRONTEND_URL}/live/${live_room_id}?checkout=cancelled`,
+      });
+
+      if (!session.url) throw new Error('Stripe session created but no URL returned.');
+      res.json({ url: session.url });
+      return;
+    }
+
+    // ── LIVE TIP ─────────────────────────────────────────────────────────────
+    if (type === 'live_tip') {
+      const { live_room_id } = req.body;
+      if (!creator_id) {
+        res.status(400).json({ error: 'creator_id is required for type "live_tip".' });
+        return;
+      }
+      if (!live_room_id) {
+        res.status(400).json({ error: 'live_room_id is required for type "live_tip".' });
+        return;
+      }
+      const tipAmount = Number(amount);
+      if (!tipAmount || tipAmount < 1) {
+        res.status(400).json({ error: 'Tip amount must be at least $1.' });
+        return;
+      }
+      if (tipAmount > 10000) {
+        res.status(400).json({ error: 'Tip amount cannot exceed $10,000.' });
+        return;
+      }
+
+      const creator = await queryOne<any>(
+        `SELECT cp.id, cp.user_id, cp.stripe_account_id, cp.stripe_onboarding_complete,
+                u.display_name
+         FROM creator_profiles cp
+         JOIN users u ON u.id = cp.user_id
+         WHERE cp.id = $1 AND cp.is_approved = 1 AND cp.application_status = 'approved'`,
+        [creator_id]
+      );
+      if (!creator) {
+        res.status(404).json({ error: 'Creator not found.' });
+        return;
+      }
+      if (creator.user_id === req.auth!.userId) {
+        res.status(403).json({ error: 'You cannot tip yourself.' });
+        return;
+      }
+
+      const unitAmount = Math.round(tipAmount * 100);
+      const feeAmount  = Math.round(unitAmount * PLATFORM_FEE_RATE);
+      const hasConnect = !!creator.stripe_account_id && !!creator.stripe_onboarding_complete;
+
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ['card'],
+        mode: 'payment',
+        line_items: [{
+          price_data: {
+            currency: 'usd',
+            product_data: { name: `Live Tip to ${creator.display_name}` },
+            unit_amount: unitAmount,
+          },
+          quantity: 1,
+        }],
+        ...(hasConnect ? {
+          payment_intent_data: {
+            application_fee_amount: feeAmount,
+            transfer_data: { destination: creator.stripe_account_id },
+          },
+        } : {}),
+        metadata: {
+          type:            'live_tip',
+          user_id:         req.auth!.userId,
+          creator_id,
+          creator_user_id: creator.user_id,
+          live_room_id,
+          amount:          String(tipAmount),
+        },
+        success_url: `${FRONTEND_URL}/live/${live_room_id}?tip=sent`,
+        cancel_url:  `${FRONTEND_URL}/live/${live_room_id}`,
+      });
+
       if (!session.url) throw new Error('Stripe session created but no URL returned.');
       res.json({ url: session.url });
       return;

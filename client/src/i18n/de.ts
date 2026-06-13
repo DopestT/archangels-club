@@ -64,6 +64,16 @@ const de: TranslationMap = {
   'member.vault': 'Mein Tresor',
   'member.subscriptions': 'Abonnements',
   'member.messages': 'Nachrichten',
+
+  'live.now': 'Jetzt live',
+  'live.go_live': 'Live gehen',
+  'live.end_stream': 'Stream beenden',
+  'live.join_room': 'Beitreten',
+  'live.get_ticket': 'Ticket holen',
+  'live.chat_placeholder': 'Schreib etwas…',
+  'live.send_tip': 'Trinkgeld senden',
+  'live.no_rooms': 'Keine Live-Räume gerade.',
+  'live.studio_title': 'Live-Studio',
 };
 
 export default de;

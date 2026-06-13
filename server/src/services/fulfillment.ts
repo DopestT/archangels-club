@@ -283,6 +283,165 @@ export async function fulfillCheckoutSession(
     return;
   }
 
+  // ── LIVE TICKET ───────────────────────────────────────────────────────────
+  if (paymentType === 'live_ticket') {
+    const liveRoomId = meta.live_room_id ?? null;
+    if (!liveRoomId || !creatorProfileId) {
+      console.error('[fulfillment] live_ticket: missing live_room_id or creatorProfileId session=%s', sessionId);
+      return;
+    }
+
+    const { id: fId, alreadyFulfilled, shouldEscalate } = await initFulfillmentRecord(
+      sessionId, stripeEventId, userId, creatorProfileId, 'live_ticket'
+    );
+    if (alreadyFulfilled) return;
+    if (shouldEscalate) {
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      return;
+    }
+
+    try {
+      const dup = await queryOne('SELECT id FROM transactions WHERE stripe_session_id = $1', [sessionId]);
+      if (dup) {
+        await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+        return;
+      }
+
+      const creator = await queryOne<{ user_id: string }>(
+        'SELECT user_id FROM creator_profiles WHERE id = $1', [creatorProfileId]
+      );
+      if (!creator) {
+        await markFulfillmentNeedsReview(fId, `Creator profile not found: ${creatorProfileId}`);
+        return;
+      }
+
+      const grossAmount     = session.amount_total ? session.amount_total / 100 : Number(amountStr ?? 0);
+      const platformFee     = Math.round(grossAmount * 0.3 * 100) / 100;
+      const creatorEarnings = Math.round((grossAmount - platformFee) * 100) / 100;
+      const txnId           = crypto.randomUUID();
+      const amountCents     = Math.round(grossAmount * 100);
+
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO transactions
+             (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
+              status, stripe_payment_intent_id, stripe_session_id, currency)
+           VALUES ($1, $2, $3, 'custom_request', $4, $5, $6, $7, 'completed', $8, $9, 'usd')`,
+          [txnId, userId, creator.user_id, liveRoomId, grossAmount, platformFee, creatorEarnings,
+           paymentIntentId, sessionId]
+        );
+        await client.query(
+          `INSERT INTO live_access_purchases (id, live_room_id, user_id, stripe_session_id, amount_cents, status)
+           VALUES ($1, $2, $3, $4, $5, 'active')
+           ON CONFLICT (live_room_id, user_id)
+           DO UPDATE SET status = 'active', stripe_session_id = $4, amount_cents = $5`,
+          [crypto.randomUUID(), liveRoomId, userId, sessionId, amountCents]
+        );
+        await client.query(
+          'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
+          [creatorEarnings, creatorProfileId]
+        );
+      });
+
+      await markFulfillmentDone(fId, 'live_ticket', liveRoomId);
+      console.log('[fulfillment] live_ticket activated: user=%s room=%s amount=%s session=%s',
+        userId, liveRoomId, grossAmount, sessionId);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+        return;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      await markFulfillmentFailed(fId, msg);
+      throw err;
+    }
+    return;
+  }
+
+  // ── LIVE TIP ──────────────────────────────────────────────────────────────
+  if (paymentType === 'live_tip') {
+    const liveRoomId = meta.live_room_id ?? null;
+    if (!creatorProfileId) {
+      console.error('[fulfillment] live_tip: missing creatorProfileId session=%s', sessionId);
+      return;
+    }
+
+    const { id: fId, alreadyFulfilled, shouldEscalate } = await initFulfillmentRecord(
+      sessionId, stripeEventId, userId, creatorProfileId, 'live_tip'
+    );
+    if (alreadyFulfilled) return;
+    if (shouldEscalate) {
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      return;
+    }
+
+    try {
+      const dup = await queryOne('SELECT id FROM transactions WHERE stripe_session_id = $1', [sessionId]);
+      if (dup) {
+        await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+        return;
+      }
+
+      const creator = await queryOne<{ user_id: string }>(
+        'SELECT user_id FROM creator_profiles WHERE id = $1', [creatorProfileId]
+      );
+      if (!creator) {
+        await markFulfillmentNeedsReview(fId, `Creator profile not found: ${creatorProfileId}`);
+        return;
+      }
+
+      const grossAmount     = session.amount_total ? session.amount_total / 100 : Number(amountStr ?? 0);
+      const platformFee     = Math.round(grossAmount * 0.3 * 100) / 100;
+      const creatorEarnings = Math.round((grossAmount - platformFee) * 100) / 100;
+      const txnId           = crypto.randomUUID();
+      const tipId           = crypto.randomUUID();
+      const amountCents     = Math.round(grossAmount * 100);
+
+      await withTransaction(async (client) => {
+        await client.query(
+          `INSERT INTO transactions
+             (id, payer_id, payee_id, ref_type, ref_id, amount, platform_fee, net_amount,
+              status, stripe_payment_intent_id, stripe_session_id, currency)
+           VALUES ($1, $2, $3, 'tip', $4, $5, $6, $7, 'completed', $8, $9, 'usd')`,
+          [txnId, userId, creator.user_id, paymentIntentId ?? txnId, grossAmount, platformFee,
+           creatorEarnings, paymentIntentId, sessionId]
+        );
+        if (liveRoomId) {
+          const user = await client.query<{ display_name: string }>(
+            'SELECT display_name FROM users WHERE id = $1', [userId]
+          );
+          await client.query(
+            `INSERT INTO live_tips
+               (id, live_room_id, tipper_id, creator_id, transaction_id, amount_cents,
+                stripe_session_id, display_name, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed')`,
+            [tipId, liveRoomId, userId, creatorProfileId, txnId, amountCents,
+             sessionId, user.rows[0]?.display_name ?? 'Member']
+          );
+        }
+        await client.query(
+          'UPDATE creator_profiles SET total_earnings = total_earnings + $1 WHERE id = $2',
+          [creatorEarnings, creatorProfileId]
+        );
+      });
+
+      await markFulfillmentDone(fId, 'live_tip', txnId);
+      console.log('[fulfillment] live_tip recorded: user=%s → creator=%s amount=%s session=%s',
+        userId, creatorProfileId, grossAmount, sessionId);
+
+      recordSignal(userId, creatorProfileId, 'tip').catch(() => {});
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+        return;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      await markFulfillmentFailed(fId, msg);
+      throw err;
+    }
+    return;
+  }
+
   // ── UNLOCK ────────────────────────────────────────────────────────────────
   if (paymentType === 'unlock') {
     if (!contentId || !creatorProfileId) {

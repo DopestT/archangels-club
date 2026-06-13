@@ -64,6 +64,16 @@ const ja: TranslationMap = {
   'member.vault': 'マイボルト',
   'member.subscriptions': 'サブスクリプション',
   'member.messages': 'メッセージ',
+
+  'live.now': 'ライブ中',
+  'live.go_live': 'ライブ開始',
+  'live.end_stream': '配信終了',
+  'live.join_room': '参加する',
+  'live.get_ticket': 'チケット購入',
+  'live.chat_placeholder': 'メッセージを入力…',
+  'live.send_tip': 'チップを送る',
+  'live.no_rooms': '現在ライブ配信はありません。',
+  'live.studio_title': 'ライブスタジオ',
 };
 
 export default ja;

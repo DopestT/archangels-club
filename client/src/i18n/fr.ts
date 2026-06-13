@@ -64,6 +64,16 @@ const fr: TranslationMap = {
   'member.vault': 'Mon coffre',
   'member.subscriptions': 'Abonnements',
   'member.messages': 'Messages',
+
+  'live.now': 'En direct',
+  'live.go_live': 'Commencer le live',
+  'live.end_stream': 'Terminer le live',
+  'live.join_room': 'Rejoindre',
+  'live.get_ticket': 'Obtenir un billet',
+  'live.chat_placeholder': 'Dites quelque chose…',
+  'live.send_tip': 'Envoyer un pourboire',
+  'live.no_rooms': 'Aucun live en cours.',
+  'live.studio_title': 'Studio live',
 };
 
 export default fr;
