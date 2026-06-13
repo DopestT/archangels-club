@@ -1,14 +1,17 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import {
-  ArrowLeft, Lock, Star, Radio, Clock, DollarSign,
-  Archive, AlertCircle, Loader2,
+  ArrowLeft, Lock, Star, Radio, Clock,
+  Archive, AlertCircle, Loader2, Sparkles,
 } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import LiveStream, { type StreamConfig } from '../components/live/LiveStream';
 import LiveChat from '../components/live/LiveChat';
+import GoldGiftDrawer from '../components/live/GoldGiftDrawer';
+import RoomGoalBar from '../components/live/RoomGoalBar';
+import CrownRace, { type TopTipper } from '../components/live/CrownRace';
 
 interface RoomDetail {
   id: string;
@@ -28,9 +31,9 @@ interface RoomDetail {
   creator_id: string;
   is_creator: boolean;
   access: { granted: boolean; reason?: string };
+  goal_amount_cents: number | null;
+  goal_title: string | null;
 }
-
-type TipState = 'idle' | 'loading' | 'done' | 'error';
 
 export default function LiveRoomPage() {
   const { id } = useParams<{ id: string }>();
@@ -38,14 +41,15 @@ export default function LiveRoomPage() {
   const { t } = useLanguage();
   const navigate = useNavigate();
 
-  const [room, setRoom]           = useState<RoomDetail | null>(null);
-  const [loading, setLoading]     = useState(true);
-  const [error, setError]         = useState<string | null>(null);
-  const [streamCfg, setStreamCfg] = useState<StreamConfig | null>(null);
+  const [room, setRoom]               = useState<RoomDetail | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [error, setError]             = useState<string | null>(null);
+  const [streamCfg, setStreamCfg]     = useState<StreamConfig | null>(null);
   const [streamLoading, setStreamLoading] = useState(false);
-  const [tipAmount, setTipAmount] = useState('');
-  const [tipState, setTipState]   = useState<TipState>('idle');
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [showGiftDrawer, setShowGiftDrawer]   = useState(false);
+  const [tippers, setTippers]                 = useState<TopTipper[]>([]);
+  const [raisedCents, setRaisedCents]         = useState(0);
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
@@ -65,9 +69,30 @@ export default function LiveRoomPage() {
 
   useEffect(() => {
     fetchRoom();
-    const interval = setInterval(fetchRoom, 10000); // poll for status changes
+    const interval = setInterval(fetchRoom, 10000);
     return () => clearInterval(interval);
   }, [fetchRoom]);
+
+  // Poll leaderboard every 30s when room is live and viewer has access
+  useEffect(() => {
+    if (!room || room.status !== 'live') return;
+    const isGranted = room.is_creator || isAdmin || room.access.granted;
+    if (!isGranted) return;
+
+    async function fetchLeaderboard() {
+      try {
+        const data = await apiFetch(`/api/live/${id}/leaderboard`) as {
+          tippers: TopTipper[];
+          raised_cents: number;
+        };
+        setTippers(data.tippers);
+        setRaisedCents(data.raised_cents);
+      } catch {}
+    }
+    fetchLeaderboard();
+    const interval = setInterval(fetchLeaderboard, 30000);
+    return () => clearInterval(interval);
+  }, [id, room?.status, room?.is_creator, room?.access.granted, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (room) document.title = `${room.title} — Archangels Club`;
@@ -137,28 +162,6 @@ export default function LiveRoomPage() {
     }
   }
 
-  async function handleTip() {
-    if (!room || !tipAmount) return;
-    const amt = Number(tipAmount);
-    if (!amt || amt < 1) return;
-    setTipState('loading');
-    try {
-      const data = await apiFetch('/api/checkout/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'live_tip',
-          creator_id: room.creator_id,
-          live_room_id: room.id,
-          amount: amt,
-        }),
-      }) as { url: string };
-      window.location.href = data.url;
-    } catch (err: any) {
-      setError(err?.message ?? 'Tip failed.');
-      setTipState('error');
-    }
-  }
 
   if (loading) {
     return (
@@ -262,27 +265,27 @@ export default function LiveRoomPage() {
                 ) : null}
               </div>
 
-              {/* Tip section (audience only, when live) */}
+              {/* Goal bar */}
+              {room.goal_amount_cents && room.goal_amount_cents > 0 && (
+                <RoomGoalBar
+                  goalAmountCents={room.goal_amount_cents}
+                  goalTitle={room.goal_title}
+                  raisedCents={raisedCents}
+                />
+              )}
+
+              {/* Crown race leaderboard */}
+              {tippers.length > 0 && <CrownRace tippers={tippers} />}
+
+              {/* Gift button (audience only, when live) */}
               {isLive && !room.is_creator && !isAdmin && (
-                <div className="flex items-center gap-2 p-3 rounded-xl border border-zinc-800 bg-zinc-900/60">
-                  <DollarSign size={16} className="text-yellow-400 flex-shrink-0" />
-                  <input
-                    type="number"
-                    min="1"
-                    max="10000"
-                    placeholder="Tip amount ($1 min)"
-                    value={tipAmount}
-                    onChange={e => setTipAmount(e.target.value)}
-                    className="flex-1 bg-transparent border-none text-sm text-white placeholder-zinc-500 focus:outline-none min-w-0"
-                  />
-                  <button
-                    onClick={handleTip}
-                    disabled={tipState === 'loading' || !tipAmount}
-                    className="px-4 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-black text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
-                  >
-                    {tipState === 'loading' ? <Loader2 size={14} className="animate-spin" /> : t('live.send_tip')}
-                  </button>
-                </div>
+                <button
+                  onClick={() => setShowGiftDrawer(true)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-yellow-600/30 bg-yellow-600/10 hover:bg-yellow-600/20 text-yellow-400 text-sm font-semibold transition-all arc-pressable"
+                >
+                  <Sparkles size={16} />
+                  Send a Gold Gift
+                </button>
               )}
             </div>
 
@@ -359,6 +362,16 @@ export default function LiveRoomPage() {
           </div>
         )}
       </div>
+
+      {/* Gold Gift Drawer */}
+      {showGiftDrawer && room && (
+        <GoldGiftDrawer
+          roomId={room.id}
+          creatorId={room.creator_id}
+          onClose={() => setShowGiftDrawer(false)}
+          onSent={() => setShowGiftDrawer(false)}
+        />
+      )}
     </div>
   );
 }

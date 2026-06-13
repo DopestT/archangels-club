@@ -39,6 +39,8 @@ export default function CreatorLiveStudio() {
   const [description, setDescription] = useState('');
   const [accessType, setAccessType]   = useState<'free' | 'subscribers' | 'paid'>('free');
   const [priceDollars, setPriceDollars] = useState('');
+  const [goalDollars, setGoalDollars]   = useState('');
+  const [goalTitle, setGoalTitle]       = useState('');
   const [creating, setCreating]       = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
 
@@ -83,12 +85,21 @@ export default function CreatorLiveStudio() {
       await apiFetch('/api/live', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.trim(), description: description.trim() || null, access_type: accessType, price_cents: priceCents }),
+        body: JSON.stringify({
+          title: title.trim(),
+          description: description.trim() || null,
+          access_type: accessType,
+          price_cents: priceCents,
+          goal_amount_cents: goalDollars ? Math.round(Number(goalDollars) * 100) : null,
+          goal_title: goalTitle.trim() || null,
+        }),
       });
       setTitle('');
       setDescription('');
       setAccessType('free');
       setPriceDollars('');
+      setGoalDollars('');
+      setGoalTitle('');
       setShowCreate(false);
       await fetchRooms();
     } catch (err: any) {
@@ -334,6 +345,30 @@ export default function CreatorLiveStudio() {
                   </div>
                 </div>
               )}
+
+              {/* Stream goal (optional) */}
+              <div className="border-t border-zinc-800 pt-3 space-y-2">
+                <p className="text-xs text-zinc-500 font-medium">Stream Goal <span className="text-zinc-600">(optional)</span></p>
+                <input
+                  value={goalTitle}
+                  onChange={e => setGoalTitle(e.target.value)}
+                  placeholder="e.g. New camera fund"
+                  maxLength={80}
+                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-600/50"
+                />
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={goalDollars}
+                    onChange={e => setGoalDollars(e.target.value)}
+                    placeholder="Goal amount"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-7 pr-3 py-2 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-600/50"
+                  />
+                </div>
+              </div>
             </div>
 
             <button

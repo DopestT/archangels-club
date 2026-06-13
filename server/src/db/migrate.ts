@@ -702,6 +702,20 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_live_chat_room ON live_chat_messages(live_room_id, created_at ASC);
   CREATE INDEX IF NOT EXISTS idx_live_access_user ON live_access_purchases(user_id, live_room_id);
   CREATE INDEX IF NOT EXISTS idx_live_tips_room ON live_tips(live_room_id, created_at DESC);
+
+  -- Gold economy / room goal fields
+  ALTER TABLE live_rooms ADD COLUMN IF NOT EXISTS goal_amount_cents INTEGER;
+  ALTER TABLE live_rooms ADD COLUMN IF NOT EXISTS goal_title TEXT;
+
+  -- AI moderation log
+  CREATE TABLE IF NOT EXISTS live_ai_moderation_log (
+    id TEXT PRIMARY KEY,
+    live_room_id TEXT NOT NULL REFERENCES live_rooms(id) ON DELETE CASCADE,
+    safe BOOLEAN NOT NULL DEFAULT true,
+    reason TEXT,
+    checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  CREATE INDEX IF NOT EXISTS idx_live_ai_mod_room ON live_ai_moderation_log(live_room_id, checked_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {

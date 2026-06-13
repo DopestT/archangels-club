@@ -108,7 +108,7 @@ router.get('/my-rooms', requireAuth, requireCreator, async (req, res) => {
 
 router.post('/', requireAuth, requireApproved, requireCreator, async (req, res) => {
   try {
-    const { title, description, access_type, price_cents } = req.body;
+    const { title, description, access_type, price_cents, goal_amount_cents, goal_title } = req.body;
 
     if (!title || typeof title !== 'string' || title.trim().length < 3) {
       res.status(400).json({ error: 'Title must be at least 3 characters.' });
@@ -143,12 +143,14 @@ router.post('/', requireAuth, requireApproved, requireCreator, async (req, res) 
 
     const id = crypto.randomUUID();
     const priceCents = access_type === 'paid' ? Number(price_cents) : null;
+    const goalCents = goal_amount_cents ? Number(goal_amount_cents) : null;
 
     await execute(
       `INSERT INTO live_rooms
-         (id, creator_id, creator_user_id, title, description, access_type, price_cents)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, cp.id, req.auth!.userId, title.trim(), description?.trim() ?? null, access_type, priceCents]
+         (id, creator_id, creator_user_id, title, description, access_type, price_cents, goal_amount_cents, goal_title)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [id, cp.id, req.auth!.userId, title.trim(), description?.trim() ?? null, access_type, priceCents,
+       goalCents, goal_title?.trim() ?? null]
     );
 
     res.status(201).json({ id });
@@ -500,6 +502,39 @@ router.post('/:id/chat/:msgId/report', requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to report message.' });
+  }
+});
+
+// ── GET /api/live/:id/leaderboard — top tippers in a room ───────────────────
+
+router.get('/:id/leaderboard', requireAuth, async (req, res) => {
+  try {
+    const access = await getAccessStatus(req.params.id, req.auth!.userId);
+    const room = await queryOne<{ creator_user_id: string }>(
+      'SELECT creator_user_id FROM live_rooms WHERE id = $1', [req.params.id]
+    );
+    const isCreator = room?.creator_user_id === req.auth!.userId;
+    const isAdmin   = req.auth!.role === 'admin';
+    if (!access.granted && !isCreator && !isAdmin) {
+      res.status(403).json({ error: 'Access required.' }); return;
+    }
+
+    const rows = await query<{ display_name: string; total_cents: number }>(
+      `SELECT display_name, SUM(amount_cents)::int AS total_cents
+         FROM live_tips
+        WHERE live_room_id = $1 AND status = 'completed'
+        GROUP BY display_name
+        ORDER BY total_cents DESC
+        LIMIT 10`,
+      [req.params.id]
+    );
+
+    const tippers = rows.map((r, i) => ({ ...r, rank: i + 1 }));
+    const raisedCents = rows.reduce((sum, r) => sum + r.total_cents, 0);
+    res.json({ tippers, raised_cents: raisedCents });
+  } catch (err) {
+    console.error('[live] GET /:id/leaderboard error:', err);
+    res.status(500).json({ error: 'Failed to fetch leaderboard.' });
   }
 });
 
