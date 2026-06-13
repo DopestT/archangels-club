@@ -68,14 +68,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Unable to reach the server. Please check your connection and try again.');
     }
 
-    console.log('[login] response status:', res.status);
+    if (res.status === 405) {
+      throw new Error('Login service temporarily unavailable. Please try again in a moment.');
+    }
 
     let data: any;
     try {
       data = await res.json();
-      console.log('[login] response body:', data);
+      console.log('[login] status:', res.status, 'body:', data);
     } catch {
-      throw new Error('Unable to sign in. Please try again.');
+      throw new Error('Server returned an unexpected response. Please try again.');
     }
 
     if (!res.ok) throw new Error(data.error ?? 'Login failed. Please try again.');
