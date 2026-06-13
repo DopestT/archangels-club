@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   Crown, Users, DollarSign, Flag, LayoutDashboard,
-  UserCheck, Image, Shield, Bug, Activity, Star,
+  UserCheck, Image, Shield, Bug, Activity, Star, Radio,
 } from 'lucide-react';
 
 const NAV = [
@@ -15,6 +15,7 @@ const NAV = [
   { to: '/admin/transactions',      label: 'Transactions',      icon: DollarSign },
   { to: '/admin/verifications',     label: 'Verifications',     icon: Shield },
   { to: '/admin/reviews',           label: 'Reviews',           icon: Star },
+  { to: '/admin/live',              label: 'Live Control',      icon: Radio },
   { to: '/admin/control-center',    label: 'Command Center',    icon: LayoutDashboard },
   { to: '/admin/bug-control',       label: 'Bug Control',       icon: Bug },
 ];
