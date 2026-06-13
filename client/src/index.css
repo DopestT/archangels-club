@@ -402,11 +402,11 @@
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
-/* ── Hero video: center angel on mobile ─────────────────────── */
+/* ── Hero video: center angel on mobile/tablet ──────────────── */
 /* Desktop keeps default object-position (center center).        */
-/* On mobile the left wing dominates; shift right to bring the   */
-/* seated angel/body into the viewport centerpiece.              */
-@media (max-width: 767px) {
+/* On narrow viewports the left wing dominates; shift right to   */
+/* bring the seated angel/body into the viewport centerpiece.    */
+@media (max-width: 1023px) {
   .hero-video {
     object-position: 72% center;
   }
