@@ -4,6 +4,7 @@ import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator, requireAdmin } from '../middleware/auth.js';
 import { generateStreamToken } from '../services/streaming.js';
+import { triggerCreatorGoesLive } from '../services/triggers.js';
 
 const FRONTEND_URL    = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://www.archangelsclub.com';
 const PLATFORM_FEE    = 0.3;
@@ -293,8 +294,8 @@ router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
 
 router.post('/:id/start', requireAuth, requireCreator, async (req, res) => {
   try {
-    const room = await queryOne<{ creator_user_id: string; status: string }>(
-      'SELECT creator_user_id, status FROM live_rooms WHERE id = $1', [req.params.id]
+    const room = await queryOne<{ creator_user_id: string; status: string; title: string }>(
+      'SELECT creator_user_id, status, title FROM live_rooms WHERE id = $1', [req.params.id]
     );
     if (!room) { res.status(404).json({ error: 'Room not found.' }); return; }
     if (room.creator_user_id !== req.auth!.userId) { res.status(403).json({ error: 'Not your room.' }); return; }
@@ -311,6 +312,17 @@ router.post('/:id/start', requireAuth, requireCreator, async (req, res) => {
     const tokenResult = generateStreamToken(String(req.params.id), uid, 'host');
 
     res.json({ ok: true, stream: tokenResult });
+
+    // Fire-and-forget: notify subscribers that the creator just went live
+    const creator = await queryOne<{ display_name: string }>(
+      'SELECT display_name FROM users WHERE id = $1', [req.auth!.userId]
+    );
+    triggerCreatorGoesLive({
+      creatorUserId: req.auth!.userId,
+      creatorName: creator?.display_name ?? 'Your creator',
+      roomId: String(req.params.id),
+      roomTitle: room.title,
+    }).catch(() => {});
   } catch (err) {
     console.error('[live] POST /:id/start error:', err);
     res.status(500).json({ error: 'Failed to start room.' });

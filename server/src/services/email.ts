@@ -436,6 +436,19 @@ export async function sendUserNewContent(to: string, name: string, creatorName: 
   }));
 }
 
+export async function sendUserCreatorLive(to: string, name: string, creatorName: string, roomTitle: string, roomId: string) {
+  return send(to, `${creatorName} is live now`, buildHtml({
+    eyebrow: 'Live Now',
+    heading: `${creatorName} just went live.`,
+    lines: [
+      `${name}.`,
+      `<strong style="color:#FFFFFF;">${roomTitle}</strong> is streaming now. Join before it ends.`,
+    ],
+    ctaLabel: 'Watch Live',
+    ctaUrl: `${BASE_URL}/live/${roomId}`,
+  }));
+}
+
 export async function sendUserDropAlert(to: string, name: string, contentTitle: string, contentId: string, remaining?: number) {
   const scarcityLine = remaining !== undefined && remaining <= 20
     ? `<strong style="color:#C8A96A;">${remaining} unlocks remaining.</strong>`

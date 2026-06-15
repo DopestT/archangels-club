@@ -34,6 +34,12 @@ export async function smsCreatorDropLive(phone: string, dropName: string) {
   );
 }
 
+export async function smsUserCreatorLive(phone: string, creatorName: string, roomId: string) {
+  return sendSms(phone,
+    `${creatorName} is live on Archangels Club right now. ${BASE_URL}/live/${roomId}`
+  );
+}
+
 // ─── User SMS ─────────────────────────────────────────────────────────────────
 
 export async function smsUserDropAlert(phone: string, contentTitle: string, contentId: string) {
