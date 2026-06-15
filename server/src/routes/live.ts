@@ -113,6 +113,47 @@ router.get('/my-rooms', requireAuth, requireCreator, async (req, res) => {
   }
 });
 
+// ── GET /api/live/eligible — rooms the authenticated user can enter ──────────
+
+router.get('/eligible', requireAuth, async (req, res) => {
+  try {
+    const userId = req.auth!.userId;
+    const rows = await query<any>(
+      `SELECT lr.id, lr.title, lr.description, lr.access_type, lr.price_cents,
+              lr.status, lr.started_at, lr.peak_viewer_count,
+              u.display_name as creator_name, u.avatar_url as creator_avatar,
+              u.username as creator_username, cp.id as creator_id
+         FROM live_rooms lr
+         JOIN creator_profiles cp ON cp.id = lr.creator_id
+         JOIN users u ON u.id = cp.user_id
+         LEFT JOIN subscriptions sub
+           ON sub.creator_id = lr.creator_id
+          AND sub.subscriber_id = $1
+          AND sub.expires_at > NOW()
+          AND sub.status IN ('active','cancelled')
+         LEFT JOIN live_access_purchases lap
+           ON lap.live_room_id = lr.id
+          AND lap.user_id = $1
+          AND lap.status = 'active'
+        WHERE lr.status = 'live'
+          AND cp.is_approved = 1 AND cp.application_status = 'approved'
+          AND (
+            lr.access_type = 'free'
+            OR lr.creator_user_id = $1
+            OR (lr.access_type = 'subscribers' AND sub.id IS NOT NULL)
+            OR (lr.access_type = 'paid' AND lap.id IS NOT NULL)
+          )
+        ORDER BY lr.started_at DESC
+        LIMIT 50`,
+      [userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[live] GET /eligible error:', err);
+    res.status(500).json({ error: 'Failed to fetch eligible rooms.' });
+  }
+});
+
 // ── POST /api/live — create a live room ─────────────────────────────────────
 
 router.post('/', requireAuth, requireApproved, requireCreator, async (req, res) => {

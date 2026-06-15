@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Radio } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Radio, Layers } from 'lucide-react';
 import { apiFetch } from '../lib/api';
 import { useLanguage } from '../context/LanguageContext';
 import LiveRoomCard, { type LiveRoom } from '../components/live/LiveRoomCard';
 
 export default function LiveRoomsPage() {
   const { t } = useLanguage();
+  const navigate = useNavigate();
   const [rooms, setRooms] = useState<LiveRoom[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -34,15 +35,24 @@ export default function LiveRoomsPage() {
     <div className="min-h-screen bg-black text-white">
       <div className="max-w-5xl mx-auto px-4 py-10 space-y-8">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <Radio size={28} className="text-yellow-400" />
-            <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse border-2 border-black" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Radio size={28} className="text-yellow-400" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse border-2 border-black" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">{t('live.now')}</h1>
+              <p className="text-sm text-zinc-500">Private by Design. Live right now.</p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">{t('live.now')}</h1>
-            <p className="text-sm text-zinc-500">Private by Design. Live right now.</p>
-          </div>
+          <button
+            onClick={() => navigate('/live/swipe')}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl border border-yellow-600/30 bg-yellow-600/10 text-yellow-400 text-sm font-medium hover:bg-yellow-600/20 transition-colors shrink-0"
+          >
+            <Layers size={16} />
+            Swipe
+          </button>
         </div>
 
         {/* Content */}
