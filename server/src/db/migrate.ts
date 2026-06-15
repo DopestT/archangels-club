@@ -716,6 +716,9 @@ const DDL = `
     checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
   CREATE INDEX IF NOT EXISTS idx_live_ai_mod_room ON live_ai_moderation_log(live_room_id, checked_at DESC);
+
+  -- Gold gift privacy (public / private / ghost) stored at fulfillment time
+  ALTER TABLE live_tips ADD COLUMN IF NOT EXISTS privacy TEXT NOT NULL DEFAULT 'public';
 `;
 
 export async function runMigrations(): Promise<void> {

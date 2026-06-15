@@ -26,12 +26,12 @@ export default function LiveChat({ roomId, isOpen, isCreator }: Props) {
   const { user, isAdmin } = useAuth();
   const { t } = useLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const bottomRef = useRef<HTMLDivElement>(null);
-  const latestTsRef = useRef<string | undefined>(undefined);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [input, setInput]       = useState('');
+  const [sending, setSending]   = useState(false);
+  const [error, setError]       = useState<string | null>(null);
+  const bottomRef      = useRef<HTMLDivElement>(null);
+  const latestTsRef    = useRef<string | undefined>(undefined);
+  const pollRef        = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchMessages = useCallback(async () => {
     if (!isOpen) return;
@@ -54,17 +54,13 @@ export default function LiveChat({ roomId, isOpen, isCreator }: Props) {
     }
   }, [roomId, isOpen]);
 
-  // Initial load + polling
   useEffect(() => {
     if (!isOpen) return;
     fetchMessages();
     pollRef.current = setInterval(fetchMessages, POLL_INTERVAL);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, [fetchMessages, isOpen]);
 
-  // Auto-scroll on new messages
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -81,7 +77,6 @@ export default function LiveChat({ roomId, isOpen, isCreator }: Props) {
         body: JSON.stringify({ message: text }),
       });
       setInput('');
-      // Fetch immediately after sending
       await fetchMessages();
     } catch (err: any) {
       setError(err?.message ?? 'Failed to send message.');
@@ -94,23 +89,21 @@ export default function LiveChat({ roomId, isOpen, isCreator }: Props) {
     try {
       await apiFetch(`/api/live/${roomId}/chat/${msgId}`, { method: 'DELETE' });
       setMessages(prev => prev.filter(m => m.id !== msgId));
-    } catch {
-      // silent
-    }
+    } catch { /* silent */ }
   }
 
   async function reportMessage(msgId: string) {
     try {
       await apiFetch(`/api/live/${roomId}/chat/${msgId}/report`, { method: 'POST' });
-    } catch {
-      // silent
-    }
+    } catch { /* silent */ }
   }
 
   if (!isOpen) {
     return (
-      <div className="flex items-center justify-center h-full text-zinc-500 text-sm">
-        Chat available when room is live.
+      <div className="flex items-center justify-center h-full px-6 text-center">
+        <p className="text-zinc-700 text-xs leading-relaxed font-serif italic">
+          The Inner Circle is quiet.
+        </p>
       </div>
     );
   }
@@ -118,36 +111,46 @@ export default function LiveChat({ roomId, isOpen, isCreator }: Props) {
   return (
     <div className="flex flex-col h-full">
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-3 py-2 space-y-2 min-h-0">
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2.5 min-h-0">
         {messages.length === 0 ? (
-          <p className="text-center text-zinc-600 text-xs mt-4">No messages yet. Be the first!</p>
+          <div className="flex items-center justify-center h-full">
+            <p className="text-zinc-700 text-xs text-center italic font-serif leading-relaxed">
+              The Inner Circle is quiet.<br />
+              <span className="not-italic text-zinc-800 text-[10px] tracking-wide font-sans">Say something worthy.</span>
+            </p>
+          </div>
         ) : (
           messages.map(msg => {
-            const isOwn = msg.user_id === user?.id;
+            const isOwn    = msg.user_id === user?.id;
             const canDelete = isOwn || isCreator || isAdmin;
             return (
               <div key={msg.id} className="group flex items-start gap-2">
                 <div className="flex-1 min-w-0">
-                  <span className="text-xs font-semibold text-yellow-400">{msg.display_name} </span>
-                  <span className="text-xs text-zinc-300 break-words">{msg.message}</span>
+                  <span
+                    className="text-[11px] font-semibold mr-1.5"
+                    style={{ color: isOwn ? '#d4af37' : '#a1a1aa' }}
+                  >
+                    {msg.display_name}
+                  </span>
+                  <span className="text-xs text-zinc-400 break-words">{msg.message}</span>
                 </div>
-                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 pt-0.5">
                   {canDelete && (
                     <button
                       onClick={() => deleteMessage(msg.id)}
-                      className="text-zinc-600 hover:text-red-400 transition-colors"
+                      className="text-zinc-700 hover:text-red-500 transition-colors"
                       title="Delete"
                     >
-                      <Trash2 size={11} />
+                      <Trash2 size={10} />
                     </button>
                   )}
                   {!isOwn && (
                     <button
                       onClick={() => reportMessage(msg.id)}
-                      className="text-zinc-600 hover:text-orange-400 transition-colors"
+                      className="text-zinc-700 hover:text-zinc-400 transition-colors"
                       title="Report"
                     >
-                      <Flag size={11} />
+                      <Flag size={10} />
                     </button>
                   )}
                 </div>
@@ -160,27 +163,31 @@ export default function LiveChat({ roomId, isOpen, isCreator }: Props) {
 
       {/* Error */}
       {error && (
-        <p className="text-xs text-red-400 px-3 py-1 bg-red-900/20 border-t border-red-900/30">
+        <p className="text-[11px] text-red-400 px-4 py-1.5 bg-red-950/30 border-t border-red-900/20">
           {error}
         </p>
       )}
 
       {/* Input */}
-      <div className="border-t border-zinc-800 px-3 py-2 flex gap-2">
+      <div
+        className="px-4 py-3 flex gap-2 items-center"
+        style={{ borderTop: '1px solid rgba(255,255,255,0.05)' }}
+      >
         <input
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          placeholder={t('live.chat_placeholder')}
+          placeholder="Send a message to the Inner Circle…"
           maxLength={500}
-          className="flex-1 bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-yellow-600/50 min-w-0"
+          className="flex-1 bg-transparent text-xs text-zinc-300 placeholder-zinc-700 focus:outline-none min-w-0"
         />
         <button
           onClick={send}
           disabled={sending || !input.trim()}
-          className="px-3 py-1.5 rounded-lg bg-yellow-600 hover:bg-yellow-500 text-black font-semibold text-sm disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex-shrink-0"
+          className="flex-shrink-0 p-1.5 rounded-lg transition-all disabled:opacity-30"
+          style={{ color: '#d4af37' }}
         >
-          <Send size={14} />
+          <Send size={13} />
         </button>
       </div>
     </div>
