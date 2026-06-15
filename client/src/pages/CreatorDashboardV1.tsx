@@ -28,6 +28,7 @@ import CreatorWelcomeReveal from '../components/creator/CreatorWelcomeReveal';
 import { useCreatorProgress } from '../hooks/useCreatorProgress';
 import CoachingCard from '../components/creator/CoachingCard';
 import type { Insight } from '../components/creator/CoachingCard';
+import PayoutRequestSection from '../components/creator/PayoutRequestSection';
 
 interface StripeStatus { has_account: boolean; onboarded: boolean; account_id: string | null }
 interface CreatorStats { total_earnings: number; subscriber_count: number; content_unlocks: number; tips_total: number; content_count: number; subscription_price?: number; starting_price?: number }
@@ -553,6 +554,14 @@ export default function CreatorDashboardV1() {
                 Stripe Dashboard
               </button>
             </div>
+          )}
+
+          {/* ── Manual payout request (for creators without Stripe Connect) ──────── */}
+          {isVerifiedCreator && (stats?.total_earnings ?? 0) > 0 && (
+            <PayoutRequestSection
+              token={token}
+              totalEarnings={stats?.total_earnings ?? 0}
+            />
           )}
 
           {/* ── Content issues alert ────────────────────────────────────────────── */}
