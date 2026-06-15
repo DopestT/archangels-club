@@ -1,8 +1,17 @@
 import { Router } from 'express';
 import crypto from 'crypto';
+import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator, requireAdmin } from '../middleware/auth.js';
 import { generateStreamToken } from '../services/streaming.js';
+
+const FRONTEND_URL    = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://www.archangelsclub.com';
+const PLATFORM_FEE    = 0.3;
+
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not set');
+  return new Stripe(process.env.STRIPE_SECRET_KEY);
+}
 
 const router = Router();
 
@@ -505,6 +514,89 @@ router.post('/:id/chat/:msgId/report', requireAuth, async (req, res) => {
   }
 });
 
+// ── POST /api/live/:id/tip — create Stripe checkout for a live Gold gift ─────
+//
+// Accepts: { amount_cents, creator_id, privacy?, message? }
+// privacy: 'public' | 'private' | 'ghost'  (default: 'public')
+//   public  → sender name shown in room feed
+//   private → shows as "Private Patron"
+//   ghost   → shows as "A private gift was sent"
+
+router.post('/:id/tip', requireAuth, requireApproved, async (req, res) => {
+  try {
+    const { amount_cents, creator_id, privacy = 'public', message } = req.body;
+
+    if (!amount_cents || typeof amount_cents !== 'number' || amount_cents < 100) {
+      res.status(400).json({ error: 'amount_cents must be at least 100.' });
+      return;
+    }
+    if (!['public', 'private', 'ghost'].includes(privacy)) {
+      res.status(400).json({ error: 'privacy must be public, private, or ghost.' });
+      return;
+    }
+
+    const room = await queryOne<{ status: string; creator_id: string }>(
+      'SELECT status, creator_id FROM live_rooms WHERE id = $1', [req.params.id]
+    );
+    if (!room) { res.status(404).json({ error: 'Room not found.' }); return; }
+    if (room.status !== 'live') { res.status(400).json({ error: 'Room is not currently live.' }); return; }
+
+    const resolvedCreatorId = creator_id ?? room.creator_id;
+    const creator = await queryOne<{ id: string; user_id: string; stripe_account_id: string | null; stripe_onboarding_complete: number; display_name: string }>(
+      `SELECT cp.id, cp.user_id, cp.stripe_account_id, cp.stripe_onboarding_complete, u.display_name
+         FROM creator_profiles cp
+         JOIN users u ON u.id = cp.user_id
+        WHERE cp.id = $1 AND cp.is_approved = 1`,
+      [resolvedCreatorId]
+    );
+    if (!creator) { res.status(404).json({ error: 'Creator not found.' }); return; }
+    if (creator.user_id === req.auth!.userId) { res.status(403).json({ error: 'Cannot tip yourself.' }); return; }
+
+    const stripe     = getStripe();
+    const unitAmount = amount_cents;
+    const feeAmount  = Math.round(unitAmount * PLATFORM_FEE);
+    const hasConnect = !!creator.stripe_account_id && !!creator.stripe_onboarding_complete;
+    const amountDollars = (unitAmount / 100).toFixed(2);
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'payment',
+      line_items: [{
+        price_data: {
+          currency:     'usd',
+          product_data: { name: `Gold Gift to ${creator.display_name}` },
+          unit_amount:  unitAmount,
+        },
+        quantity: 1,
+      }],
+      ...(hasConnect ? {
+        payment_intent_data: {
+          application_fee_amount: feeAmount,
+          transfer_data: { destination: creator.stripe_account_id! },
+        },
+      } : {}),
+      metadata: {
+        type:            'live_tip',
+        user_id:         req.auth!.userId,
+        creator_id:      resolvedCreatorId,
+        creator_user_id: creator.user_id,
+        live_room_id:    String(req.params.id),
+        amount:          amountDollars,
+        tip_privacy:     privacy,
+        ...(message ? { tip_message: message } : {}),
+      },
+      success_url: `${FRONTEND_URL}/live/${req.params.id}?tip=sent`,
+      cancel_url:  `${FRONTEND_URL}/live/${req.params.id}`,
+    });
+
+    if (!session.url) throw new Error('No checkout URL returned.');
+    res.json({ url: session.url });
+  } catch (err) {
+    console.error('[live] POST /:id/tip error:', err);
+    res.status(500).json({ error: 'Failed to create tip checkout.' });
+  }
+});
+
 // ── GET /api/live/:id/leaderboard — top tippers in a room ───────────────────
 
 router.get('/:id/leaderboard', requireAuth, async (req, res) => {
@@ -523,7 +615,7 @@ router.get('/:id/leaderboard', requireAuth, async (req, res) => {
       `SELECT display_name, SUM(amount_cents)::int AS total_cents
          FROM live_tips
         WHERE live_room_id = $1 AND status = 'completed'
-        GROUP BY display_name
+        GROUP BY tipper_id, display_name
         ORDER BY total_cents DESC
         LIMIT 10`,
       [req.params.id]

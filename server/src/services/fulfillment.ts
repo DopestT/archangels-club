@@ -410,13 +410,19 @@ export async function fulfillCheckoutSession(
           const user = await client.query<{ display_name: string }>(
             'SELECT display_name FROM users WHERE id = $1', [userId]
           );
+          // Respect gift privacy setting stored in session metadata
+          const tipPrivacy  = meta.tip_privacy ?? 'public';
+          const displayName = tipPrivacy === 'public'
+            ? (user.rows[0]?.display_name ?? 'Member')
+            : 'Private Patron';
+
           await client.query(
             `INSERT INTO live_tips
                (id, live_room_id, tipper_id, creator_id, transaction_id, amount_cents,
-                stripe_session_id, display_name, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'completed')`,
+                stripe_session_id, display_name, privacy, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed')`,
             [tipId, liveRoomId, userId, creatorProfileId, txnId, amountCents,
-             sessionId, user.rows[0]?.display_name ?? 'Member']
+             sessionId, displayName, tipPrivacy]
           );
         }
         await client.query(
