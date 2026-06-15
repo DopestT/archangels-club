@@ -720,6 +720,13 @@ const DDL = `
   -- Gold gift privacy (public / private / ghost) stored at fulfillment time
   ALTER TABLE live_tips ADD COLUMN IF NOT EXISTS privacy TEXT NOT NULL DEFAULT 'public';
 
+  -- Gift type identifier for patron ladder tracking and room feed display
+  ALTER TABLE live_tips ADD COLUMN IF NOT EXISTS gift_type TEXT;
+
+  -- Patron status index: cumulative Gold by tipper per creator
+  CREATE INDEX IF NOT EXISTS idx_live_tips_patron
+    ON live_tips(tipper_id, creator_id) WHERE status = 'completed';
+
   -- Contractor payout requests (for creators who cannot use Stripe Connect)
   CREATE TABLE IF NOT EXISTS payout_requests (
     id TEXT PRIMARY KEY,
