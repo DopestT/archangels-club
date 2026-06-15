@@ -415,14 +415,15 @@ export async function fulfillCheckoutSession(
           const displayName = tipPrivacy === 'public'
             ? (user.rows[0]?.display_name ?? 'Member')
             : 'Private Patron';
+          const tipGiftType = meta.tip_gift_type ?? null;
 
           await client.query(
             `INSERT INTO live_tips
                (id, live_room_id, tipper_id, creator_id, transaction_id, amount_cents,
-                stripe_session_id, display_name, privacy, status)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'completed')`,
+                stripe_session_id, display_name, privacy, gift_type, status)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'completed')`,
             [tipId, liveRoomId, userId, creatorProfileId, txnId, amountCents,
-             sessionId, displayName, tipPrivacy]
+             sessionId, displayName, tipPrivacy, tipGiftType]
           );
         }
         await client.query(

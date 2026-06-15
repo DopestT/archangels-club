@@ -1010,4 +1010,51 @@ router.get('/pulse', requireAuth, requireAdmin, async (_req, res) => {
   }
 });
 
+// ── Payout Requests ──────────────────────────────────────────────────────────
+
+// GET /api/admin/payout-requests — list all payout requests
+router.get('/payout-requests', async (req, res) => {
+  const { status } = req.query;
+  try {
+    let sql = `
+      SELECT pr.*, u.display_name, u.email, u.username
+      FROM payout_requests pr
+      JOIN users u ON u.id = pr.creator_id
+    `;
+    const params: unknown[] = [];
+    if (status && ['pending', 'paid', 'rejected'].includes(String(status))) {
+      sql += ` WHERE pr.status = $1`;
+      params.push(status);
+    }
+    sql += ` ORDER BY pr.created_at DESC LIMIT 200`;
+    const rows = await query<any>(sql, params);
+    res.json(rows);
+  } catch (err) {
+    console.error('[admin/payout-requests] error:', err);
+    res.status(500).json({ error: 'Failed to load payout requests.' });
+  }
+});
+
+// PATCH /api/admin/payout-requests/:id — mark paid or rejected
+router.patch('/payout-requests/:id', async (req, res) => {
+  const { status, admin_note = '' } = req.body;
+  if (!['paid', 'rejected'].includes(status)) {
+    res.status(400).json({ error: 'status must be paid or rejected' });
+    return;
+  }
+  try {
+    const updated = await execute(
+      `UPDATE payout_requests
+       SET status = $1, admin_note = $2, updated_at = NOW()
+       WHERE id = $3`,
+      [status, (admin_note ?? '').slice(0, 500), req.params.id]
+    );
+    if (updated === 0) { res.status(404).json({ error: 'Not found.' }); return; }
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[admin/payout-requests/patch] error:', err);
+    res.status(500).json({ error: 'Failed to update payout request.' });
+  }
+});
+
 export default router;

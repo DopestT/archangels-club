@@ -719,6 +719,30 @@ const DDL = `
 
   -- Gold gift privacy (public / private / ghost) stored at fulfillment time
   ALTER TABLE live_tips ADD COLUMN IF NOT EXISTS privacy TEXT NOT NULL DEFAULT 'public';
+
+  -- Gift type identifier for patron ladder tracking and room feed display
+  ALTER TABLE live_tips ADD COLUMN IF NOT EXISTS gift_type TEXT;
+
+  -- Patron status index: cumulative Gold by tipper per creator
+  CREATE INDEX IF NOT EXISTS idx_live_tips_patron
+    ON live_tips(tipper_id, creator_id) WHERE status = 'completed';
+
+  -- Contractor payout requests (for creators who cannot use Stripe Connect)
+  CREATE TABLE IF NOT EXISTS payout_requests (
+    id TEXT PRIMARY KEY,
+    creator_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    amount_dollars NUMERIC(12,2) NOT NULL,
+    payment_method TEXT NOT NULL DEFAULT 'bank_transfer',
+    notes TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'pending'
+      CHECK (status IN ('pending', 'paid', 'rejected')),
+    admin_note TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_payout_requests_creator ON payout_requests(creator_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_payout_requests_status  ON payout_requests(status, created_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {

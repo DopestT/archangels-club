@@ -42,6 +42,7 @@ const LiveRoomsPage             = lazy(() => import('./pages/LiveRoomsPage'));
 const LiveRoomPage              = lazy(() => import('./pages/LiveRoomPage'));
 const CreatorLiveStudio         = lazy(() => import('./pages/CreatorLiveStudio'));
 const AdminLivePage             = lazy(() => import('./pages/AdminLivePage'));
+const LiveSwipeFeed             = lazy(() => import('./pages/LiveSwipeFeed'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -181,6 +182,11 @@ function AppRoutes() {
         <Route path="live" element={
           <ProtectedRoute>
             <LiveRoomsPage />
+          </ProtectedRoute>
+        } />
+        <Route path="live/swipe" element={
+          <ProtectedRoute>
+            <LiveSwipeFeed />
           </ProtectedRoute>
         } />
         <Route path="live/:id" element={

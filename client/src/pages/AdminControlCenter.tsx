@@ -37,7 +37,21 @@ interface ContentItem { id: string; title: string; description: string; content_
 interface Report { id: string; subject_type: string; subject_id: string; reason: string; details: string; status: string; created_at: string; reporter_username: string; reporter_name: string; }
 interface Transaction { id: string; payer_name: string; payer_email: string; payee_name: string; ref_type: string; content_title: string | null; amount: number; platform_fee: number; net_amount: number; status: string; created_at: string; }
 
-type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions';
+type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions' | 'payouts';
+
+interface PayoutRequest {
+  id: string;
+  creator_id: string;
+  display_name: string;
+  email: string;
+  username: string;
+  amount_dollars: string;
+  payment_method: string;
+  notes: string;
+  status: 'pending' | 'paid' | 'rejected';
+  admin_note: string;
+  created_at: string;
+}
 
 // ─── Content type icons ───────────────────────────────────────────────────────
 
@@ -200,6 +214,8 @@ export default function AdminControlCenter() {
   const [content, setContent] = useState<ContentItem[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
+  const [payoutNote, setPayoutNote] = useState<Record<string, string>>({});
 
   // Live clock
   useEffect(() => {
@@ -224,13 +240,14 @@ export default function AdminControlCenter() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, ar, cr, co, rp, tx] = await Promise.all([
+      const [s, ar, cr, co, rp, tx, pr] = await Promise.all([
         adminFetch('/api/admin/stats'),
         adminFetch('/api/admin/access-requests'),
         adminFetch('/api/admin/creators/pending'),
         adminFetch('/api/admin/content-approvals'),
         adminFetch('/api/admin/reports'),
         adminFetch('/api/admin/transactions'),
+        adminFetch('/api/admin/payout-requests?status=pending'),
       ]);
       setStats(s);
       setAccessRequests(ar);
@@ -238,6 +255,7 @@ export default function AdminControlCenter() {
       setContent(co);
       setReports(rp);
       setTransactions(tx);
+      if (Array.isArray(pr)) setPayoutRequests(pr);
     } catch (e: any) {
       toast.error('Failed to load data', e.message);
     } finally {
@@ -286,6 +304,7 @@ export default function AdminControlCenter() {
     { id: 'content', label: 'Content Review', count: content.length },
     { id: 'reports', label: 'Reports', count: reports.length },
     { id: 'transactions', label: 'Transactions', count: transactions.length },
+    { id: 'payouts', label: 'Payout Requests', count: payoutRequests.length },
   ];
 
   const urgentTabIds: QueueTab[] = ['access', 'creators', 'reports'];
@@ -762,6 +781,85 @@ export default function AdminControlCenter() {
                                 Fee: <span className="text-arc-secondary">${Number(tx.platform_fee).toFixed(2)}</span>
                                 {' · '}Creator: <span className="text-arc-success">${Number(tx.net_amount).toFixed(2)}</span>
                               </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </QueueShell>
+                  )}
+
+                  {/* Payout Requests */}
+                  {activeQueue === 'payouts' && (
+                    <QueueShell label="Payout Requests" count={payoutRequests.length} desc="Manual payout requests from creators not using Stripe Connect. Mark paid after processing outside the platform.">
+                      {payoutRequests.length === 0 && <EmptyQueue />}
+                      {payoutRequests.map((pr) => (
+                        <div
+                          key={pr.id}
+                          className="rounded-xl p-4 border border-white/5 hover:border-gold/20 transition-all duration-200 bg-bg-primary"
+                        >
+                          <div className="flex items-start justify-between gap-4 mb-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                <p className="text-sm font-medium text-white">{pr.display_name}</p>
+                                <span className="text-[10px] text-arc-muted">@{pr.username}</span>
+                                <StatusBadge status={pr.status} />
+                              </div>
+                              <p className="text-[11px] text-arc-muted">{pr.email}</p>
+                              <p className="text-[11px] text-arc-muted mt-0.5">
+                                Method: <span className="text-arc-secondary capitalize">{pr.payment_method.replace('_', ' ')}</span>
+                                {' · '}
+                                {timeAgo(pr.created_at)}
+                              </p>
+                              {pr.notes && (
+                                <p className="text-[11px] text-arc-secondary mt-1.5 bg-white/4 px-3 py-2 rounded-lg border border-white/5">
+                                  {pr.notes}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right flex-shrink-0">
+                              <p className="font-serif text-xl text-gold">${Number(pr.amount_dollars).toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <div className="space-y-2">
+                            <input
+                              type="text"
+                              value={payoutNote[pr.id] ?? ''}
+                              onChange={e => setPayoutNote(prev => ({ ...prev, [pr.id]: e.target.value }))}
+                              placeholder="Admin note (optional — e.g. sent via PayPal)"
+                              className="w-full bg-bg-hover border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-arc-muted focus:outline-none focus:border-gold/40 transition-colors"
+                              maxLength={200}
+                            />
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <ActionBtn
+                                label="Mark Paid"
+                                variant="green"
+                                icon={<CheckCircle className="w-3.5 h-3.5" />}
+                                onClick={async () => {
+                                  try {
+                                    await adminFetch(`/api/admin/payout-requests/${pr.id}`, {
+                                      method: 'PATCH',
+                                      body: JSON.stringify({ status: 'paid', admin_note: payoutNote[pr.id] ?? '' }),
+                                    });
+                                    toast.success(`${pr.display_name}'s payout marked as paid`);
+                                    setPayoutRequests(p => p.filter(r => r.id !== pr.id));
+                                  } catch (e: any) { toast.error('Failed', e.message); }
+                                }}
+                              />
+                              <ActionBtn
+                                label="Reject"
+                                variant="red"
+                                icon={<XCircle className="w-3.5 h-3.5" />}
+                                onClick={async () => {
+                                  try {
+                                    await adminFetch(`/api/admin/payout-requests/${pr.id}`, {
+                                      method: 'PATCH',
+                                      body: JSON.stringify({ status: 'rejected', admin_note: payoutNote[pr.id] ?? '' }),
+                                    });
+                                    toast.success(`${pr.display_name}'s payout request rejected`);
+                                    setPayoutRequests(p => p.filter(r => r.id !== pr.id));
+                                  } catch (e: any) { toast.error('Failed', e.message); }
+                                }}
+                              />
                             </div>
                           </div>
                         </div>

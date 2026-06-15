@@ -113,6 +113,47 @@ router.get('/my-rooms', requireAuth, requireCreator, async (req, res) => {
   }
 });
 
+// ── GET /api/live/eligible — rooms the authenticated user can enter ──────────
+
+router.get('/eligible', requireAuth, async (req, res) => {
+  try {
+    const userId = req.auth!.userId;
+    const rows = await query<any>(
+      `SELECT lr.id, lr.title, lr.description, lr.access_type, lr.price_cents,
+              lr.status, lr.started_at, lr.peak_viewer_count,
+              u.display_name as creator_name, u.avatar_url as creator_avatar,
+              u.username as creator_username, cp.id as creator_id
+         FROM live_rooms lr
+         JOIN creator_profiles cp ON cp.id = lr.creator_id
+         JOIN users u ON u.id = cp.user_id
+         LEFT JOIN subscriptions sub
+           ON sub.creator_id = lr.creator_id
+          AND sub.subscriber_id = $1
+          AND sub.expires_at > NOW()
+          AND sub.status IN ('active','cancelled')
+         LEFT JOIN live_access_purchases lap
+           ON lap.live_room_id = lr.id
+          AND lap.user_id = $1
+          AND lap.status = 'active'
+        WHERE lr.status = 'live'
+          AND cp.is_approved = 1 AND cp.application_status = 'approved'
+          AND (
+            lr.access_type = 'free'
+            OR lr.creator_user_id = $1
+            OR (lr.access_type = 'subscribers' AND sub.id IS NOT NULL)
+            OR (lr.access_type = 'paid' AND lap.id IS NOT NULL)
+          )
+        ORDER BY lr.started_at DESC
+        LIMIT 50`,
+      [userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    console.error('[live] GET /eligible error:', err);
+    res.status(500).json({ error: 'Failed to fetch eligible rooms.' });
+  }
+});
+
 // ── POST /api/live — create a live room ─────────────────────────────────────
 
 router.post('/', requireAuth, requireApproved, requireCreator, async (req, res) => {
@@ -524,7 +565,7 @@ router.post('/:id/chat/:msgId/report', requireAuth, async (req, res) => {
 
 router.post('/:id/tip', requireAuth, requireApproved, async (req, res) => {
   try {
-    const { amount_cents, creator_id, privacy = 'public', message } = req.body;
+    const { amount_cents, creator_id, privacy = 'public', message, gift_type } = req.body;
 
     if (!amount_cents || typeof amount_cents !== 'number' || amount_cents < 100) {
       res.status(400).json({ error: 'amount_cents must be at least 100.' });
@@ -583,7 +624,8 @@ router.post('/:id/tip', requireAuth, requireApproved, async (req, res) => {
         live_room_id:    String(req.params.id),
         amount:          amountDollars,
         tip_privacy:     privacy,
-        ...(message ? { tip_message: message } : {}),
+        ...(message   ? { tip_message:   String(message)   } : {}),
+        ...(gift_type ? { tip_gift_type: String(gift_type) } : {}),
       },
       success_url: `${FRONTEND_URL}/live/${req.params.id}?tip=sent`,
       cancel_url:  `${FRONTEND_URL}/live/${req.params.id}`,
@@ -594,6 +636,52 @@ router.post('/:id/tip', requireAuth, requireApproved, async (req, res) => {
   } catch (err) {
     console.error('[live] POST /:id/tip error:', err);
     res.status(500).json({ error: 'Failed to create tip checkout.' });
+  }
+});
+
+// ── GET /api/live/:id/patron-status — viewer's cumulative Gold to this creator ─
+
+const PATRON_LEVELS = [
+  { level: 1, name: 'Guest Patron',        threshold: 0     },
+  { level: 2, name: 'Inner Circle Patron', threshold: 500   },
+  { level: 3, name: 'Vault Patron',        threshold: 2500  },
+  { level: 4, name: 'Crown Patron',        threshold: 10000 },
+  { level: 5, name: 'Archangel Patron',    threshold: 25000 },
+];
+
+router.get('/:id/patron-status', requireAuth, async (req, res) => {
+  try {
+    const room = await queryOne<{ creator_id: string }>(
+      'SELECT creator_id FROM live_rooms WHERE id = $1', [req.params.id]
+    );
+    if (!room) { res.status(404).json({ error: 'Room not found.' }); return; }
+
+    const result = await queryOne<{ total_cents: string }>(
+      `SELECT COALESCE(SUM(amount_cents), 0) AS total_cents
+         FROM live_tips
+        WHERE tipper_id = $1 AND creator_id = $2 AND status = 'completed'`,
+      [req.auth!.userId, room.creator_id]
+    );
+    const totalGold = parseInt(result?.total_cents ?? '0', 10);
+
+    const current = PATRON_LEVELS.reduce(
+      (acc, l) => (totalGold >= l.threshold ? l : acc),
+      PATRON_LEVELS[0]
+    );
+    const next = PATRON_LEVELS.find(l => l.level === current.level + 1) ?? null;
+
+    res.json({
+      patron_level:    current.level,
+      level_name:      current.name,
+      total_gold:      totalGold,
+      next_level:      next?.level ?? null,
+      next_level_name: next?.name ?? null,
+      next_threshold:  next?.threshold ?? null,
+      creator_id:      room.creator_id,
+    });
+  } catch (err) {
+    console.error('[live] GET /:id/patron-status error:', err);
+    res.status(500).json({ error: 'Failed to load patron status.' });
   }
 });
 

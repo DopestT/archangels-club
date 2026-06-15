@@ -768,4 +768,53 @@ router.patch('/profile', requireAuth, requireCreator, async (req, res) => {
   }
 });
 
+// ── Payout Requests ──────────────────────────────────────────────────────────
+
+// POST /api/creators/payout-requests — creator submits a payout request
+router.post('/payout-requests', requireAuth, requireCreator, async (req, res) => {
+  const { amount_dollars, payment_method = 'bank_transfer', notes = '' } = req.body;
+  const amount = parseFloat(amount_dollars);
+  if (!amount || amount < 10) {
+    res.status(400).json({ error: 'Minimum payout request is $10.00.' });
+    return;
+  }
+  const VALID_METHODS = ['bank_transfer', 'paypal', 'venmo', 'zelle', 'check', 'other'];
+  if (!VALID_METHODS.includes(payment_method)) {
+    res.status(400).json({ error: 'Invalid payment method.' });
+    return;
+  }
+  try {
+    const id = crypto.randomUUID();
+    await execute(
+      `INSERT INTO payout_requests (id, creator_id, amount_dollars, payment_method, notes)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, req.auth!.userId, amount.toFixed(2), payment_method, (notes ?? '').slice(0, 1000)]
+    );
+    res.status(201).json({ id, status: 'pending' });
+  } catch (err) {
+    console.error('[payout-requests] error:', err);
+    res.status(500).json({ error: 'Failed to submit payout request.' });
+  }
+});
+
+// GET /api/creators/payout-requests — creator lists own requests
+router.get('/payout-requests', requireAuth, requireCreator, async (req, res) => {
+  try {
+    const rows = await query<{
+      id: string; amount_dollars: string; payment_method: string;
+      notes: string; status: string; admin_note: string; created_at: string;
+    }>(
+      `SELECT id, amount_dollars, payment_method, notes, status, admin_note, created_at
+       FROM payout_requests
+       WHERE creator_id = $1
+       ORDER BY created_at DESC
+       LIMIT 50`,
+      [req.auth!.userId]
+    );
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load payout requests.' });
+  }
+});
+
 export default router;
