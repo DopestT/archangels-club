@@ -4,17 +4,17 @@
  * Each trigger decides which channels fire based on user preferences + timing.
  */
 
-import { queryOne } from '../db/schema.js';
+import { query, queryOne } from '../db/schema.js';
 import { createInAppNotification, getPreferences } from './notifications.js';
 import {
   sendCreatorWelcome, sendCreatorFirstPostReminder, sendCreatorFirstSale,
   sendCreatorInactivity, sendCreatorWeeklySummary, sendCreatorDropReminder,
   sendCreatorDropLive, sendUserWelcome, sendUserNewContent, sendUserDropAlert,
-  sendUserInactivity, sendUserPurchaseConfirmation,
+  sendUserInactivity, sendUserPurchaseConfirmation, sendUserCreatorLive,
 } from './email.js';
 import {
   smsCreatorFirstSale, smsCreatorDropLive,
-  smsUserDropAlert, smsUserScarcityAlert,
+  smsUserDropAlert, smsUserScarcityAlert, smsUserCreatorLive,
 } from './sms.js';
 
 const BASE_URL = process.env.CLIENT_URL ?? 'http://localhost:3000';
@@ -314,6 +314,60 @@ export async function triggerScarcityAlert(opts: {
 
     if (prefs.sms_enabled && prefs.sms_drops && user.phone) {
       await smsUserScarcityAlert(user.phone, remaining, contentId);
+    }
+  }
+}
+
+export async function triggerCreatorGoesLive(opts: {
+  creatorUserId: string;
+  creatorName: string;
+  roomId: string;
+  roomTitle: string;
+}) {
+  const { creatorUserId, creatorName, roomId, roomTitle } = opts;
+
+  // Notify the creator themselves
+  await createInAppNotification({
+    userId: creatorUserId,
+    type: 'creator_live_started',
+    title: "You're live",
+    message: `"${roomTitle}" is streaming. Your subscribers have been notified.`,
+    actionLabel: 'View Room',
+    actionUrl: `${BASE_URL}/live/${roomId}`,
+  });
+
+  // Fetch all active subscribers of this creator
+  const subscribers = await query<{ subscriber_id: string }>(
+    `SELECT s.subscriber_id
+       FROM subscriptions s
+       JOIN creator_profiles cp ON cp.id = s.creator_id
+      WHERE cp.user_id = $1
+        AND s.expires_at > NOW()
+        AND s.status IN ('active','cancelled')`,
+    [creatorUserId]
+  );
+
+  for (const { subscriber_id } of subscribers) {
+    const user = await getUserById(subscriber_id);
+    if (!user) continue;
+    const prefs = await getPreferences(subscriber_id);
+    if (!prefs.in_app_enabled) continue;
+
+    await createInAppNotification({
+      userId: subscriber_id,
+      type: 'user_creator_live',
+      title: `${creatorName} is live now`,
+      message: `"${roomTitle}" just started. Join now.`,
+      actionLabel: 'Watch Live',
+      actionUrl: `${BASE_URL}/live/${roomId}`,
+    });
+
+    if (prefs.email_enabled && prefs.email_drops) {
+      await sendUserCreatorLive(user.email, user.display_name, creatorName, roomTitle, roomId)
+        .catch(() => {});
+    }
+    if (prefs.sms_enabled && prefs.sms_major_events && user.phone) {
+      await smsUserCreatorLive(user.phone, creatorName, roomId).catch(() => {});
     }
   }
 }

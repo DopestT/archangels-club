@@ -10,12 +10,14 @@ export type NotificationType =
   | 'creator_weekly_summary'
   | 'creator_drop_reminder'
   | 'creator_drop_live'
+  | 'creator_live_started'
   | 'user_welcome'
   | 'user_new_content'
   | 'user_drop_alert'
   | 'user_inactivity'
   | 'user_purchase'
-  | 'user_scarcity_alert';
+  | 'user_scarcity_alert'
+  | 'user_creator_live';
 
 export interface Notification {
   id: string;
