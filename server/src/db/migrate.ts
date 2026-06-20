@@ -743,6 +743,27 @@ const DDL = `
 
   CREATE INDEX IF NOT EXISTS idx_payout_requests_creator ON payout_requests(creator_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_payout_requests_status  ON payout_requests(status, created_at DESC);
+
+  -- Admin audit log — immutable record of every admin action
+  CREATE TABLE IF NOT EXISTS admin_audit_logs (
+    id TEXT PRIMARY KEY,
+    actor_admin_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    actor_email TEXT,
+    action TEXT NOT NULL,
+    target_type TEXT NOT NULL,
+    target_id TEXT NOT NULL,
+    previous_state TEXT,
+    new_state TEXT,
+    reason TEXT,
+    ip_address TEXT,
+    user_agent TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_audit_actor    ON admin_audit_logs(actor_admin_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_target   ON admin_audit_logs(target_type, target_id);
+  CREATE INDEX IF NOT EXISTS idx_audit_action   ON admin_audit_logs(action, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_audit_created  ON admin_audit_logs(created_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {

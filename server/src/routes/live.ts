@@ -5,6 +5,7 @@ import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator, requireAdmin } from '../middleware/auth.js';
 import { generateStreamToken } from '../services/streaming.js';
 import { triggerCreatorGoesLive } from '../services/triggers.js';
+import { writeAuditLog, extractReqMeta } from '../services/auditLog.js';
 
 const FRONTEND_URL    = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://www.archangelsclub.com';
 const PLATFORM_FEE    = 0.3;
@@ -360,6 +361,12 @@ router.post('/:id/end', requireAuth, async (req, res) => {
     }
 
     res.json({ ok: true });
+
+    if (isAdmin && !isCreator) {
+      const { reason } = req.body;
+      const { ipAddress, userAgent } = extractReqMeta(req);
+      writeAuditLog({ actorAdminId: req.auth!.userId, action: 'live_room_ended_by_admin', targetType: 'live_room', targetId: String(req.params.id), previousState: 'live', newState: 'ended', reason: reason ?? null, ipAddress, userAgent }).catch(() => {});
+    }
   } catch (err) {
     console.error('[live] POST /:id/end error:', err);
     res.status(500).json({ error: 'Failed to end room.' });
@@ -545,6 +552,8 @@ router.delete('/:id/chat/:msgId', requireAuth, async (req, res) => {
          VALUES ($1, $2, $3, 'delete_message', $4)`,
         [crypto.randomUUID(), req.params.id, req.auth!.userId, req.params.msgId]
       );
+      const { ipAddress, userAgent } = extractReqMeta(req);
+      writeAuditLog({ actorAdminId: req.auth!.userId, action: 'live_chat_deleted_by_admin', targetType: 'live_chat_message', targetId: String(req.params.msgId), reason: `room:${req.params.id}`, ipAddress, userAgent }).catch(() => {});
     }
 
     res.json({ ok: true });

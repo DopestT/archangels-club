@@ -6,6 +6,7 @@ import { query, queryOne, execute } from '../db/schema.js';
 import { fulfillCheckoutSession } from '../services/fulfillment.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { triggerAccountApproved } from '../services/triggers.js';
+import { writeAuditLog, extractReqMeta } from '../services/auditLog.js';
 import {
   sendSetPasswordEmail,
   sendUserWelcome, sendUserRejected, sendUserMoreInfoRequested,
@@ -301,13 +302,17 @@ router.post('/users/:id/suspend', async (req, res) => {
 
 router.post('/creators/:id/approve', async (req, res) => {
   try {
-    const cp = await queryOne<{ user_id: string }>(`SELECT user_id FROM creator_profiles WHERE id = $1`, [req.params.id]);
+    const cp = await queryOne<{ user_id: string; application_status: string }>(
+      `SELECT user_id, application_status FROM creator_profiles WHERE id = $1`, [req.params.id]
+    );
     if (!cp) { res.status(404).json({ error: 'Creator not found.' }); return; }
     await execute(`UPDATE creator_profiles SET application_status = 'approved', is_approved = 1 WHERE id = $1`, [req.params.id]);
     await execute(`UPDATE users SET role = 'creator', is_verified_creator = 1 WHERE id = $1`, [cp.user_id]);
     const user = await queryOne<{ email: string; display_name: string }>(`SELECT email, display_name FROM users WHERE id = $1`, [cp.user_id]);
     if (user) sendCreatorWelcome(user.email, user.display_name).catch(console.error);
     res.json({ success: true });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'creator_approved', targetType: 'creator_profile', targetId: req.params.id, previousState: cp.application_status, newState: 'approved', ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve creator.' });
   }
@@ -315,12 +320,17 @@ router.post('/creators/:id/approve', async (req, res) => {
 
 router.post('/creators/:id/reject', async (req, res) => {
   try {
-    const cp = await queryOne<{ user_id: string }>(`SELECT user_id FROM creator_profiles WHERE id = $1`, [req.params.id]);
+    const cp = await queryOne<{ user_id: string; application_status: string }>(
+      `SELECT user_id, application_status FROM creator_profiles WHERE id = $1`, [req.params.id]
+    );
     if (!cp) { res.status(404).json({ error: 'Creator not found.' }); return; }
     await execute(`UPDATE creator_profiles SET application_status = 'rejected' WHERE id = $1`, [req.params.id]);
     const user = await queryOne<{ email: string; display_name: string }>(`SELECT email, display_name FROM users WHERE id = $1`, [cp.user_id]);
     if (user) sendCreatorRejected(user.email, user.display_name).catch(console.error);
     res.json({ success: true });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    const { reason } = req.body;
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'creator_rejected', targetType: 'creator_profile', targetId: req.params.id, previousState: cp.application_status, newState: 'rejected', reason: reason ?? null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject creator.' });
   }
@@ -364,9 +374,15 @@ router.post('/creators/:id/request-more-info', async (req, res) => {
 
 router.post('/creators/:id/suspend', async (req, res) => {
   try {
+    const prev = await queryOne<{ application_status: string }>(
+      `SELECT application_status FROM creator_profiles WHERE id = $1`, [req.params.id]
+    );
     const changed = await execute(`UPDATE creator_profiles SET application_status = 'suspended' WHERE id = $1`, [req.params.id]);
     if (changed === 0) { res.status(404).json({ error: 'Creator not found.' }); return; }
     res.json({ success: true });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    const { reason } = req.body;
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'creator_suspended', targetType: 'creator_profile', targetId: req.params.id, previousState: prev?.application_status ?? null, newState: 'suspended', reason: reason ?? null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to suspend creator.' });
   }
@@ -401,6 +417,8 @@ router.post('/content/:id/approve', async (req, res) => {
     );
     if (user) sendContentApproved(user.email, user.display_name, row.title).catch(console.error);
     res.json({ success: true, status: newStatus });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'upload_approved', targetType: 'content', targetId: req.params.id, previousState: row.status, newState: newStatus, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to approve content.' });
   }
@@ -430,6 +448,8 @@ router.post('/content/:id/reject', async (req, res) => {
     );
     if (user) sendContentRejected(user.email, user.display_name, row.title).catch(console.error);
     res.json({ success: true });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'upload_rejected', targetType: 'content', targetId: req.params.id, previousState: row.status, newState: 'rejected', reason: rejection_reason ?? null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to reject content.' });
   }
@@ -459,6 +479,8 @@ router.post('/content/:id/request-changes', async (req, res) => {
     );
     if (user) sendContentChangesRequested(user.email, user.display_name, row.title).catch(console.error);
     res.json({ success: true });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'upload_changes_requested', targetType: 'content', targetId: req.params.id, previousState: row.status, newState: 'changes_requested', reason: rejection_reason ?? null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to request changes.' });
   }
@@ -482,6 +504,9 @@ router.post('/content/:id/remove', async (req, res) => {
       `UPDATE content SET status = 'removed', updated_at = NOW() WHERE id = $1`, [req.params.id]
     );
     res.json({ success: true });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    const { reason } = req.body;
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'upload_removed', targetType: 'content', targetId: req.params.id, previousState: row.status, newState: 'removed', reason: reason ?? null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to remove content.' });
   }
@@ -556,6 +581,9 @@ router.patch('/users/:id/status', async (req, res) => {
     }
 
     res.json({ success: true, status });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    const { reason } = req.body;
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'user_status_changed', targetType: 'user', targetId: req.params.id, newState: status, reason: reason ?? null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to update user status.' });
   }
@@ -605,6 +633,8 @@ router.patch('/creators/:id/status', async (req, res) => {
       if (cp) triggerAccountApproved(cp.user_id, 'creator').catch(console.error);
     }
     res.json({ success: true, status });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'creator_status_changed', targetType: 'creator_profile', targetId: req.params.id, newState: status, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to update creator status.' });
   }
@@ -674,6 +704,8 @@ router.patch('/content/:id/status', async (req, res) => {
     );
     if (changed === 0) { res.status(404).json({ error: 'Content not found' }); return; }
     res.json({ success: true, status });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'upload_status_changed', targetType: 'content', targetId: req.params.id, newState: status, reason: rejection_reason ?? null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     res.status(500).json({ error: 'Failed to update content status.' });
   }
@@ -945,6 +977,8 @@ router.post('/promote-to-admin', async (req, res) => {
     }
 
     res.json({ success: true, message: `User ${normalizedEmail} promoted to admin.` });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'user_role_granted', targetType: 'user', targetId: normalizedEmail, newState: 'admin', ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     console.error('Admin promotion error:', err);
     res.status(500).json({ error: 'Failed to promote user.' });
@@ -1051,9 +1085,31 @@ router.patch('/payout-requests/:id', async (req, res) => {
     );
     if (updated === 0) { res.status(404).json({ error: 'Not found.' }); return; }
     res.json({ success: true });
+    const { ipAddress, userAgent } = extractReqMeta(req);
+    writeAuditLog({ actorAdminId: req.auth!.userId, action: 'payout_request_reviewed', targetType: 'payout_request', targetId: req.params.id, newState: status, reason: (admin_note ?? '').slice(0, 500) || null, ipAddress, userAgent }).catch(() => {});
   } catch (err) {
     console.error('[admin/payout-requests/patch] error:', err);
     res.status(500).json({ error: 'Failed to update payout request.' });
+  }
+});
+
+// ── GET /api/admin/audit-logs — read-only audit trail ────────────────────────
+
+router.get('/audit-logs', async (req, res) => {
+  try {
+    const { action, target_type, target_id, limit, offset } = req.query as Record<string, string | undefined>;
+    const { getAuditLogs } = await import('../services/auditLog.js');
+    const logs = await getAuditLogs({
+      action,
+      targetType: target_type,
+      targetId: target_id,
+      limit: limit ? Math.min(parseInt(limit, 10), 500) : 100,
+      offset: offset ? parseInt(offset, 10) : 0,
+    });
+    res.json(logs);
+  } catch (err) {
+    console.error('[admin/audit-logs] error:', err);
+    res.status(500).json({ error: 'Failed to fetch audit logs.' });
   }
 });
 

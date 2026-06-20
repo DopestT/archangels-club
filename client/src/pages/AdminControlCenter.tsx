@@ -5,7 +5,7 @@ import {
   UserCheck, Image, CheckCircle, XCircle, MessageSquare, AlertTriangle,
   RefreshCw, Star, ArrowDownToLine, TrendingUp, Clock, Shield,
   ChevronRight, Bug, Zap, Activity, Lock, Video, Music, FileText,
-  Eye, Radio, Layers,
+  Eye, Radio, Layers, ScrollText,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import Avatar from '../components/ui/Avatar';
@@ -37,7 +37,21 @@ interface ContentItem { id: string; title: string; description: string; content_
 interface Report { id: string; subject_type: string; subject_id: string; reason: string; details: string; status: string; created_at: string; reporter_username: string; reporter_name: string; }
 interface Transaction { id: string; payer_name: string; payer_email: string; payee_name: string; ref_type: string; content_title: string | null; amount: number; platform_fee: number; net_amount: number; status: string; created_at: string; }
 
-type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions' | 'payouts';
+type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions' | 'payouts' | 'audit';
+
+interface AuditLogEntry {
+  id: string;
+  actor_admin_id: string;
+  actor_email: string | null;
+  action: string;
+  target_type: string;
+  target_id: string;
+  previous_state: string | null;
+  new_state: string | null;
+  reason: string | null;
+  ip_address: string | null;
+  created_at: string;
+}
 
 interface PayoutRequest {
   id: string;
@@ -216,6 +230,7 @@ export default function AdminControlCenter() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [payoutRequests, setPayoutRequests] = useState<PayoutRequest[]>([]);
   const [payoutNote, setPayoutNote] = useState<Record<string, string>>({});
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
 
   // Live clock
   useEffect(() => {
@@ -240,7 +255,7 @@ export default function AdminControlCenter() {
   const loadAll = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, ar, cr, co, rp, tx, pr] = await Promise.all([
+      const [s, ar, cr, co, rp, tx, pr, al] = await Promise.all([
         adminFetch('/api/admin/stats'),
         adminFetch('/api/admin/access-requests'),
         adminFetch('/api/admin/creators/pending'),
@@ -248,6 +263,7 @@ export default function AdminControlCenter() {
         adminFetch('/api/admin/reports'),
         adminFetch('/api/admin/transactions'),
         adminFetch('/api/admin/payout-requests?status=pending'),
+        adminFetch('/api/admin/audit-logs?limit=200'),
       ]);
       setStats(s);
       setAccessRequests(ar);
@@ -256,6 +272,7 @@ export default function AdminControlCenter() {
       setReports(rp);
       setTransactions(tx);
       if (Array.isArray(pr)) setPayoutRequests(pr);
+      if (Array.isArray(al)) setAuditLogs(al);
     } catch (e: any) {
       toast.error('Failed to load data', e.message);
     } finally {
@@ -305,6 +322,7 @@ export default function AdminControlCenter() {
     { id: 'reports', label: 'Reports', count: reports.length },
     { id: 'transactions', label: 'Transactions', count: transactions.length },
     { id: 'payouts', label: 'Payout Requests', count: payoutRequests.length },
+    { id: 'audit', label: 'Audit Log', count: auditLogs.length },
   ];
 
   const urgentTabIds: QueueTab[] = ['access', 'creators', 'reports'];
@@ -789,6 +807,61 @@ export default function AdminControlCenter() {
                   )}
 
                   {/* Payout Requests */}
+                  {activeQueue === 'audit' && (
+                    <QueueShell label="Audit Log" count={auditLogs.length} desc="Immutable record of every admin action. Read-only — cannot be edited from the dashboard.">
+                      {auditLogs.length === 0 && <EmptyQueue />}
+                      {auditLogs.map((entry) => (
+                        <div
+                          key={entry.id}
+                          className="rounded-xl p-4 border border-white/5 bg-bg-primary space-y-2"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <ScrollText className="w-3.5 h-3.5 text-arc-muted shrink-0" />
+                              <span className="text-xs font-mono font-medium text-gold truncate">
+                                {entry.action.replace(/_/g, ' ')}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-arc-muted shrink-0 font-mono">
+                              {timeAgo(entry.created_at)}
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[11px]">
+                            <div>
+                              <span className="text-arc-muted">Admin: </span>
+                              <span className="text-arc-secondary">{entry.actor_email ?? entry.actor_admin_id}</span>
+                            </div>
+                            <div>
+                              <span className="text-arc-muted">Target: </span>
+                              <span className="text-arc-secondary">{entry.target_type}</span>
+                            </div>
+                            {entry.previous_state && (
+                              <div>
+                                <span className="text-arc-muted">From: </span>
+                                <span className="text-arc-secondary">{entry.previous_state}</span>
+                              </div>
+                            )}
+                            {entry.new_state && (
+                              <div>
+                                <span className="text-arc-muted">To: </span>
+                                <span className="text-arc-secondary">{entry.new_state}</span>
+                              </div>
+                            )}
+                          </div>
+                          {entry.reason && (
+                            <p className="text-[11px] text-arc-secondary bg-white/4 px-3 py-1.5 rounded-lg border border-white/5 line-clamp-2">
+                              {entry.reason}
+                            </p>
+                          )}
+                          <div className="flex items-center gap-3 text-[10px] text-arc-muted font-mono">
+                            <span className="truncate">ID: {entry.target_id.slice(0, 16)}…</span>
+                            {entry.ip_address && <span>IP: {entry.ip_address}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </QueueShell>
+                  )}
+
                   {activeQueue === 'payouts' && (
                     <QueueShell label="Payout Requests" count={payoutRequests.length} desc="Manual payout requests from creators not using Stripe Connect. Mark paid after processing outside the platform.">
                       {payoutRequests.length === 0 && <EmptyQueue />}
