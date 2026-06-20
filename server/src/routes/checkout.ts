@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import { requireAuth, requireApproved } from '../middleware/auth.js';
 import { queryOne } from '../db/schema.js';
 import { fulfillCheckoutSession } from '../services/fulfillment.js';
+import { getFlag } from '../services/featureFlags.js';
 
 const router = Router();
 const FRONTEND_URL = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://www.archangelsclub.com';
@@ -79,6 +80,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
     // ── UNLOCK ───────────────────────────────────────────────────────────────
     if (type === 'unlock') {
+      if (!await getFlag('enable_vault_purchases')) {
+        res.status(503).json({ disabled: true, feature: 'enable_vault_purchases', code: 'feature_disabled', message: 'Vault purchases are temporarily unavailable.' });
+        return;
+      }
       if (!content_id) {
         res.status(400).json({ error: 'content_id is required for type "unlock".' });
         return;
@@ -185,6 +190,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
     // ── TIP ──────────────────────────────────────────────────────────────────
     if (type === 'tip') {
+      if (!await getFlag('enable_gold_purchases')) {
+        res.status(503).json({ disabled: true, feature: 'enable_gold_purchases', code: 'feature_disabled', message: 'Gold purchases are temporarily unavailable.' });
+        return;
+      }
       if (!creator_id) {
         res.status(400).json({ error: 'creator_id is required for type "tip".' });
         return;
@@ -260,6 +269,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
     // ── SUBSCRIPTION ─────────────────────────────────────────────────────────
     if (type === 'subscription') {
+      if (!await getFlag('enable_vault_purchases')) {
+        res.status(503).json({ disabled: true, feature: 'enable_vault_purchases', code: 'feature_disabled', message: 'Subscriptions are temporarily unavailable.' });
+        return;
+      }
       if (!creator_id) {
         res.status(400).json({ error: 'creator_id is required for type "subscription".' });
         return;
@@ -353,6 +366,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
     // ── LIVE TICKET ──────────────────────────────────────────────────────────
     if (type === 'live_ticket') {
+      if (!await getFlag('enable_live_rooms')) {
+        res.status(503).json({ disabled: true, feature: 'enable_live_rooms', code: 'feature_disabled', message: 'Live rooms are temporarily unavailable.' });
+        return;
+      }
       const { live_room_id } = req.body;
       if (!live_room_id) {
         res.status(400).json({ error: 'live_room_id is required for type "live_ticket".' });
@@ -434,6 +451,10 @@ router.post('/create', requireAuth, requireApproved, async (req, res) => {
 
     // ── LIVE TIP ─────────────────────────────────────────────────────────────
     if (type === 'live_tip') {
+      if (!await getFlag('enable_gold_purchases')) {
+        res.status(503).json({ disabled: true, feature: 'enable_gold_purchases', code: 'feature_disabled', message: 'Gold purchases are temporarily unavailable.' });
+        return;
+      }
       const { live_room_id } = req.body;
       if (!creator_id) {
         res.status(400).json({ error: 'creator_id is required for type "live_tip".' });

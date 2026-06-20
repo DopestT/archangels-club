@@ -5,13 +5,15 @@ import {
   UserCheck, Image, CheckCircle, XCircle, MessageSquare, AlertTriangle,
   RefreshCw, Star, ArrowDownToLine, TrendingUp, Clock, Shield,
   ChevronRight, Bug, Zap, Activity, Lock, Video, Music, FileText,
-  Eye, Radio, Layers,
+  Eye, Radio, Layers, ToggleLeft, ToggleRight,
 } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
 import { useAuth } from '../context/AuthContext';
 import { API_BASE } from '../lib/api';
+import { useFeatureFlags } from '../context/FeatureFlagsContext';
+import type { FlagKey } from '../context/FeatureFlagsContext';
 import AdminSidebar from '../components/admin/AdminSidebar';
 import PulseStatusPanel from '../components/pulse/PulseStatusPanel';
 
@@ -37,7 +39,7 @@ interface ContentItem { id: string; title: string; description: string; content_
 interface Report { id: string; subject_type: string; subject_id: string; reason: string; details: string; status: string; created_at: string; reporter_username: string; reporter_name: string; }
 interface Transaction { id: string; payer_name: string; payer_email: string; payee_name: string; ref_type: string; content_title: string | null; amount: number; platform_fee: number; net_amount: number; status: string; created_at: string; }
 
-type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions' | 'payouts';
+type QueueTab = 'access' | 'creators' | 'content' | 'reports' | 'transactions' | 'payouts' | 'flags';
 
 interface PayoutRequest {
   id: string;
@@ -52,6 +54,32 @@ interface PayoutRequest {
   admin_note: string;
   created_at: string;
 }
+
+const FLAG_LABELS: Record<FlagKey, string> = {
+  enable_live_rooms:           'Live Rooms',
+  enable_gold_purchases:       'Gold Purchases',
+  enable_gold_gifts:           'Gold Gifts',
+  enable_vault_purchases:      'Vault Purchases',
+  enable_creator_uploads:      'Creator Uploads',
+  enable_creator_publishing:   'Creator Publishing',
+  enable_creator_onboarding:   'Creator Onboarding',
+  enable_admin_moderation:     'Admin Moderation',
+  enable_launch_tuning_banner: 'Launch Tuning Banner',
+  enable_email_notifications:  'Email Notifications',
+};
+
+const FLAG_DESCRIPTIONS: Record<FlagKey, string> = {
+  enable_live_rooms:           'Live streaming — create rooms, join, chat, tip',
+  enable_gold_purchases:       'Gold balance top-ups and Gold-powered live tips',
+  enable_gold_gifts:           'Gold gifts in live rooms (Patron Ladder, Room Goals)',
+  enable_vault_purchases:      'Vault subscriptions and content unlock purchases',
+  enable_creator_uploads:      'Creator content uploads to Cloudinary',
+  enable_creator_publishing:   'Creators submitting content for admin review',
+  enable_creator_onboarding:   'New creator applications via /apply-creator',
+  enable_admin_moderation:     'Admin write actions (approve, reject, suspend, etc.)',
+  enable_launch_tuning_banner: 'Gold maintenance banner visible to all users',
+  enable_email_notifications:  'All outbound emails via Resend',
+};
 
 // ─── Content type icons ───────────────────────────────────────────────────────
 
@@ -204,10 +232,12 @@ function EmptyQueue() {
 export default function AdminControlCenter() {
   const toast = useToast();
   const { token } = useAuth();
+  const { flags: liveFlags, refresh: refreshFlags } = useFeatureFlags();
   const [stats, setStats] = useState<Stats | null>(null);
   const [activeQueue, setActiveQueue] = useState<QueueTab>('access');
   const [loading, setLoading] = useState(false);
   const [timestamp, setTimestamp] = useState(() => new Date());
+  const [flagTogglingKey, setFlagTogglingKey] = useState<FlagKey | null>(null);
 
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([]);
   const [creators, setCreators] = useState<CreatorApplication[]>([]);
@@ -294,9 +324,31 @@ export default function AdminControlCenter() {
     }
   }
 
+  async function toggleFlag(key: FlagKey, enabled: boolean) {
+    setFlagTogglingKey(key);
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+      const res = await fetch(`${API_BASE}/api/config/flags/${key}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ enabled }),
+      });
+      if (!res.ok) throw new Error('Failed to update flag');
+      await refreshFlags();
+      toast.success(`${FLAG_LABELS[key]} ${enabled ? 'enabled' : 'disabled'}`);
+    } catch (e: any) {
+      toast.error('Flag update failed', e.message);
+    } finally {
+      setFlagTogglingKey(null);
+    }
+  }
+
   // ── Derived values ────────────────────────────────────────────────────────
 
   const urgentCount = accessRequests.length + creators.length + reports.length;
+
+  const disabledFlagsCount = Object.values(liveFlags).filter(v => !v).length;
 
   const QUEUE_TABS: { id: QueueTab; label: string; count: number }[] = [
     { id: 'access', label: 'Access Requests', count: accessRequests.length },
@@ -305,6 +357,7 @@ export default function AdminControlCenter() {
     { id: 'reports', label: 'Reports', count: reports.length },
     { id: 'transactions', label: 'Transactions', count: transactions.length },
     { id: 'payouts', label: 'Payout Requests', count: payoutRequests.length },
+    { id: 'flags', label: 'Feature Flags', count: disabledFlagsCount },
   ];
 
   const urgentTabIds: QueueTab[] = ['access', 'creators', 'reports'];
@@ -750,6 +803,72 @@ export default function AdminControlCenter() {
                         </div>
                       ))}
                     </QueueShell>
+                  )}
+
+                  {/* Feature Flags */}
+                  {activeQueue === 'flags' && (
+                    <div>
+                      <div className="flex items-center justify-between mb-4">
+                        <div>
+                          <h2 className="font-serif text-base text-white">Feature Flags</h2>
+                          <p className="text-[11px] text-arc-secondary mt-0.5">
+                            Kill-switches for risky systems. Changes take effect within 30 seconds.
+                            {disabledFlagsCount > 0 && (
+                              <span className="ml-2 text-amber-400 font-semibold">
+                                {disabledFlagsCount} flag{disabledFlagsCount !== 1 ? 's' : ''} disabled
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        {(Object.keys(FLAG_LABELS) as FlagKey[]).map((key) => {
+                          const enabled = liveFlags[key] ?? true;
+                          const isToggling = flagTogglingKey === key;
+                          const isPaymentCritical = key === 'enable_vault_purchases' || key === 'enable_gold_purchases';
+                          return (
+                            <div
+                              key={key}
+                              className={`flex items-center justify-between gap-4 rounded-xl p-4 border transition-all duration-200 ${
+                                enabled ? 'bg-bg-primary border-white/5' : 'bg-arc-error/5 border-arc-error/20'
+                              }`}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-sm font-medium text-white">{FLAG_LABELS[key]}</p>
+                                  {!enabled && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-arc-error/15 border border-arc-error/25 text-arc-error font-semibold uppercase tracking-wide">
+                                      Disabled
+                                    </span>
+                                  )}
+                                  {isPaymentCritical && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20 text-amber-400 font-semibold uppercase tracking-wide">
+                                      Payment
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-arc-muted mt-0.5">{FLAG_DESCRIPTIONS[key]}</p>
+                                <p className="text-[10px] font-mono text-arc-muted/40 mt-0.5">{key}</p>
+                              </div>
+                              <button
+                                disabled={isToggling}
+                                onClick={() => toggleFlag(key, !enabled)}
+                                className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium border transition-all duration-200 ${
+                                  enabled
+                                    ? 'bg-arc-success/10 text-arc-success border-arc-success/25 hover:bg-arc-success/15'
+                                    : 'bg-arc-error/10 text-arc-error border-arc-error/25 hover:bg-arc-error/15'
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                              >
+                                {enabled
+                                  ? <><ToggleRight className="w-3.5 h-3.5" /> On</>
+                                  : <><ToggleLeft className="w-3.5 h-3.5" /> Off</>
+                                }
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
 
                   {/* Transactions */}

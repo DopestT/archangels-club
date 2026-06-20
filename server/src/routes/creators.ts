@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireCreator } from '../middleware/auth.js';
+import { requireFlag } from '../middleware/featureGate.js';
 
 const router = Router();
 
@@ -76,7 +77,7 @@ router.get('/stats', async (_req, res) => {
 });
 
 // POST /api/creators/apply — authenticated user submits creator application
-router.post('/apply', requireAuth, async (req, res) => {
+router.post('/apply', requireAuth, requireFlag('enable_creator_onboarding'), async (req, res) => {
   try {
     const { bio, tags, categories, subscription_price, starting_price, pitch } = req.body;
 

@@ -146,6 +146,12 @@ export interface SendResult {
 }
 
 async function send(to: string, subject: string, html: string): Promise<SendResult> {
+  // Honour the kill-switch without crashing callers
+  const { getFlag } = await import('./featureFlags.js');
+  if (!await getFlag('enable_email_notifications')) {
+    console.log(`[email:disabled] enable_email_notifications=false — suppressed. To: ${to} | Subject: ${subject}`);
+    return { ok: true, messageId: 'suppressed-by-flag' };
+  }
   if (!process.env.RESEND_API_KEY) {
     console.log(`[email:dev] RESEND_API_KEY not set — skipping send. To: ${to} | Subject: ${subject}`);
     return { ok: true, messageId: 'dev-no-key' };

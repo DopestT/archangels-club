@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import jwt from 'jsonwebtoken';
 import { query, queryOne, execute, withTransaction } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator } from '../middleware/auth.js';
+import { requireFlag } from '../middleware/featureGate.js';
 import { triggerCreatorFirstPost, triggerCreatorFirstSale, triggerPurchaseConfirmation } from '../services/triggers.js';
 
 const JWT_SECRET = process.env.JWT_SECRET ?? 'archangels_dev_secret_change_in_production'; // only used for optional auth on draft content
@@ -283,7 +284,7 @@ router.get('/:id/stream-url', requireAuth, async (req, res) => {
 // POST /api/content — create content record; defaults to draft
 // status: 'draft' (default) or 'pending_review' — anything else is ignored
 // publish_at: ISO timestamp; if set and future, admin approval will result in 'scheduled'
-router.post('/', requireAuth, requireCreator, async (req, res) => {
+router.post('/', requireAuth, requireCreator, requireFlag('enable_creator_uploads'), async (req, res) => {
   try {
     const { title, description, content_type, access_type, preview_url, media_url, price, publish_at, content_body } = req.body;
     const rawStatus = req.body.status;
@@ -483,7 +484,7 @@ router.delete('/:id', requireAuth, requireCreator, async (req, res) => {
 });
 
 // POST /api/content/:id/submit — submit draft (or rejected/changes_requested) for review
-router.post('/:id/submit', requireAuth, requireCreator, async (req, res) => {
+router.post('/:id/submit', requireAuth, requireCreator, requireFlag('enable_creator_publishing'), async (req, res) => {
   try {
     console.log(`[content/submit] received | userId=${req.auth!.userId} contentId=${req.params.id}`);
     const row = await queryOne<any>(

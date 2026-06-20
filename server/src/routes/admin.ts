@@ -5,6 +5,7 @@ import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
 import { fulfillCheckoutSession } from '../services/fulfillment.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
+import { requireFlag } from '../middleware/featureGate.js';
 import { triggerAccountApproved } from '../services/triggers.js';
 import {
   sendSetPasswordEmail,
@@ -17,6 +18,24 @@ import {
 const router = Router();
 
 router.use(requireAuth, requireAdmin);
+
+// Gate all write actions behind enable_admin_moderation flag.
+// GET requests and the health endpoint pass through unconditionally.
+router.use(async (req, res, next) => {
+  if (req.method === 'GET') { next(); return; }
+  const { getFlag } = await import('../services/featureFlags.js');
+  const enabled = await getFlag('enable_admin_moderation');
+  if (!enabled) {
+    res.status(503).json({
+      disabled: true,
+      feature: 'enable_admin_moderation',
+      code: 'feature_disabled',
+      message: 'Admin moderation actions are temporarily disabled.',
+    });
+    return;
+  }
+  next();
+});
 
 async function generateUniqueUsername(emailPrefix: string): Promise<string> {
   const base = (emailPrefix.replace(/[^a-z0-9]/g, '') || 'user').slice(0, 30);

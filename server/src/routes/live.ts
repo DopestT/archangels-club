@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
 import { requireAuth, requireApproved, requireCreator, requireAdmin } from '../middleware/auth.js';
+import { requireFlag } from '../middleware/featureGate.js';
 import { generateStreamToken } from '../services/streaming.js';
 import { triggerCreatorGoesLive } from '../services/triggers.js';
 
@@ -157,7 +158,7 @@ router.get('/eligible', requireAuth, async (req, res) => {
 
 // ── POST /api/live — create a live room ─────────────────────────────────────
 
-router.post('/', requireAuth, requireApproved, requireCreator, async (req, res) => {
+router.post('/', requireAuth, requireApproved, requireCreator, requireFlag('enable_live_rooms'), async (req, res) => {
   try {
     const { title, description, access_type, price_cents, goal_amount_cents, goal_title } = req.body;
 
@@ -292,7 +293,7 @@ router.patch('/:id', requireAuth, requireCreator, async (req, res) => {
 
 // ── POST /api/live/:id/start — go live ───────────────────────────────────────
 
-router.post('/:id/start', requireAuth, requireCreator, async (req, res) => {
+router.post('/:id/start', requireAuth, requireCreator, requireFlag('enable_live_rooms'), async (req, res) => {
   try {
     const room = await queryOne<{ creator_user_id: string; status: string; title: string }>(
       'SELECT creator_user_id, status, title FROM live_rooms WHERE id = $1', [req.params.id]
@@ -368,7 +369,7 @@ router.post('/:id/end', requireAuth, async (req, res) => {
 
 // ── POST /api/live/:id/token — get audience stream token ─────────────────────
 
-router.post('/:id/token', requireAuth, requireApproved, async (req, res) => {
+router.post('/:id/token', requireAuth, requireApproved, requireFlag('enable_live_rooms'), async (req, res) => {
   try {
     const room = await queryOne<{ status: string; creator_user_id: string }>(
       'SELECT status, creator_user_id FROM live_rooms WHERE id = $1', [req.params.id]
@@ -462,7 +463,7 @@ router.get('/:id/chat', requireAuth, async (req, res) => {
 
 // ── POST /api/live/:id/chat — send a chat message ────────────────────────────
 
-router.post('/:id/chat', requireAuth, requireApproved, async (req, res) => {
+router.post('/:id/chat', requireAuth, requireApproved, requireFlag('enable_live_rooms'), async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
