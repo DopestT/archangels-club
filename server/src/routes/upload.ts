@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import crypto from 'crypto';
 import { requireAuth, requireCreator } from '../middleware/auth.js';
+import { requireFlag } from '../middleware/featureGate.js';
 import { queryOne } from '../db/schema.js';
 
 const router = Router();
@@ -9,7 +10,7 @@ const router = Router();
 // Note: new uploads should use POST /api/media/upload instead.
 // This endpoint remains for compatibility. Type is 'upload' (public delivery)
 // so that preview_url thumbnails are accessible without signing.
-router.post('/sign', requireAuth, requireCreator, async (req, res) => {
+router.post('/sign', requireAuth, requireCreator, requireFlag('enable_creator_uploads'), async (req, res) => {
   const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
   const apiKey    = process.env.CLOUDINARY_API_KEY;
   const apiSecret = process.env.CLOUDINARY_API_SECRET;

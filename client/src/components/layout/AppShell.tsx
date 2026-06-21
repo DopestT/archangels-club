@@ -4,6 +4,7 @@ import { Home, Compass, LayoutDashboard, Bell, Crown, Bookmark } from 'lucide-re
 import Navbar from './Navbar';
 import Footer from './Footer';
 import { useAuth } from '../../context/AuthContext';
+import { LaunchTuningBanner } from '../ui/LaunchTuningBanner';
 
 const MOBILE_NAV = [
   { to: '/',              icon: <Home className="w-5 h-5" />,           label: 'Home',      public: true },
@@ -27,6 +28,7 @@ export default function AppShell() {
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-primary">
+      <LaunchTuningBanner />
       <Navbar />
       <main className="flex-1 pt-16 lg:pt-18 pb-20 md:pb-0">
         <Outlet />

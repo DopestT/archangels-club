@@ -52,6 +52,16 @@ vi.mock('../services/triggers.js', () => ({
   triggerAccountApproved:      vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../services/featureFlags.js', () => ({
+  getFlag:          vi.fn().mockResolvedValue(true),
+  getAllFlags:       vi.fn().mockResolvedValue({}),
+  setFlag:          vi.fn().mockResolvedValue(undefined),
+  seedDefaultFlags: vi.fn().mockResolvedValue(undefined),
+  ALL_FLAGS:        [],
+  FLAG_DESCRIPTIONS: {},
+  DEFAULTS:         {},
+}));
+
 vi.mock('stripe', () => {
   class MockStripeError extends Error {
     type = 'StripeError'; code = 'test_error';
@@ -89,6 +99,7 @@ vi.mock('../services/email.js', () => ({
 // ── Typed mock references ─────────────────────────────────────────────────────
 
 import { query, queryOne, execute, withTransaction } from '../db/schema.js';
+import { getFlag } from '../services/featureFlags.js';
 import {
   triggerPurchaseConfirmation,
   triggerCreatorFirstPost,
@@ -100,6 +111,7 @@ const mockQueryOne = vi.mocked(queryOne);
 const mockExecute  = vi.mocked(execute);
 const mockWithTxn  = vi.mocked(withTransaction);
 
+const mockGetFlag          = vi.mocked(getFlag);
 const mockTriggerPurchase  = vi.mocked(triggerPurchaseConfirmation);
 const mockTriggerFirstPost = vi.mocked(triggerCreatorFirstPost);
 const mockTriggerFirstSale = vi.mocked(triggerCreatorFirstSale);
@@ -138,6 +150,8 @@ beforeEach(() => {
   mockTriggerPurchase.mockResolvedValue(undefined);
   mockTriggerFirstPost.mockResolvedValue(undefined);
   mockTriggerFirstSale.mockResolvedValue(undefined);
+  // Feature flags — all ON; reset clears mockResolvedValue so re-apply here.
+  mockGetFlag.mockResolvedValue(true);
 });
 
 // ── Shared fixtures ───────────────────────────────────────────────────────────

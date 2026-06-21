@@ -743,9 +743,18 @@ const DDL = `
 
   CREATE INDEX IF NOT EXISTS idx_payout_requests_creator ON payout_requests(creator_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_payout_requests_status  ON payout_requests(status, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS feature_flags (
+    key TEXT PRIMARY KEY,
+    enabled BOOLEAN NOT NULL DEFAULT true,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
 `;
 
 export async function runMigrations(): Promise<void> {
   await pool.query(DDL);
+  // Seed default flag rows (ON CONFLICT DO NOTHING — safe to call every startup)
+  const { seedDefaultFlags } = await import('../services/featureFlags.js');
+  await seedDefaultFlags();
   console.log('  ✦ Database migrations complete');
 }

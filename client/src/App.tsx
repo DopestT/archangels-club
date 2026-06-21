@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { SavedProvider } from './context/SavedContext';
 import { ToastProvider } from './components/ui/Toast';
 import { LanguageProvider } from './context/LanguageContext';
+import { FeatureFlagsProvider } from './context/FeatureFlagsContext';
 import AppShell from './components/layout/AppShell';
 import SplashScreen from './components/brand/SplashScreen';
 import ErrorBoundary from './components/ErrorBoundary';
@@ -342,17 +343,19 @@ function AppWithSplash() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AuthProvider>
-        <SavedProvider>
-          <ToastProvider>
-            <ErrorBoundary>
-              <LanguageProvider>
-                <AppWithSplash />
-              </LanguageProvider>
-            </ErrorBoundary>
-          </ToastProvider>
-        </SavedProvider>
-      </AuthProvider>
+      <FeatureFlagsProvider>
+        <AuthProvider>
+          <SavedProvider>
+            <ToastProvider>
+              <ErrorBoundary>
+                <LanguageProvider>
+                  <AppWithSplash />
+                </LanguageProvider>
+              </ErrorBoundary>
+            </ToastProvider>
+          </SavedProvider>
+        </AuthProvider>
+      </FeatureFlagsProvider>
     </BrowserRouter>
   );
 }

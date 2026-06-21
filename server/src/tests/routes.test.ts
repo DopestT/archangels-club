@@ -21,6 +21,17 @@ vi.mock('../services/triggers.js', () => ({
   triggerAccountApproved:     vi.fn().mockResolvedValue(undefined),
 }));
 
+// All flags ON by default — tests exercise real business logic, not flag gates
+vi.mock('../services/featureFlags.js', () => ({
+  getFlag:          vi.fn().mockResolvedValue(true),
+  getAllFlags:       vi.fn().mockResolvedValue({}),
+  setFlag:          vi.fn().mockResolvedValue(undefined),
+  seedDefaultFlags: vi.fn().mockResolvedValue(undefined),
+  ALL_FLAGS:        [],
+  FLAG_DESCRIPTIONS: {},
+  DEFAULTS:         {},
+}));
+
 // Stripe mock — covers checkout.ts and webhooks.ts
 vi.mock('stripe', () => {
   const mockCreate = vi.fn().mockResolvedValue({
