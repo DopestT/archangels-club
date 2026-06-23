@@ -16,9 +16,10 @@ interface Props {
   role: 'host' | 'audience';
   isLive: boolean;
   onPublishing?: (publishing: boolean) => void;
+  onRenewToken?: () => Promise<string | null>;
 }
 
-export default function LiveStream({ config, role, isLive, onPublishing }: Props) {
+export default function LiveStream({ config, role, isLive, onPublishing, onRenewToken }: Props) {
   const localVideoRef  = useRef<HTMLDivElement>(null);
   const remoteVideoRef = useRef<HTMLDivElement>(null);
   const clientRef      = useRef<any>(null);
@@ -55,6 +56,15 @@ export default function LiveStream({ config, role, isLive, onPublishing }: Props
 
         await client.setClientRole(role === 'host' ? 'host' : 'audience');
         await client.join(safeAppId, safeChannel, safeToken, safeUid);
+
+        // Renew token before it expires (Agora fires this ~30s before expiry)
+        client.on('token-privilege-will-expire', async () => {
+          if (destroyed || !onRenewToken) return;
+          try {
+            const newToken = await onRenewToken();
+            if (newToken && !destroyed) await client.renewToken(newToken);
+          } catch { /* non-fatal */ }
+        });
 
         if (destroyed) { await client.leave(); return; }
 
