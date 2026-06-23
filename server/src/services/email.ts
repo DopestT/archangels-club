@@ -508,3 +508,17 @@ export async function sendTestEmail(to: string) {
     lines: ['This is a test email confirming your email delivery pipeline is live.'],
   }));
 }
+
+export async function sendFulfillmentEscalationAlert(sessionId: string, reason: string) {
+  const to = process.env.ADMIN_EMAIL;
+  if (!to) return;
+  return send(to, `[ACTION REQUIRED] Payment fulfillment escalated — ${sessionId}`, buildHtml({
+    eyebrow: 'Platform Alert',
+    heading: 'A payment fulfillment needs manual review.',
+    lines: [
+      `Stripe session <strong>${sessionId}</strong> could not be automatically fulfilled after repeated attempts.`,
+      `Reason: ${reason}`,
+      'Log into the admin panel → Transactions tab to resolve this manually.',
+    ],
+  }));
+}

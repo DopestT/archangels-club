@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import crypto from 'crypto';
 import Stripe from 'stripe';
 import { query, queryOne, execute } from '../db/schema.js';
@@ -9,6 +10,16 @@ import { triggerCreatorGoesLive } from '../services/triggers.js';
 
 const FRONTEND_URL    = process.env.FRONTEND_URL ?? process.env.CLIENT_URL ?? 'https://www.archangelsclub.com';
 const PLATFORM_FEE    = 0.3;
+
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  keyGenerator: (req) => (req as any).auth?.userId ?? req.ip ?? 'unknown',
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  message: { error: 'Slow down — max 20 chat messages per minute.' },
+  skipFailedRequests: true,
+});
 
 function getStripe() {
   if (!process.env.STRIPE_SECRET_KEY) throw new Error('STRIPE_SECRET_KEY not set');
@@ -303,14 +314,24 @@ router.post('/:id/start', requireAuth, requireCreator, requireFlag('enable_live_
     if (room.status === 'live') { res.status(409).json({ error: 'Room is already live.' }); return; }
     if (room.status === 'ended') { res.status(400).json({ error: 'Ended rooms cannot be restarted.' }); return; }
 
-    await execute(
-      `UPDATE live_rooms SET status = 'live', started_at = NOW(), updated_at = NOW() WHERE id = $1`,
+    // Generate host token first — bail early if streaming provider is not configured
+    const uid = 1;
+    const tokenResult = generateStreamToken(String(req.params.id), uid, 'host');
+    if (tokenResult.provider === 'none') {
+      res.status(503).json({ error: tokenResult.message ?? 'Streaming provider not configured.' });
+      return;
+    }
+
+    // Atomic start: only succeeds if room has not already been made live by a concurrent request
+    const rows = await execute(
+      `UPDATE live_rooms SET status = 'live', started_at = NOW(), updated_at = NOW()
+       WHERE id = $1 AND status NOT IN ('live', 'ended')`,
       [req.params.id]
     );
-
-    // Generate host token
-    const uid = 1; // host always gets UID 1
-    const tokenResult = generateStreamToken(String(req.params.id), uid, 'host');
+    if (rows === 0) {
+      res.status(409).json({ error: 'Room is already live or has ended.' });
+      return;
+    }
 
     res.json({ ok: true, stream: tokenResult });
 
@@ -391,6 +412,10 @@ router.post('/:id/token', requireAuth, requireApproved, requireFlag('enable_live
     const role = isCreator ? 'host' : 'audience';
     const uid = isCreator ? 1 : randomUid();
     const tokenResult = generateStreamToken(String(req.params.id), uid, role);
+    if (tokenResult.provider === 'none') {
+      res.status(503).json({ error: tokenResult.message ?? 'Streaming provider not configured.' });
+      return;
+    }
 
     res.json({ stream: tokenResult, role });
   } catch (err) {
@@ -463,7 +488,7 @@ router.get('/:id/chat', requireAuth, async (req, res) => {
 
 // ── POST /api/live/:id/chat — send a chat message ────────────────────────────
 
-router.post('/:id/chat', requireAuth, requireApproved, requireFlag('enable_live_rooms'), async (req, res) => {
+router.post('/:id/chat', requireAuth, requireApproved, requireFlag('enable_live_rooms'), chatLimiter, async (req, res) => {
   try {
     const { message } = req.body;
     if (!message || typeof message !== 'string' || message.trim().length === 0) {
@@ -596,6 +621,10 @@ router.post('/:id/tip', requireAuth, requireApproved, async (req, res) => {
     if (room.status !== 'live') { res.status(400).json({ error: 'Room is not currently live.' }); return; }
 
     const resolvedCreatorId = creator_id ?? room.creator_id;
+    if (resolvedCreatorId !== room.creator_id) {
+      res.status(400).json({ error: 'creator_id does not match this room.' });
+      return;
+    }
     const creator = await queryOne<{ id: string; user_id: string; stripe_account_id: string | null; stripe_onboarding_complete: number; display_name: string }>(
       `SELECT cp.id, cp.user_id, cp.stripe_account_id, cp.stripe_onboarding_complete, u.display_name
          FROM creator_profiles cp

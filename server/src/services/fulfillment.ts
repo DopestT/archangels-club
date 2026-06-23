@@ -4,6 +4,7 @@ import { withTransaction, queryOne, execute } from '../db/schema.js';
 import { triggerPurchaseConfirmation } from './triggers.js';
 import { recordSignal, logEvent } from './events.js';
 import { invalidateUserCache } from './memberRecommendations.js';
+import { sendFulfillmentEscalationAlert } from './email.js';
 
 // PostgreSQL unique_violation error code — thrown when a UNIQUE constraint fires.
 // Used to detect concurrent fulfillment races and treat them as idempotent success.
@@ -62,13 +63,16 @@ async function markFulfillmentFailed(recordId: string, error: string): Promise<v
   );
 }
 
-async function markFulfillmentNeedsReview(recordId: string, reason: string): Promise<void> {
+async function markFulfillmentNeedsReview(recordId: string, reason: string, sessionId?: string): Promise<void> {
   await execute(
     `UPDATE fulfillment_records
        SET status = 'needs_review', last_error = $2, updated_at = NOW()
      WHERE id = $1`,
     [recordId, reason.slice(0, 2000)]
   );
+  if (sessionId) {
+    sendFulfillmentEscalationAlert(sessionId, reason).catch(() => {});
+  }
 }
 
 // ── Main fulfillment entry point ─────────────────────────────────────────────
@@ -113,7 +117,7 @@ export async function fulfillCheckoutSession(
       return;
     }
     if (shouldEscalate) {
-      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`, sessionId);
       console.error('[fulfillment] subscription: auto-escalated to needs_review session=%s', sessionId);
       return;
     }
@@ -219,7 +223,7 @@ export async function fulfillCheckoutSession(
       return;
     }
     if (shouldEscalate) {
-      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`, sessionId);
       console.error('[fulfillment] tip: auto-escalated to needs_review session=%s', sessionId);
       return;
     }
@@ -296,7 +300,7 @@ export async function fulfillCheckoutSession(
     );
     if (alreadyFulfilled) return;
     if (shouldEscalate) {
-      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`, sessionId);
       return;
     }
 
@@ -371,7 +375,7 @@ export async function fulfillCheckoutSession(
     );
     if (alreadyFulfilled) return;
     if (shouldEscalate) {
-      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`, sessionId);
       return;
     }
 
@@ -464,7 +468,7 @@ export async function fulfillCheckoutSession(
       return;
     }
     if (shouldEscalate) {
-      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`);
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`, sessionId);
       console.error('[fulfillment] unlock: auto-escalated to needs_review session=%s', sessionId);
       return;
     }
