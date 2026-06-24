@@ -782,7 +782,25 @@ router.get('/:id/leaderboard', requireAuth, async (req, res) => {
 
     const tippers = rows.map((r, i) => ({ ...r, rank: i + 1 }));
     const raisedCents = rows.reduce((sum, r) => sum + r.total_cents, 0);
-    res.json({ tippers, raised_cents: raisedCents });
+
+    // Recent joiners — drives the live "just joined" ticker (excludes the host)
+    const joinerRows = await query<{ display_name: string }>(
+      `SELECT display_name
+         FROM live_room_viewers
+        WHERE live_room_id = $1
+          AND display_name <> ''
+          AND user_id <> COALESCE($2, '')
+          AND joined_at > NOW() - INTERVAL '20 seconds'
+        ORDER BY joined_at DESC
+        LIMIT 5`,
+      [req.params.id, room?.creator_user_id ?? null]
+    );
+
+    res.json({
+      tippers,
+      raised_cents: raisedCents,
+      recent_joiners: joinerRows.map(r => r.display_name),
+    });
   } catch (err) {
     console.error('[live] GET /:id/leaderboard error:', err);
     res.status(500).json({ error: 'Failed to fetch leaderboard.' });

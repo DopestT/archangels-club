@@ -51,10 +51,10 @@
 }
 
 @keyframes joinPop {
-  0%   { transform: translateX(120px); opacity: 0; }
-  15%  { transform: translateX(0);     opacity: 1; }
-  75%  { transform: translateX(0);     opacity: 1; }
-  100% { transform: translateX(120px); opacity: 0; }
+  0%   { transform: translateX(-120px); opacity: 0; }
+  15%  { transform: translateX(0);      opacity: 1; }
+  75%  { transform: translateX(0);      opacity: 1; }
+  100% { transform: translateX(-120px); opacity: 0; }
 }
 
 @layer components {

@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bookmark } from 'lucide-react';
 import ContentCard from '../components/content/ContentCard';
+import { ContentCardSkeleton } from '../components/ui/LoadingSkeleton';
+import { Reveal } from '../components/motion';
 import { apiFetch } from '../lib/api';
 import { useT } from '../context/LanguageContext';
 import type { Content } from '../types';
@@ -42,11 +44,11 @@ export default function VaultPage() {
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {[...Array(8)].map((_, i) => (
-                <div key={i} className="card-surface h-72 animate-pulse rounded-xl" />
+                <ContentCardSkeleton key={i} />
               ))}
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 text-center">
+            <Reveal className="flex flex-col items-center justify-center py-24 text-center">
               <div className="w-16 h-16 rounded-full bg-gold-muted border border-gold-border flex items-center justify-center mb-4">
                 <Bookmark className="w-7 h-7 text-gold" />
               </div>
@@ -57,13 +59,13 @@ export default function VaultPage() {
               <Link to="/explore" className="btn-gold mt-6 text-sm px-6 py-2.5 inline-block">
                 Browse Content
               </Link>
-            </div>
+            </Reveal>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+            <Reveal stagger className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
               {items.map(item => (
                 <ContentCard key={item.id} content={item} />
               ))}
-            </div>
+            </Reveal>
           )}
 
         </div>

@@ -5,6 +5,8 @@ import Navbar from './Navbar';
 import Footer from './Footer';
 import { useAuth } from '../../context/AuthContext';
 import { LaunchTuningBanner } from '../ui/LaunchTuningBanner';
+import { PageTransition } from '../motion';
+import { motion } from 'framer-motion';
 
 const MOBILE_NAV = [
   { to: '/',              icon: <Home className="w-5 h-5" />,           label: 'Home',      public: true },
@@ -31,7 +33,9 @@ export default function AppShell() {
       <LaunchTuningBanner />
       <Navbar />
       <main className="flex-1 pt-16 lg:pt-18 pb-20 md:pb-0">
-        <Outlet />
+        <PageTransition>
+          <Outlet />
+        </PageTransition>
       </main>
       {!['/creator', '/upload', '/studio'].some(p => pathname.startsWith(p)) && <Footer />}
 
@@ -45,8 +49,16 @@ export default function AppShell() {
                 <Link
                   key={n.to}
                   to={n.to}
-                  className={`flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all ${active ? 'text-gold' : 'text-arc-muted hover:text-arc-secondary'}`}
+                  className={`relative flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-all duration-200 active:scale-90 ${active ? 'text-gold' : 'text-arc-muted hover:text-arc-secondary'}`}
                 >
+                  {active && (
+                    <motion.span
+                      layoutId="mobileNavActive"
+                      className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-gold"
+                      style={{ boxShadow: '0 0 6px rgba(212,175,55,0.7)' }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                    />
+                  )}
                   {n.icon}
                   <span className="text-[10px] font-medium">{n.label}</span>
                 </Link>
