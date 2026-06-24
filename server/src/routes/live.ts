@@ -231,8 +231,12 @@ router.get('/:id', requireAuth, async (req, res) => {
       `SELECT lr.id, lr.title, lr.description, lr.access_type, lr.price_cents,
               lr.status, lr.started_at, lr.ended_at, lr.peak_viewer_count,
               lr.replay_available, lr.creator_user_id,
+              lr.goal_amount_cents, lr.goal_title,
               u.display_name as creator_name, u.avatar_url as creator_avatar,
-              u.username as creator_username, cp.id as creator_id
+              u.username as creator_username, cp.id as creator_id,
+              (SELECT COUNT(*)::int FROM live_room_viewers
+                WHERE live_room_id = lr.id
+                  AND last_seen_at > NOW() - INTERVAL '2 minutes') AS viewer_count
          FROM live_rooms lr
          JOIN creator_profiles cp ON cp.id = lr.creator_id
          JOIN users u ON u.id = cp.user_id
@@ -421,6 +425,31 @@ router.post('/:id/token', requireAuth, requireApproved, requireFlag('enable_live
   } catch (err) {
     console.error('[live] POST /:id/token error:', err);
     res.status(500).json({ error: 'Failed to generate stream token.' });
+  }
+});
+
+// ── POST /api/live/:id/heartbeat — presence signal while watching ─────────────
+
+router.post('/:id/heartbeat', requireAuth, requireApproved, async (req, res) => {
+  try {
+    const user = await queryOne<{ display_name: string }>(
+      'SELECT display_name FROM users WHERE id = $1', [req.auth!.userId]
+    );
+    const isNew = await queryOne(
+      `SELECT 1 FROM live_room_viewers WHERE live_room_id = $1 AND user_id = $2`,
+      [req.params.id, req.auth!.userId]
+    );
+    await execute(
+      `INSERT INTO live_room_viewers (live_room_id, user_id, display_name, joined_at, last_seen_at)
+       VALUES ($1, $2, $3, NOW(), NOW())
+       ON CONFLICT (live_room_id, user_id)
+         DO UPDATE SET last_seen_at = NOW()`,
+      [req.params.id, req.auth!.userId, user?.display_name ?? '']
+    );
+    res.json({ ok: true, isNew: !isNew });
+  } catch (err) {
+    console.error('[live] POST /:id/heartbeat error:', err);
+    res.status(500).json({ error: 'Failed to send heartbeat.' });
   }
 });
 
