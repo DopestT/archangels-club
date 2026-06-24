@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { Lock, Crown, MessageCircle, CreditCard, ChevronRight, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import StatCard from '../components/ui/StatCard';
+import Bone, { StatCardSkeleton, ContentCardSkeleton } from '../components/ui/LoadingSkeleton';
+import { Reveal } from '../components/motion';
 import ContentCard from '../components/content/ContentCard';
 import Avatar from '../components/ui/Avatar';
 import { formatCurrency, timeAgo } from '../lib/utils';
@@ -134,32 +136,38 @@ export default function MemberDashboard() {
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-          <StatCard
-            label="Unlocked Content"
-            value={stats?.unlocked_count ?? (loading ? '—' : 0)}
-            sub="pieces in your library"
-            icon={<Lock className="w-5 h-5" />}
-          />
-          <StatCard
-            label="Active Subscriptions"
-            value={stats?.subscription_count ?? (loading ? '—' : 0)}
-            sub="creators subscribed"
-            icon={<Crown className="w-5 h-5" />}
-          />
-          <StatCard
-            label="Messages"
-            value={stats?.unread_messages ?? (loading ? '—' : 0)}
-            sub="unread"
-            icon={<MessageCircle className="w-5 h-5" />}
-          />
-          <StatCard
-            label="Total Spent"
-            value={stats ? formatCurrency(stats.total_spent) : (loading ? '—' : formatCurrency(0))}
-            sub="across all purchases"
-            icon={<CreditCard className="w-5 h-5" />}
-          />
-        </div>
+        {loading && !stats ? (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            {[0, 1, 2, 3].map(i => <StatCardSkeleton key={i} />)}
+          </div>
+        ) : (
+          <Reveal stagger className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+            <StatCard
+              label="Unlocked Content"
+              value={stats?.unlocked_count ?? 0}
+              sub="pieces in your library"
+              icon={<Lock className="w-5 h-5" />}
+            />
+            <StatCard
+              label="Active Subscriptions"
+              value={stats?.subscription_count ?? 0}
+              sub="creators subscribed"
+              icon={<Crown className="w-5 h-5" />}
+            />
+            <StatCard
+              label="Messages"
+              value={stats?.unread_messages ?? 0}
+              sub="unread"
+              icon={<MessageCircle className="w-5 h-5" />}
+            />
+            <StatCard
+              label="Total Spent"
+              value={stats ? formatCurrency(stats.total_spent) : formatCurrency(0)}
+              sub="across all purchases"
+              icon={<CreditCard className="w-5 h-5" />}
+            />
+          </Reveal>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left col */}
@@ -173,12 +181,16 @@ export default function MemberDashboard() {
                   Browse More <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
-              {unlocked.length > 0 ? (
+              {loading ? (
                 <div className="grid grid-cols-2 gap-4">
+                  {[0, 1].map(i => <ContentCardSkeleton key={i} />)}
+                </div>
+              ) : unlocked.length > 0 ? (
+                <Reveal stagger className="grid grid-cols-2 gap-4">
                   {unlocked.map(item => (
                     <ContentCard key={item.id} content={item} showCreator />
                   ))}
-                </div>
+                </Reveal>
               ) : (
                 <div className="card-surface p-10 text-center rounded-xl">
                   <Lock className="w-8 h-8 text-arc-muted mx-auto mb-3" />
@@ -342,7 +354,9 @@ export default function MemberDashboard() {
                 {aiLoading && !aiRecs && memberSections.length === 0 && (
                   <div className="space-y-2 mt-3">
                     {[75, 55, 65].map(w => (
-                      <div key={w} className="h-2.5 rounded-full bg-white/5 animate-pulse" style={{ width: `${w}%` }} />
+                      <div key={w} style={{ width: `${w}%` }}>
+                        <Bone className="h-2.5 w-full" />
+                      </div>
                     ))}
                   </div>
                 )}

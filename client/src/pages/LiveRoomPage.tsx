@@ -41,7 +41,7 @@ interface RoomDetail {
 
 export default function LiveRoomPage() {
   const { id } = useParams<{ id: string }>();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -60,6 +60,7 @@ export default function LiveRoomPage() {
   const [giftAlert, setGiftAlert]             = useState<{ name: string; amount: number } | null>(null);
   const [joinAlert, setJoinAlert]             = useState<string | null>(null);
   const seenSupporters = useRef<Set<string>>(new Set());
+  const seenJoiners = useRef<Set<string>>(new Set());
   const giftAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const joinAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -103,6 +104,7 @@ export default function LiveRoomPage() {
         const data = await apiFetch(`/api/live/${id}/leaderboard`) as {
           tippers: Supporter[];
           raised_cents: number;
+          recent_joiners?: string[];
         };
 
         // Detect new tippers for gift alert
@@ -115,6 +117,17 @@ export default function LiveRoomPage() {
           giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
         }
         seenSupporters.current = new Set(data.tippers.map(t => t.display_name));
+
+        // Detect new viewers for the "just joined" ticker
+        const joiners = data.recent_joiners ?? [];
+        const seenJ = seenJoiners.current;
+        const freshJoiner = joiners.find(n => n && n !== user?.display_name && !seenJ.has(n));
+        if (freshJoiner && seenJ.size > 0) {
+          if (joinAlertTimer.current) clearTimeout(joinAlertTimer.current);
+          setJoinAlert(freshJoiner);
+          joinAlertTimer.current = setTimeout(() => setJoinAlert(null), 3200);
+        }
+        joiners.forEach(n => seenJ.add(n));
 
         setSupporters(data.tippers);
         setRaisedCents(data.raised_cents);
@@ -409,6 +422,31 @@ export default function LiveRoomPage() {
                 💛
               </span>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* "Just joined" ticker */}
+      {joinAlert && (
+        <div
+          key={joinAlert}
+          className="fixed bottom-24 left-4 md:bottom-6"
+          style={{ zIndex: 55, pointerEvents: 'none', animation: 'joinPop 3.2s ease forwards' }}
+        >
+          <div
+            className="flex items-center gap-2 px-3.5 py-1.5 rounded-full"
+            style={{
+              background: 'rgba(9,9,11,0.92)',
+              border: '1px solid rgba(212,175,55,0.25)',
+              backdropFilter: 'blur(10px)',
+            }}
+          >
+            <span
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ background: '#22c55e', boxShadow: '0 0 6px rgba(34,197,94,0.6)' }}
+            />
+            <span className="text-xs font-medium text-white">{joinAlert}</span>
+            <span className="text-xs text-zinc-500">joined</span>
           </div>
         </div>
       )}
