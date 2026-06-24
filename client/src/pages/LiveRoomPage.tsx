@@ -1,5 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Lock, Star, AlertCircle, Loader2,
   Users, Archive, ChevronDown, ChevronUp,
@@ -14,6 +14,7 @@ import RoomGoalBar from '../components/live/RoomGoalBar';
 import TopSupporters, { type Supporter } from '../components/live/TopSupporters';
 import EntryRitual from '../components/live/EntryRitual';
 import LiveChat from '../components/live/LiveChat';
+import FloatingReactions from '../components/live/FloatingReactions';
 
 interface RoomDetail {
   id: string;
@@ -35,12 +36,14 @@ interface RoomDetail {
   access: { granted: boolean; reason?: string };
   goal_amount_cents: number | null;
   goal_title: string | null;
+  viewer_count: number;
 }
 
 export default function LiveRoomPage() {
   const { id } = useParams<{ id: string }>();
   const { isAdmin } = useAuth();
   const { t } = useLanguage();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [room, setRoom]                   = useState<RoomDetail | null>(null);
   const [loading, setLoading]             = useState(true);
@@ -53,6 +56,12 @@ export default function LiveRoomPage() {
   const [raisedCents, setRaisedCents]         = useState(0);
   const [showEntryRitual, setShowEntryRitual] = useState(false);
   const [ritualDone, setRitualDone]           = useState(false);
+  const [viewerCount, setViewerCount]         = useState(0);
+  const [giftAlert, setGiftAlert]             = useState<{ name: string; amount: number } | null>(null);
+  const [joinAlert, setJoinAlert]             = useState<string | null>(null);
+  const seenSupporters = useRef<Set<string>>(new Set());
+  const giftAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const joinAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
@@ -95,18 +104,60 @@ export default function LiveRoomPage() {
           tippers: Supporter[];
           raised_cents: number;
         };
+
+        // Detect new tippers for gift alert
+        const prevSeen = seenSupporters.current;
+        const fresh = data.tippers.filter(t => !prevSeen.has(t.display_name));
+        if (fresh.length > 0 && prevSeen.size > 0) {
+          const biggest = fresh.reduce((a, b) => a.total_cents > b.total_cents ? a : b);
+          if (giftAlertTimer.current) clearTimeout(giftAlertTimer.current);
+          setGiftAlert({ name: biggest.display_name, amount: biggest.total_cents });
+          giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
+        }
+        seenSupporters.current = new Set(data.tippers.map(t => t.display_name));
+
         setSupporters(data.tippers);
         setRaisedCents(data.raised_cents);
       } catch {}
     }
     fetchLeaderboard();
-    const interval = setInterval(fetchLeaderboard, 30000);
+    const interval = setInterval(fetchLeaderboard, 5000);
     return () => clearInterval(interval);
   }, [id, room?.status, room?.is_creator, room?.access.granted, isAdmin]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (room) document.title = `${room.title} — Archangels Club`;
-  }, [room?.title]);
+    if (room?.viewer_count) setViewerCount(room.viewer_count);
+  }, [room?.title, room?.viewer_count]);
+
+  // Heartbeat — lets the server track who's watching and shows join alerts
+  useEffect(() => {
+    if (!isLive || !canView || !id) return;
+    async function beat() {
+      try {
+        const data = await apiFetch(`/api/live/${id}/heartbeat`, { method: 'POST' }) as { isNew: boolean };
+        if (data.isNew && room) {
+          // Re-fetch viewer count
+          const updated = await apiFetch(`/api/live/${id}`) as RoomDetail;
+          setViewerCount(updated.viewer_count ?? 0);
+        }
+      } catch {}
+    }
+    beat();
+    const iv = setInterval(beat, 60000);
+    return () => clearInterval(iv);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLive, canView, id]);
+
+  // Show "your gift is on its way" alert when returning from Stripe tip checkout
+  useEffect(() => {
+    if (searchParams.get('tip') === 'sent') {
+      setSearchParams({}, { replace: true });
+      setGiftAlert({ name: 'Your gift', amount: 0 });
+      giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Fetch Agora stream token when live and user has access
   useEffect(() => {
@@ -218,8 +269,8 @@ export default function LiveRoomPage() {
             {/* LEFT: Stage + modules */}
             <div className="space-y-4">
               {/* Luxury Live Stage */}
-              <LuxuryLiveStage room={room} isLive={isLive}>
-                <div className="aspect-video w-full bg-black">
+              <LuxuryLiveStage room={room} isLive={isLive} viewerCount={viewerCount}>
+                <div className="aspect-video w-full bg-black relative">
                   {streamLoading ? (
                     <div className="flex items-center justify-center h-full">
                       <Loader2 size={24} className="animate-spin" style={{ color: '#d4af37' }} />
@@ -242,6 +293,11 @@ export default function LiveRoomPage() {
                       <p className="text-zinc-700 text-xs tracking-widest uppercase">Waiting for the room to open</p>
                     </div>
                   ) : null}
+
+                  {/* Floating heart reactions — audience only */}
+                  {isLive && canView && !room.is_creator && (
+                    <FloatingReactions />
+                  )}
                 </div>
               </LuxuryLiveStage>
 
@@ -324,6 +380,38 @@ export default function LiveRoomPage() {
           onSent={() => setShowGiftDrawer(false)}
         />
       )}
+
+      {/* Gift alert banner */}
+      {giftAlert && (
+        <div
+          key={giftAlert.name + giftAlert.amount}
+          className="fixed top-0 left-0 right-0 flex justify-center pt-4 px-4"
+          style={{ zIndex: 60, pointerEvents: 'none', animation: 'giftDrop 4.2s ease forwards' }}
+        >
+          <div
+            className="flex items-center gap-3 px-5 py-2.5 rounded-2xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(18,12,2,0.97) 0%, rgba(30,20,4,0.97) 100%)',
+              border: '1px solid rgba(212,175,55,0.5)',
+              boxShadow: '0 8px 40px rgba(212,175,55,0.15)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>✨</span>
+            <span className="text-sm font-semibold text-white">{giftAlert.name}</span>
+            <span className="text-xs text-zinc-400">
+              {giftAlert.amount > 0
+                ? `just gifted $${(giftAlert.amount / 100).toFixed(2)}`
+                : 'sent a gift — processing…'}
+            </span>
+            {giftAlert.amount > 0 && (
+              <span className="text-sm font-bold" style={{ color: '#d4af37' }}>
+                💛
+              </span>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -335,10 +423,12 @@ export default function LiveRoomPage() {
 function LuxuryLiveStage({
   room,
   isLive,
+  viewerCount,
   children,
 }: {
   room: RoomDetail;
   isLive: boolean;
+  viewerCount?: number;
   children: React.ReactNode;
 }) {
   return (
@@ -397,12 +487,24 @@ function LuxuryLiveStage({
         {/* Status + meta */}
         <div className="flex items-center gap-3 flex-shrink-0">
           {isLive ? (
-            <div className="flex items-center gap-1.5">
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.7)', animation: 'pulse 2s infinite' }}
-              />
-              <span className="text-[10px] font-bold tracking-[0.2em] text-red-400 uppercase">Live</span>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: '#ef4444', boxShadow: '0 0 6px rgba(239,68,68,0.7)', animation: 'pulse 2s infinite' }}
+                />
+                <span className="text-[10px] font-bold tracking-[0.2em] text-red-400 uppercase">Live</span>
+              </div>
+              {(viewerCount ?? 0) > 0 && (
+                <div className="flex items-center gap-1">
+                  <Users size={10} className="text-zinc-500" />
+                  <span className="text-[10px] text-zinc-500 tabular-nums">
+                    {(viewerCount ?? 0) >= 1000
+                      ? `${((viewerCount ?? 0) / 1000).toFixed(1)}K`
+                      : viewerCount}
+                  </span>
+                </div>
+              )}
             </div>
           ) : room.status === 'ended' ? (
             <span className="text-[10px] text-zinc-700 tracking-widest uppercase">Ended</span>

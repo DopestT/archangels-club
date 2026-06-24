@@ -749,6 +749,17 @@ const DDL = `
     enabled BOOLEAN NOT NULL DEFAULT true,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  CREATE TABLE IF NOT EXISTS live_room_viewers (
+    live_room_id TEXT NOT NULL REFERENCES live_rooms(id) ON DELETE CASCADE,
+    user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    display_name TEXT NOT NULL DEFAULT '',
+    joined_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (live_room_id, user_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_live_room_viewers_active
+    ON live_room_viewers(live_room_id, last_seen_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {

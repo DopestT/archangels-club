@@ -37,6 +37,26 @@
   }
 }
 
+@keyframes floatUp {
+  0%   { transform: translateY(0);      opacity: 1; }
+  70%  { opacity: 0.7; }
+  100% { transform: translateY(-160px); opacity: 0; }
+}
+
+@keyframes giftDrop {
+  0%   { transform: translateY(-80px); opacity: 0; }
+  12%  { transform: translateY(0);     opacity: 1; }
+  78%  { transform: translateY(0);     opacity: 1; }
+  100% { transform: translateY(-80px); opacity: 0; }
+}
+
+@keyframes joinPop {
+  0%   { transform: translateX(120px); opacity: 0; }
+  15%  { transform: translateX(0);     opacity: 1; }
+  75%  { transform: translateX(0);     opacity: 1; }
+  100% { transform: translateX(120px); opacity: 0; }
+}
+
 @layer components {
   .btn-gold {
     @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-sans font-medium text-sm tracking-wide text-bg-primary bg-gold hover:bg-gold-hover rounded transition-all duration-200;
