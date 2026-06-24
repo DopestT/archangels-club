@@ -323,7 +323,15 @@ export default function LandingPage() {
                 highlight: false,
                 features: ['Full catalog access', 'Subscriber-only content', 'Priority messaging', 'Discounted unlocks', 'Exclusive subscriber drops'],
               },
-            ].map(({ name, price, sub, highlight, features }) => (
+            ].map(({ name, price, sub, highlight, features }) => {
+              const dest =
+                name === 'Preview'
+                  ? '/explore'
+                  : isAuthenticated
+                    ? name === 'Subscriber' ? '/explore' : '/dashboard'
+                    : '/signup';
+              const label = name === 'Preview' ? 'Explore Free' : isAuthenticated ? 'Go to Dashboard' : 'Get Started';
+              return (
               <div
                 key={name}
                 className={`rounded-2xl p-7 border flex flex-col ${highlight ? 'bg-gold-muted border-gold/50 relative' : 'card-surface'}`}
@@ -347,13 +355,14 @@ export default function LandingPage() {
                   ))}
                 </ul>
                 <Link
-                  to="/signup"
+                  to={dest}
                   className={highlight ? 'btn-gold w-full justify-center' : 'btn-outline w-full justify-center'}
                 >
-                  {name === 'Preview' ? 'Explore Free' : 'Get Started'}
+                  {label}
                 </Link>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>
@@ -436,8 +445,8 @@ export default function LandingPage() {
             ))}
           </div>
 
-          <Link to="/signup" className="btn-gold px-10 py-4 text-base">
-            Apply for Access <ArrowRight className="w-4 h-4" />
+          <Link to={isAuthenticated ? '/dashboard' : '/signup'} className="btn-gold px-10 py-4 text-base">
+            {isAuthenticated ? 'Go to Dashboard' : 'Apply for Access'} <ArrowRight className="w-4 h-4" />
           </Link>
         </div>
       </section>
@@ -452,8 +461,8 @@ export default function LandingPage() {
             Your access to the private world of Archangels begins with a single request.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <Link to="/signup" className="btn-gold px-10 py-4 text-base">
-              Request Access Now <ArrowRight className="w-4 h-4" />
+            <Link to={isAuthenticated ? '/dashboard' : '/signup'} className="btn-gold px-10 py-4 text-base">
+              {isAuthenticated ? 'Go to Dashboard' : 'Request Access Now'} <ArrowRight className="w-4 h-4" />
             </Link>
             <Link to="/explore" className="btn-outline px-8 py-4 text-base">Explore First</Link>
           </div>
