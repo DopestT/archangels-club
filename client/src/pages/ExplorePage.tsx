@@ -40,8 +40,16 @@ function SectionHeader({ icon, title, sub, count }: { icon: React.ReactNode; tit
 
 function FeedCardSkeleton() {
   return (
-    <div className="rounded-2xl overflow-hidden bg-bg-surface border border-white/5 aspect-[3/4]">
-      <div className="w-full h-full bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-white/[0.04] animate-pulse" />
+    <div className="rounded-2xl overflow-hidden bg-bg-surface" style={{ border: '1px solid rgba(255,255,255,0.06)' }}>
+      <div className="aspect-[3/4] relative overflow-hidden bg-white/[0.04]">
+        <div
+          className="absolute inset-0 -translate-x-full"
+          style={{
+            background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 50%, transparent 100%)',
+            animation: 'shimmer 1.6s ease-in-out infinite',
+          }}
+        />
+      </div>
     </div>
   );
 }

@@ -57,9 +57,23 @@
   100% { transform: translateX(-120px); opacity: 0; }
 }
 
+@keyframes shimmer {
+  100% { transform: translateX(100%); }
+}
+
+@keyframes liveActionReveal {
+  from { opacity: 0; transform: translateX(16px) scale(0.94); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes liveInfoReveal {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 @layer components {
   .btn-gold {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-sans font-medium text-sm tracking-wide text-bg-primary bg-gold hover:bg-gold-hover rounded transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-sans font-medium text-sm tracking-wide text-bg-primary bg-gold hover:bg-gold-hover rounded-xl transition-all duration-200;
     box-shadow: 0 0 20px rgba(212, 175, 55, 0.25);
     position: relative;
     overflow: hidden;
@@ -92,7 +106,7 @@
   }
 
   .btn-outline {
-    @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-sans font-medium text-sm tracking-wide text-gold border border-gold-border rounded transition-all duration-200;
+    @apply inline-flex items-center justify-center gap-2 px-6 py-3 font-sans font-medium text-sm tracking-wide text-gold border border-gold-border rounded-xl transition-all duration-200;
     background: rgba(212, 175, 55, 0.04);
   }
 
@@ -116,7 +130,8 @@
   }
 
   .card-surface {
-    @apply bg-bg-surface border border-gold-border rounded-xl;
+    @apply bg-bg-surface rounded-2xl;
+    border: 1px solid rgba(255,255,255,0.06);
     transition: transform 220ms cubic-bezier(.2,.8,.2,1), box-shadow 220ms ease, border-color 220ms ease;
   }
 
