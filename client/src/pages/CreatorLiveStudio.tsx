@@ -123,6 +123,18 @@ export default function CreatorLiveStudio() {
     }
   }
 
+  const renewToken = useCallback(async (): Promise<string | null> => {
+    if (!activeRoom) return null;
+    try {
+      const data = await apiFetch(`/api/live/${activeRoom.id}/token`, { method: 'POST' }) as { stream: StreamConfig };
+      if (data.stream.provider === 'agora' && data.stream.token) {
+        setStreamCfg(data.stream);
+        return data.stream.token;
+      }
+    } catch { /* non-fatal */ }
+    return null;
+  }, [activeRoom?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function endStream() {
     if (!activeRoom) return;
     setEnding(true);
@@ -240,6 +252,7 @@ export default function CreatorLiveStudio() {
                     config={streamCfg}
                     role="host"
                     isLive={true}
+                    onRenewToken={renewToken}
                   />
                 </div>
               )}

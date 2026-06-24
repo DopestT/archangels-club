@@ -127,6 +127,17 @@ export default function LiveRoomPage() {
     return () => { cancelled = true; };
   }, [id, isLive, canView]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const renewToken = useCallback(async (): Promise<string | null> => {
+    try {
+      const data = await apiFetch(`/api/live/${id}/token`, { method: 'POST' }) as { stream: StreamConfig };
+      if (data.stream.provider === 'agora' && data.stream.token) {
+        setStreamCfg(data.stream);
+        return data.stream.token;
+      }
+    } catch { /* non-fatal */ }
+    return null;
+  }, [id]);
+
   async function handleSubscribe() {
     if (!room) return;
     setCheckoutLoading(true);
@@ -218,6 +229,7 @@ export default function LiveRoomPage() {
                       config={streamCfg}
                       role={room.is_creator ? 'host' : 'audience'}
                       isLive={isLive}
+                      onRenewToken={renewToken}
                     />
                   ) : !isLive ? (
                     <div className="flex flex-col items-center justify-center h-full gap-3">
