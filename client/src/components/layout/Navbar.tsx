@@ -51,7 +51,15 @@ export default function Navbar() {
           <nav className="hidden md:flex items-center gap-1 xl:gap-2">
             {navLinks.map(({ to, label, live }) => (
               <Link key={to} to={to} className={`relative px-4 py-2 xl:px-5 text-sm font-sans rounded transition-colors flex items-center gap-1.5 ${location.pathname === to || location.pathname.startsWith(to + '/') ? 'text-gold' : 'text-arc-secondary hover:text-white'}`}>
-                {live && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />}
+                {live && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0"
+                    style={{
+                      transformOrigin: 'center bottom',
+                      animation: 'pixar-dot-bounce 1.1s cubic-bezier(0.22,1,0.36,1) both, live-dot-pulse 2.2s ease-in-out 1.1s infinite',
+                    }}
+                  />
+                )}
                 {label}
               </Link>
             ))}
@@ -118,7 +126,15 @@ export default function Navbar() {
           <nav className="flex flex-col gap-1 mb-4">
             {navLinks.map(({ to, label, live }) => (
               <Link key={to} to={to} className="px-4 py-3 text-sm font-sans text-arc-secondary hover:text-white rounded-lg hover:bg-bg-hover transition-colors flex items-center gap-2">
-                {live && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
+                {live && (
+                  <span
+                    className="w-1.5 h-1.5 rounded-full bg-red-500"
+                    style={{
+                      transformOrigin: 'center bottom',
+                      animation: 'pixar-dot-bounce 1.1s cubic-bezier(0.22,1,0.36,1) both, live-dot-pulse 2.2s ease-in-out 1.1s infinite',
+                    }}
+                  />
+                )}
                 {label}
               </Link>
             ))}

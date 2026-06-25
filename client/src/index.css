@@ -437,6 +437,32 @@
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 
+/* ── Pixar-lamp bounce — drop, squish on impact, spring up, settle ── */
+@keyframes pixar-dot-bounce {
+  0%   { opacity: 0; transform: translateY(-18px) scale(0.55); }
+  28%  { opacity: 1; transform: translateY(2.5px) scaleX(1.6) scaleY(0.45); }
+  46%  { transform: translateY(-9px) scaleX(0.78) scaleY(1.32); }
+  61%  { transform: translateY(1.5px) scaleX(1.18) scaleY(0.84); }
+  74%  { transform: translateY(-4px) scaleX(0.93) scaleY(1.1); }
+  85%  { transform: translateY(0.5px) scaleX(1.05) scaleY(0.96); }
+  93%  { transform: translateY(-1px) scaleX(0.99) scaleY(1.01); }
+  100% { opacity: 1; transform: translateY(0) scaleX(1) scaleY(1); }
+}
+@keyframes live-dot-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0); opacity: 1; }
+  50%       { box-shadow: 0 0 0 3.5px rgba(239,68,68,0.28); opacity: 0.78; }
+}
+@keyframes pixar-splash {
+  0%   { opacity: 0; transform: translateY(-72px) scaleX(0.88) scaleY(0.78); }
+  26%  { opacity: 1; transform: translateY(8px) scaleX(1.28) scaleY(0.62); }
+  44%  { transform: translateY(-24px) scaleX(0.8) scaleY(1.28); }
+  60%  { transform: translateY(4px) scaleX(1.12) scaleY(0.88); }
+  73%  { transform: translateY(-9px) scaleX(0.94) scaleY(1.08); }
+  84%  { transform: translateY(1px) scaleX(1.04) scaleY(0.97); }
+  92%  { transform: translateY(-2px) scaleX(0.99) scaleY(1.01); }
+  100% { opacity: 1; transform: translateY(0) scaleX(1) scaleY(1); }
+}
+
 /* ── Hero video: center angel on mobile/tablet ──────────────── */
 /* Desktop keeps default object-position (center center).        */
 /* On narrow viewports the left wing dominates; shift right to   */
