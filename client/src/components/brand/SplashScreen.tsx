@@ -17,17 +17,14 @@ export default function SplashScreen() {
         style={{
           width: 64,
           height: 64,
-          animation: 'arcIn 0.9s cubic-bezier(0.4,0,0.2,1) forwards, arcShimmer 1.8s ease-in-out 0.9s infinite',
+          transformOrigin: 'center bottom',
+          animation: 'pixar-splash 1.0s cubic-bezier(0.22,1,0.36,1) both, arcShimmer 1.8s ease-in-out 1.0s infinite',
         }}
       />
       <style>{`
-        @keyframes arcIn {
-          from { opacity: 0; transform: scale(0.92); }
-          to   { opacity: 1; transform: scale(1); }
-        }
         @keyframes arcShimmer {
           0%, 100% { filter: drop-shadow(0 0 5px rgba(212,175,55,0.20)); }
-          50%       { filter: drop-shadow(0 0 12px rgba(212,175,55,0.50)); }
+          50%       { filter: drop-shadow(0 0 14px rgba(212,175,55,0.55)); }
         }
       `}</style>
     </div>
