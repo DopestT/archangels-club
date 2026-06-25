@@ -34,6 +34,7 @@ import reviewRoutes from './routes/reviews.js';
 import legacyWorksRoutes from './routes/legacyWorks.js';
 import liveRoutes from './routes/live.js';
 import configRoutes from './routes/config.js';
+import promotionCommandRoutes from './routes/promotionCommand.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -95,6 +96,7 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/legacy-works', legacyWorksRoutes);
 app.use('/api/live', liveRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/admin/promotion', promotionCommandRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });

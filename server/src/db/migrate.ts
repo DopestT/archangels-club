@@ -760,6 +760,53 @@ const DDL = `
   );
   CREATE INDEX IF NOT EXISTS idx_live_room_viewers_active
     ON live_room_viewers(live_room_id, last_seen_at DESC);
+
+  -- Claw Promotion Command Center
+  CREATE TABLE IF NOT EXISTS promotion_campaigns (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    goal        TEXT NOT NULL DEFAULT '',
+    week        TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active', 'paused', 'completed')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS promotion_posts (
+    id                TEXT PRIMARY KEY,
+    campaign_id       TEXT REFERENCES promotion_campaigns(id) ON DELETE SET NULL,
+    post_type         TEXT NOT NULL DEFAULT 'post'
+                        CHECK (post_type IN ('post', 'script', 'countdown', 'outreach')),
+    platform          TEXT NOT NULL DEFAULT 'instagram'
+                        CHECK (platform IN ('instagram','tiktok','twitter','facebook','youtube','linkedin','other')),
+    audience_type     TEXT NOT NULL DEFAULT 'member'
+                        CHECK (audience_type IN ('member','creator','general')),
+    hook              TEXT NOT NULL DEFAULT '',
+    caption           TEXT NOT NULL DEFAULT '',
+    hashtags          TEXT NOT NULL DEFAULT '',
+    cta               TEXT NOT NULL DEFAULT '',
+    asset_description TEXT NOT NULL DEFAULT '',
+    status            TEXT NOT NULL DEFAULT 'draft'
+                        CHECK (status IN ('draft','approved','rejected','posted','archived')),
+    scheduled_for     TIMESTAMPTZ,
+    posted_at         TIMESTAMPTZ,
+    admin_notes       TEXT NOT NULL DEFAULT '',
+    views             INTEGER NOT NULL DEFAULT 0,
+    likes             INTEGER NOT NULL DEFAULT 0,
+    comments          INTEGER NOT NULL DEFAULT 0,
+    shares            INTEGER NOT NULL DEFAULT 0,
+    clicks            INTEGER NOT NULL DEFAULT 0,
+    creator_apps      INTEGER NOT NULL DEFAULT 0,
+    waitlist_signups  INTEGER NOT NULL DEFAULT 0,
+    tracking_notes    TEXT NOT NULL DEFAULT '',
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_promo_posts_campaign  ON promotion_posts(campaign_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_promo_posts_status    ON promotion_posts(status, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_promo_campaigns_status ON promotion_campaigns(status, created_at DESC);
 `;
 
 export async function runMigrations(): Promise<void> {
