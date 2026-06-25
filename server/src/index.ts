@@ -35,6 +35,8 @@ import legacyWorksRoutes from './routes/legacyWorks.js';
 import liveRoutes from './routes/live.js';
 import configRoutes from './routes/config.js';
 import promotionCommandRoutes from './routes/promotionCommand.js';
+import aiPersonasRoutes, { aiPersonasAdminRouter } from './routes/aiPersonas.js';
+import goldAccountRoutes from './routes/goldAccount.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -97,6 +99,9 @@ app.use('/api/legacy-works', legacyWorksRoutes);
 app.use('/api/live', liveRoutes);
 app.use('/api/config', configRoutes);
 app.use('/api/admin/promotion', promotionCommandRoutes);
+app.use('/api/ai-personas', aiPersonasRoutes);
+app.use('/api/admin/ai-personas', aiPersonasAdminRouter);
+app.use('/api/gold', goldAccountRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });

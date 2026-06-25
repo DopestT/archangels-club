@@ -463,6 +463,27 @@
   100% { opacity: 1; transform: translateY(0) scaleX(1) scaleY(1); }
 }
 
+/* ── Gift reveal overlay ────────────────────────────────────── */
+@keyframes giftReveal {
+  0%   { opacity: 0; transform: scale(0.4) rotate(-12deg); }
+  35%  { opacity: 1; transform: scale(1.18) rotate(4deg); }
+  55%  { transform: scale(0.92) rotate(-2deg); }
+  72%  { transform: scale(1.06) rotate(1deg); }
+  85%  { transform: scale(0.98) rotate(0deg); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg); }
+}
+@keyframes giftFadeOut {
+  0%   { opacity: 1; transform: scale(1); }
+  70%  { opacity: 1; transform: scale(1.04); }
+  100% { opacity: 0; transform: scale(1.12) translateY(-12px); }
+}
+.gift-reveal {
+  animation: giftReveal 520ms cubic-bezier(.2,.8,.2,1) forwards;
+}
+.gift-fade-out {
+  animation: giftFadeOut 400ms ease-in forwards;
+}
+
 /* ── Hero video: center angel on mobile/tablet ──────────────── */
 /* Desktop keeps default object-position (center center).        */
 /* On narrow viewports the left wing dominates; shift right to   */
