@@ -877,6 +877,28 @@ const DDL = `
   CREATE INDEX IF NOT EXISTS idx_ai_messages_session   ON ai_chat_messages(session_id, created_at ASC);
   CREATE INDEX IF NOT EXISTS idx_ai_gifts_persona      ON ai_persona_gift_events(persona_id, created_at DESC);
   CREATE INDEX IF NOT EXISTS idx_ai_gifts_user_persona ON ai_persona_gift_events(user_id, persona_id);
+
+  -- ── Gold Wallet v2 ────────────────────────────────────────────────────────
+  ALTER TABLE gold_accounts
+    ADD COLUMN IF NOT EXISTS total_gold_purchased INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE IF NOT EXISTS gold_transactions (
+    id                TEXT PRIMARY KEY,
+    user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type              TEXT NOT NULL CHECK (type IN ('purchase','gift','starter','refund','admin_credit')),
+    gold_amount       INTEGER NOT NULL,
+    usd_amount        NUMERIC(10,2),
+    stripe_payment_id TEXT,
+    creator_id        TEXT,
+    room_id           TEXT,
+    gift_id           TEXT,
+    note              TEXT NOT NULL DEFAULT '',
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_gold_tx_user    ON gold_transactions(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_gold_tx_creator ON gold_transactions(creator_id, created_at DESC)
+    WHERE creator_id IS NOT NULL;
 `;
 
 export async function runMigrations(): Promise<void> {

@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import LiveStream, { type StreamConfig } from '../components/live/LiveStream';
 import GoldGiftDrawer, { type GiftPrivacy } from '../components/live/GoldGiftDrawer';
+import BuyGoldModal from '../components/commerce/BuyGoldModal';
 import RoomGoalBar from '../components/live/RoomGoalBar';
 import TopSupporters, { type Supporter } from '../components/live/TopSupporters';
 import EntryRitual from '../components/live/EntryRitual';
@@ -52,6 +53,9 @@ export default function LiveRoomPage() {
   const [streamLoading, setStreamLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [showGiftDrawer, setShowGiftDrawer]   = useState(false);
+  const [showBuyGold, setShowBuyGold]         = useState(false);
+  const [goldBalance, setGoldBalance]         = useState(0);
+  const [neededGold, setNeededGold]           = useState<number | undefined>();
   const [supporters, setSupporters]           = useState<Supporter[]>([]);
   const [raisedCents, setRaisedCents]         = useState(0);
   const [showEntryRitual, setShowEntryRitual] = useState(false);
@@ -162,9 +166,32 @@ export default function LiveRoomPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, canView, id]);
 
-  // Show "your gift is on its way" alert when returning from Stripe tip checkout
+  // Fetch Gold balance
+  const fetchGoldBalance = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/gold/balance');
+      if (res.ok) {
+        const d = await res.json();
+        setGoldBalance(d.balance ?? 0);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchGoldBalance(); }, [fetchGoldBalance]);
+
+  // Handle return from Gold purchase or legacy Stripe tip
   useEffect(() => {
-    if (searchParams.get('tip') === 'sent') {
+    const goldAdded  = searchParams.get('gold_added');
+    const goldAmount = searchParams.get('gold_amount');
+    const tipSent    = searchParams.get('tip');
+
+    if (goldAdded === '1') {
+      setSearchParams({}, { replace: true });
+      fetchGoldBalance();
+      const label = goldAmount ? `${Number(goldAmount).toLocaleString()} Gold added to your balance` : 'Gold added to your balance';
+      setGiftAlert({ name: label, amount: 0 });
+      giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
+    } else if (tipSent === 'sent') {
       setSearchParams({}, { replace: true });
       setGiftAlert({ name: 'Your gift', amount: 0 });
       giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
@@ -389,8 +416,25 @@ export default function LiveRoomPage() {
         <GoldGiftDrawer
           roomId={room.id}
           creatorId={room.creator_id}
+          goldBalance={goldBalance}
           onClose={() => setShowGiftDrawer(false)}
           onSent={() => setShowGiftDrawer(false)}
+          onBalanceChange={nb => setGoldBalance(nb)}
+          onNeedGold={needed => {
+            setNeededGold(needed);
+            setShowGiftDrawer(false);
+            setShowBuyGold(true);
+          }}
+        />
+      )}
+
+      {/* Buy Gold modal */}
+      {showBuyGold && room && (
+        <BuyGoldModal
+          currentBalance={goldBalance}
+          requiredGold={neededGold}
+          returnUrl={window.location.href.split('?')[0]}
+          onClose={() => { setShowBuyGold(false); setNeededGold(undefined); }}
         />
       )}
 

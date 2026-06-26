@@ -453,6 +453,69 @@ export async function fulfillCheckoutSession(
     return;
   }
 
+  // ── GOLD PURCHASE ─────────────────────────────────────────────────────────
+  if (paymentType === 'gold_purchase') {
+    const goldAmount = parseInt(meta.gold_amount ?? '0', 10);
+    const usdAmount  = parseFloat(meta.usd_amount ?? '0');
+
+    if (!goldAmount || goldAmount < 1) {
+      console.error('[fulfillment] gold_purchase: invalid gold_amount session=%s', sessionId);
+      return;
+    }
+
+    const { id: fId, alreadyFulfilled, shouldEscalate } = await initFulfillmentRecord(
+      sessionId, stripeEventId, userId, null, 'gold_purchase',
+    );
+    if (alreadyFulfilled) {
+      console.log('[fulfillment] gold_purchase: already fulfilled session=%s', sessionId);
+      return;
+    }
+    if (shouldEscalate) {
+      await markFulfillmentNeedsReview(fId, `Auto-escalated after ${MAX_FULFILLMENT_ATTEMPTS} failed attempts`, sessionId);
+      return;
+    }
+
+    try {
+      await withTransaction(async (client) => {
+        // Ensure account row exists
+        await client.query(
+          `INSERT INTO gold_accounts (user_id, balance, total_spent, total_gold_purchased, starter_claimed, updated_at)
+           VALUES ($1, 0, 0, 0, false, NOW())
+           ON CONFLICT (user_id) DO NOTHING`,
+          [userId],
+        );
+        // Credit Gold balance
+        await client.query(
+          `UPDATE gold_accounts
+           SET balance = balance + $1, total_gold_purchased = total_gold_purchased + $1, updated_at = NOW()
+           WHERE user_id = $2`,
+          [goldAmount, userId],
+        );
+        // Gold ledger entry
+        await client.query(
+          `INSERT INTO gold_transactions
+             (id, user_id, type, gold_amount, usd_amount, stripe_payment_id, note, created_at)
+           VALUES ($1, $2, 'purchase', $3, $4, $5, $6, NOW())`,
+          [crypto.randomUUID(), userId, goldAmount, usdAmount, paymentIntentId,
+           `Purchased ${goldAmount} Gold ($${usdAmount.toFixed(2)})`],
+        );
+      });
+
+      await markFulfillmentDone(fId, 'gold_purchase', sessionId);
+      console.log('[fulfillment] gold_purchase: credited %d Gold to user=%s session=%s',
+        goldAmount, userId, sessionId);
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        await execute(`UPDATE fulfillment_records SET status = 'fulfilled', updated_at = NOW() WHERE id = $1`, [fId]);
+        return;
+      }
+      const msg = err instanceof Error ? err.message : String(err);
+      await markFulfillmentFailed(fId, msg);
+      throw err;
+    }
+    return;
+  }
+
   // ── UNLOCK ────────────────────────────────────────────────────────────────
   if (paymentType === 'unlock') {
     if (!contentId || !creatorProfileId) {
