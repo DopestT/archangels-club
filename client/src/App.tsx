@@ -195,6 +195,12 @@ function AppRoutes() {
             <LiveRoomPage />
           </ProtectedRoute>
         } />
+        {/* Spec route alias: /live-room/:roomId → same Live Room page */}
+        <Route path="live-room/:roomId" element={
+          <ProtectedRoute>
+            <LiveRoomPage />
+          </ProtectedRoute>
+        } />
         <Route path="success" element={
           <ProtectedRoute>
             <PaymentResultPage type="success" />
