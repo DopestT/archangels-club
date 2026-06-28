@@ -72,6 +72,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('Login service temporarily unavailable. Please try again in a moment.');
     }
 
+    // A non-JSON body almost always means the request never reached the API
+    // (e.g. the /api proxy returned the SPA's index.html, or the backend is
+    // mid-redeploy) — give a clearer message than "unexpected response".
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!contentType.includes('application/json')) {
+      throw new Error('Could not reach the login service (the server may be deploying). Please try again in a moment.');
+    }
+
     let data: any;
     try {
       data = await res.json();

@@ -74,12 +74,17 @@ export default function LiveRoomPage() {
   // Gift animations run through a lane-based manager (no single "current gift" state),
   // so multiple gifts can animate concurrently.
   const giftAnimRef = useRef<GiftAnimationHandle>(null);
+  // Event-gift triggers — fire once per transition, derived from leaderboard polling.
+  const prevRaisedRef    = useRef<number | null>(null);
+  const topSupporterRef  = useRef<string | null>(null);
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
 
-  // Real-time gift broadcast — other viewers see animations when anyone sends a gift
-  useGiftSocket(id, giftAnimRef, !!(isLive && canView));
+  // Real-time gift broadcast — other viewers see animations when anyone sends a gift.
+  // Returns a ref that's true while connected, so the leaderboard poll below can
+  // skip emitting gift animations the socket already delivered (no double-play).
+  const socketConnectedRef = useGiftSocket(id, giftAnimRef, !!(isLive && canView));
 
   const fetchRoom = useCallback(async () => {
     if (!id) return;
@@ -123,9 +128,11 @@ export default function LiveRoomPage() {
 
         // Detect new tippers — push EVERY fresh gift into the animation manager
         // so concurrent gifts animate across lanes (not just the biggest one).
+        // Skip when the socket is connected: it already delivered these gifts in
+        // real time, so re-emitting from the poll would double-animate them.
         const prevSeen = seenSupporters.current;
         const fresh = data.tippers.filter(t => !prevSeen.has(t.display_name));
-        if (fresh.length > 0 && prevSeen.size > 0) {
+        if (fresh.length > 0 && prevSeen.size > 0 && !socketConnectedRef.current) {
           fresh.forEach(f => giftAnimRef.current?.emit({
             id: `tip-${f.display_name}-${f.total_cents}-${Date.now()}`,
             giftId: 'gold_rain',
@@ -137,6 +144,38 @@ export default function LiveRoomPage() {
           } satisfies GiftEvent));
         }
         seenSupporters.current = new Set(data.tippers.map(t => t.display_name));
+
+        // Event gift: Top Supporter Takeover — fires when the #1 supporter changes
+        // (not on first observation). Client-derived; every viewer sees it.
+        const topNow = data.tippers[0]?.display_name ?? null;
+        if (topNow && topSupporterRef.current !== null && topNow !== topSupporterRef.current) {
+          giftAnimRef.current?.emit({
+            id: `takeover-${topNow}-${Date.now()}`,
+            giftId: 'top-supporter-takeover',
+            giftName: 'Top Supporter Takeover',
+            goldCost: 0,
+            senderId: '',
+            senderName: topNow,
+            privacy: 'public',
+          } satisfies GiftEvent);
+        }
+        topSupporterRef.current = topNow;
+
+        // Event gift: Room Goal Complete — fires on the below→met transition only.
+        const goal = room?.goal_amount_cents ?? 0;
+        if (goal > 0 && prevRaisedRef.current !== null
+            && prevRaisedRef.current < goal && data.raised_cents >= goal) {
+          giftAnimRef.current?.emit({
+            id: `goal-complete-${Date.now()}`,
+            giftId: 'room-goal-complete',
+            giftName: 'Room Goal Complete',
+            goldCost: 0,
+            senderId: '',
+            senderName: room?.creator_name ?? 'The Room',
+            privacy: 'public',
+          } satisfies GiftEvent);
+        }
+        prevRaisedRef.current = data.raised_cents;
 
         // Detect new viewers for the "just joined" ticker
         const joiners = data.recent_joiners ?? [];
