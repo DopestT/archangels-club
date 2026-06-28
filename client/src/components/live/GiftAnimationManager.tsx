@@ -1,7 +1,11 @@
 import React, {
   useState, useEffect, useCallback, useRef,
-  useImperativeHandle, forwardRef, useMemo,
+  useImperativeHandle, forwardRef, Suspense,
 } from 'react';
+import { getGiftDef, laneForGold, type GiftAssetType } from './giftManifest';
+
+// Rive runtime is loaded lazily — emoji gifts never pull in the Rive WASM chunk.
+const RiveGiftRenderer = React.lazy(() => import('./RiveGiftRenderer'));
 
 // ── Public types ──────────────────────────────────────────────────────────────
 
@@ -72,6 +76,15 @@ const MICRO_X_POOL = [12, 24, 8, 36, 18, 42, 6, 30, 22, 40, 14, 28];
 
 // ── Internal types ─────────────────────────────────────────────────────────────
 
+/** How a gift should be drawn — resolved from the manifest, with emoji fallback. */
+interface GiftVisualSpec {
+  emoji: string;
+  assetType: GiftAssetType;
+  animationAsset?: string;
+  riveStateMachine?: string;
+  soundAsset?: string;
+}
+
 interface ActiveMicro {
   id: string;
   emoji: string;
@@ -83,7 +96,7 @@ interface ActiveMicro {
 
 interface ActiveFeature {
   id: string;
-  emoji: string;
+  visual: GiftVisualSpec;
   giftName: string;
   goldCost: number;
   senderName: string;
@@ -92,7 +105,7 @@ interface ActiveFeature {
 
 interface ActiveFullscreen {
   id: string;
-  emoji: string;
+  visual: GiftVisualSpec;
   giftName: string;
   goldCost: number;
   senderName: string;
@@ -111,12 +124,6 @@ interface ComboState {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function laneFor(goldCost: number): 'micro' | 'feature' | 'fullscreen' {
-  if (goldCost >= 10000) return 'fullscreen';
-  if (goldCost >= 500)   return 'feature';
-  return 'micro';
-}
 
 function resolveDisplayName(event: GiftEvent): string {
   if (event.privacy === 'ghost')   return 'Anonymous';
@@ -180,28 +187,42 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
 
     // ── Process incoming gift ─────────────────────────────────────────────────
     const emit = useCallback((event: GiftEvent) => {
-      const emoji  = GIFT_EMOJI[event.giftId] ?? '✨';
+      const def    = getGiftDef(event.giftId);
+      const emoji  = def?.fallbackEmoji ?? GIFT_EMOJI[event.giftId] ?? '✨';
       const name   = resolveDisplayName(event);
-      const lane   = laneFor(event.goldCost);
+      const lane   = def?.lane ?? laneForGold(event.goldCost);
       const now    = Date.now();
 
+      // Resolve how this gift draws — Rive/WebM when the manifest declares it,
+      // emoji otherwise. RiveGiftRenderer falls back to emoji if the asset 404s.
+      const visual: GiftVisualSpec = {
+        emoji,
+        assetType:        def?.assetType ?? 'emoji',
+        animationAsset:   def?.animationAsset,
+        riveStateMachine: def?.riveStateMachine,
+        soundAsset:       def?.soundAsset,
+      };
+
       if (lane === 'micro') {
-        // Combo tracking
-        setCombo(prev => {
-          const isCombo =
-            prev &&
-            prev.giftId === event.giftId &&
-            prev.senderName === name &&
-            now - prev.lastAt < COMBO_RESET_MS;
+        // Combo tracking — only for gifts the manifest marks combo-eligible
+        // (unknown gifts default to eligible, preserving legacy behavior).
+        if (def?.comboEligible ?? true) {
+          setCombo(prev => {
+            const isCombo =
+              prev &&
+              prev.giftId === event.giftId &&
+              prev.senderName === name &&
+              now - prev.lastAt < COMBO_RESET_MS;
 
-          if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
-          comboTimerRef.current = setTimeout(() => setCombo(null), COMBO_RESET_MS);
+            if (comboTimerRef.current) clearTimeout(comboTimerRef.current);
+            comboTimerRef.current = setTimeout(() => setCombo(null), COMBO_RESET_MS);
 
-          if (isCombo && prev) {
-            return { ...prev, count: prev.count + 1, lastAt: now, pulsing: true };
-          }
-          return { giftId: event.giftId, giftName: event.giftName, emoji, senderName: name, count: 1, lastAt: now, pulsing: false };
-        });
+            if (isCombo && prev) {
+              return { ...prev, count: prev.count + 1, lastAt: now, pulsing: true };
+            }
+            return { giftId: event.giftId, giftName: event.giftName, emoji, senderName: name, count: 1, lastAt: now, pulsing: false };
+          });
+        }
 
         // Add particle
         setMicroGifts(prev => {
@@ -230,11 +251,11 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
             ...active,
             {
               id: event.id,
-              emoji,
+              visual,
               giftName: event.giftName,
               goldCost: event.goldCost,
               senderName: name,
-              expiresAt: now + FEATURE_MS,
+              expiresAt: now + (def?.durationMs ?? FEATURE_MS),
             },
           ];
         });
@@ -243,7 +264,7 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
         // Fullscreen — never drop
         const fs: Omit<ActiveFullscreen, 'exiting'> = {
           id: event.id,
-          emoji,
+          visual,
           giftName: event.giftName,
           goldCost: event.goldCost,
           senderName: name,
@@ -410,19 +431,18 @@ function FeatureGiftCard({ gift }: { gift: ActiveFeature }) {
           }}
         />
 
-        {/* Emoji + glow */}
+        {/* Gift visual (Rive when available, emoji fallback) + glow */}
         <div
           className="flex items-center justify-center flex-shrink-0 rounded-xl"
           style={{
             width: 52,
             height: 52,
-            fontSize: 26,
             background: 'rgba(212,175,55,0.08)',
             border: '1px solid rgba(212,175,55,0.22)',
             boxShadow: '0 0 22px rgba(212,175,55,0.12)',
           }}
         >
-          {gift.emoji}
+          <GiftVisual visual={gift.visual} size={48} emojiFontSize={26} />
         </div>
 
         {/* Text */}
@@ -500,16 +520,15 @@ function FullscreenGiftOverlay({
           </span>
         )}
 
-        {/* Large emoji with gold glow */}
+        {/* Large gift visual (Rive/WebM when available, emoji fallback) with gold glow */}
         <div
+          className="flex items-center justify-center"
           style={{
-            fontSize: 76,
-            lineHeight: 1,
             marginBottom: 28,
             filter: 'drop-shadow(0 0 32px rgba(212,175,55,0.45))',
           }}
         >
-          {gift.emoji}
+          <GiftVisual visual={gift.visual} size={132} emojiFontSize={76} />
         </div>
 
         {/* Gift name */}
@@ -560,6 +579,100 @@ function FullscreenGiftOverlay({
       </div>
     </div>
   );
+}
+
+// ── GiftVisual ─────────────────────────────────────────────────────────────────
+// Chooses how to draw a gift: Rive (.riv) or WebM when the manifest declares it,
+// emoji otherwise. Any load failure falls back to the emoji so nothing breaks.
+
+function EmojiVisual({ emoji, size }: { emoji: string; size: number }) {
+  return <span style={{ fontSize: size, lineHeight: 1 }}>{emoji}</span>;
+}
+
+function WebmVisual({
+  src, emoji, size, onError,
+}: { src: string; emoji: string; size: number; onError: () => void }) {
+  return (
+    <video
+      src={src}
+      width={size}
+      height={size}
+      autoPlay
+      muted
+      playsInline
+      onError={onError}
+      style={{ width: size, height: size, objectFit: 'contain' }}
+      aria-hidden
+    >
+      <EmojiVisual emoji={emoji} size={size} />
+    </video>
+  );
+}
+
+function GiftVisual({
+  visual,
+  size,
+  emojiFontSize,
+}: {
+  visual: GiftVisualSpec;
+  size: number;
+  emojiFontSize: number;
+}) {
+  const [failed, setFailed] = useState(false);
+  const emojiNode = <EmojiVisual emoji={visual.emoji} size={emojiFontSize} />;
+
+  if (failed) return emojiNode;
+
+  if (visual.assetType === 'rive' && visual.animationAsset) {
+    return (
+      <GiftVisualBoundary fallback={emojiNode}>
+        <Suspense fallback={emojiNode}>
+          <RiveGiftRenderer
+            riveAsset={visual.animationAsset}
+            riveStateMachine={visual.riveStateMachine}
+            soundAsset={visual.soundAsset}
+            width={size}
+            height={size}
+            onError={() => setFailed(true)}
+            fallback={emojiNode}
+          />
+        </Suspense>
+      </GiftVisualBoundary>
+    );
+  }
+
+  if (visual.assetType === 'webm' && visual.animationAsset) {
+    return (
+      <WebmVisual
+        src={visual.animationAsset}
+        emoji={visual.emoji}
+        size={size}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  return emojiNode;
+}
+
+// Catches any runtime error inside the lazy Rive chunk (e.g. chunk load failure
+// or a Rive runtime throw) and renders the emoji fallback instead of crashing
+// the whole live room.
+class GiftVisualBoundary extends React.Component<
+  { fallback: React.ReactNode; children: React.ReactNode },
+  { hasError: boolean }
+> {
+  constructor(props: { fallback: React.ReactNode; children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false };
+  }
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+  render() {
+    if (this.state.hasError) return <>{this.props.fallback}</>;
+    return this.props.children;
+  }
 }
 
 // ── GoldParticleRain ───────────────────────────────────────────────────────────

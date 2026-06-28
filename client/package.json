@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
+    "@rive-app/react-canvas": "^4.29.3",
     "agora-rtc-sdk-ng": "^4.24.4",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
