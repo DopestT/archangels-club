@@ -422,6 +422,15 @@ export default function LiveRoomPage() {
               {(isAdmin || room.is_creator) && isLive && (
                 <LiveRoomAdminBar room={room} onEnded={fetchRoom} />
               )}
+
+              {/* Admin-only: fire test gifts (no Gold charged, nothing recorded) */}
+              {isAdmin && isLive && id && (
+                <AdminGiftTester
+                  roomId={id}
+                  giftAnimRef={giftAnimRef}
+                  socketConnectedRef={socketConnectedRef}
+                />
+              )}
             </div>
 
             {/* RIGHT: Inner Circle Chat */}
@@ -744,6 +753,87 @@ function SaveReplayToVaultCard() {
       >
         Coming Soon
       </span>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AdminGiftTester
+   Admin-only panel to fire gift animations for testing — no Gold charged,
+   nothing written to the leaderboard. One representative gift per lane plus the
+   premium Rive + event gifts, so every visual path can be checked live.
+───────────────────────────────────────────────────────────────────────────── */
+const TEST_GIFTS: { id: string; name: string; cost: number; lane: string }[] = [
+  { id: 'gold_rain',              name: 'Gold Rain',              cost: 100,   lane: 'micro' },
+  { id: 'golden-wings',           name: 'Golden Wings',           cost: 999,   lane: 'feature' },
+  { id: 'diamond-rain',           name: 'Diamond Rain',           cost: 10000, lane: 'fullscreen' },
+  { id: 'room-goal-complete',     name: 'Room Goal Complete',     cost: 0,     lane: 'event' },
+  { id: 'top-supporter-takeover', name: 'Top Supporter Takeover', cost: 0,     lane: 'event' },
+];
+
+function AdminGiftTester({
+  roomId,
+  giftAnimRef,
+  socketConnectedRef,
+}: {
+  roomId: string;
+  giftAnimRef: React.RefObject<GiftAnimationHandle | null>;
+  socketConnectedRef: React.MutableRefObject<boolean>;
+}) {
+  const [sending, setSending] = useState<string | null>(null);
+
+  async function fire(g: typeof TEST_GIFTS[number]) {
+    setSending(g.id);
+    // Broadcast to the room (admin-only, no Gold, nothing recorded). Reaches all
+    // viewers and echoes back to this admin via their own socket.
+    try {
+      await apiFetch('/api/gold/test-gift', {
+        method: 'POST',
+        body: JSON.stringify({ room_id: roomId, gift_id: g.id, gift_name: g.name, gold_cost: g.cost }),
+      });
+    } catch { /* non-fatal — fall back to a local preview below */ }
+    // If the socket isn't echoing to us (not connected / backend without sockets),
+    // play it locally so the admin still previews the animation.
+    if (!socketConnectedRef.current) {
+      giftAnimRef.current?.emit({
+        id: `admin-test-${g.id}-${Date.now()}`,
+        giftId: g.id,
+        giftName: g.name,
+        goldCost: g.cost,
+        senderId: '',
+        senderName: 'Admin Test',
+        privacy: 'public',
+        isAdminTest: true,
+      });
+    }
+    setTimeout(() => setSending(null), 400);
+  }
+
+  return (
+    <div
+      className="rounded-xl px-4 py-4 space-y-3"
+      style={{ background: 'rgba(212,175,55,0.04)', border: '1px solid rgba(212,175,55,0.14)' }}
+    >
+      <div>
+        <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: 'rgba(212,175,55,0.5)' }}>
+          Admin · Test Gifts
+        </p>
+        <p className="text-[10px] text-zinc-500 mt-0.5">No Gold charged · not recorded · broadcasts to viewers</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {TEST_GIFTS.map(g => (
+          <button
+            key={g.id}
+            onClick={() => fire(g)}
+            disabled={sending === g.id}
+            className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all disabled:opacity-40"
+            style={{ background: 'rgba(212,175,55,0.08)', color: '#d4af37', border: '1px solid rgba(212,175,55,0.22)' }}
+            title={`${g.lane} lane`}
+          >
+            {sending === g.id ? '…' : g.name}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

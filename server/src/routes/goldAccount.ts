@@ -2,7 +2,7 @@ import { Router } from 'express';
 import Stripe from 'stripe';
 import crypto from 'crypto';
 import { query, queryOne, execute, withTransaction } from '../db/schema.js';
-import { requireAuth, requireApproved } from '../middleware/auth.js';
+import { requireAuth, requireApproved, requireAdmin } from '../middleware/auth.js';
 import { getIO } from '../socket.js';
 
 const router = Router();
@@ -262,6 +262,47 @@ router.post('/live-gift', requireApproved, async (req, res) => {
   } catch (err) {
     console.error('POST /gold/live-gift:', err);
     res.status(500).json({ error: 'Failed to send gift.' });
+  }
+});
+
+// POST /test-gift — admin-only. Plays/broadcasts a gift animation WITHOUT charging
+// Gold, writing a transaction, or touching the leaderboard. Pure test trigger.
+router.post('/test-gift', requireAdmin, async (req, res) => {
+  try {
+    const {
+      room_id, gift_id, gift_name, gold_cost, privacy = 'public',
+    } = req.body as {
+      room_id: string; gift_id: string; gift_name: string;
+      gold_cost: number; privacy?: 'public' | 'private' | 'ghost';
+    };
+
+    if (!room_id || !gift_id || !gift_name) {
+      res.status(400).json({ error: 'Missing required fields.' });
+      return;
+    }
+
+    const userId = req.auth!.userId;
+    const userRow = await queryOne<{ display_name: string }>(
+      'SELECT display_name FROM users WHERE id = $1', [userId],
+    );
+
+    // Broadcast to everyone in the room (including the sending admin's own socket).
+    // Flagged isAdminTest so the overlay shows "Admin Test — Gold Not Charged".
+    getIO()?.to(`room:${room_id}`).emit('gift:sent', {
+      id: crypto.randomUUID(),
+      giftId: gift_id,
+      giftName: gift_name,
+      goldCost: Number(gold_cost) || 0,
+      senderId: userId,
+      senderName: userRow?.display_name ?? 'Admin',
+      privacy,
+      isAdminTest: true,
+    });
+
+    res.json({ success: true, test: true });
+  } catch (err) {
+    console.error('POST /gold/test-gift:', err);
+    res.status(500).json({ error: 'Failed to send test gift.' });
   }
 });
 
