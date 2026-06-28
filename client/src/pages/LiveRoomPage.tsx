@@ -16,7 +16,8 @@ import TopSupporters, { type Supporter } from '../components/live/TopSupporters'
 import EntryRitual from '../components/live/EntryRitual';
 import LiveChat from '../components/live/LiveChat';
 import FloatingReactions from '../components/live/FloatingReactions';
-import GiftAnimationManager, { type GiftAnimationHandle } from '../components/live/GiftAnimationManager';
+import GiftAnimationManager, { type GiftAnimationHandle, type GiftEvent } from '../components/live/GiftAnimationManager';
+import { useGiftSocket } from '../hooks/useGiftSocket';
 
 interface RoomDetail {
   id: string;
@@ -65,12 +66,14 @@ export default function LiveRoomPage() {
   const [ritualDone, setRitualDone]           = useState(false);
   const [viewerCount, setViewerCount]         = useState(0);
   const [joinAlert, setJoinAlert]             = useState<string | null>(null);
+  const [giftAlert, setGiftAlert]             = useState<{ name: string; amount: number } | null>(null);
   const seenSupporters = useRef<Set<string>>(new Set());
   const seenJoiners = useRef<Set<string>>(new Set());
   const joinAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const giftAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Gift animations run through a lane-based manager (no single "current gift" state),
   // so multiple gifts can animate concurrently.
-  const giftMgrRef = useRef<GiftAnimationHandle>(null);
+  const giftAnimRef = useRef<GiftAnimationHandle>(null);
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
@@ -123,7 +126,15 @@ export default function LiveRoomPage() {
         const prevSeen = seenSupporters.current;
         const fresh = data.tippers.filter(t => !prevSeen.has(t.display_name));
         if (fresh.length > 0 && prevSeen.size > 0) {
-          fresh.forEach(f => giftMgrRef.current?.push({ name: f.display_name, amountCents: f.total_cents }));
+          fresh.forEach(f => giftAnimRef.current?.emit({
+            id: `tip-${f.display_name}-${f.total_cents}-${Date.now()}`,
+            giftId: 'gold_rain',
+            giftName: 'Gift',
+            goldCost: f.total_cents,
+            senderId: '',
+            senderName: f.display_name,
+            privacy: 'public',
+          } satisfies GiftEvent));
         }
         seenSupporters.current = new Set(data.tippers.map(t => t.display_name));
 
@@ -198,7 +209,8 @@ export default function LiveRoomPage() {
       giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
     } else if (tipSent === 'sent') {
       setSearchParams({}, { replace: true });
-      giftMgrRef.current?.push({ name: 'Your gift', giftLabel: 'sent a gift — processing…', amountCents: 0 });
+      setGiftAlert({ name: 'Your gift', amount: 0 });
+      giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -446,8 +458,32 @@ export default function LiveRoomPage() {
         />
       )}
 
-      {/* Gift animations — lane-based manager (concurrent gifts, no single state) */}
-      <GiftAnimationManager ref={giftMgrRef} />
+      {/* Gift alert banner — gold purchase / tip confirmation */}
+      {giftAlert && (
+        <div
+          key={giftAlert.name + giftAlert.amount}
+          className="fixed top-0 left-0 right-0 flex justify-center pt-4 px-4"
+          style={{ zIndex: 60, pointerEvents: 'none', animation: 'giftDrop 4.2s ease forwards' }}
+        >
+          <div
+            className="flex items-center gap-3 px-5 py-2.5 rounded-2xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(18,12,2,0.97) 0%, rgba(30,20,4,0.97) 100%)',
+              border: '1px solid rgba(212,175,55,0.5)',
+              boxShadow: '0 8px 40px rgba(212,175,55,0.15)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>✨</span>
+            <span className="text-sm font-semibold text-white">{giftAlert.name}</span>
+            <span className="text-xs text-zinc-400">
+              {giftAlert.amount > 0
+                ? `just gifted $${(giftAlert.amount / 100).toFixed(2)}`
+                : 'sent a gift — processing…'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* "Just joined" ticker */}
       {joinAlert && (
