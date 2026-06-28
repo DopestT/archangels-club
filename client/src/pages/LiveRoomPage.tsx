@@ -16,10 +16,7 @@ import TopSupporters, { type Supporter } from '../components/live/TopSupporters'
 import EntryRitual from '../components/live/EntryRitual';
 import LiveChat from '../components/live/LiveChat';
 import FloatingReactions from '../components/live/FloatingReactions';
-import GiftAnimationManager, {
-  type GiftAnimationHandle,
-} from '../components/live/GiftAnimationManager';
-import { useGiftSocket } from '../hooks/useGiftSocket';
+import GiftAnimationManager, { type GiftAnimationHandle } from '../components/live/GiftAnimationManager';
 
 interface RoomDetail {
   id: string;
@@ -45,7 +42,9 @@ interface RoomDetail {
 }
 
 export default function LiveRoomPage() {
-  const { id } = useParams<{ id: string }>();
+  // Supports both /live/:id and the spec route /live-room/:roomId
+  const { id: idParam, roomId } = useParams<{ id: string; roomId: string }>();
+  const id = idParam ?? roomId;
   const { isAdmin, user } = useAuth();
   const { t } = useLanguage();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -65,13 +64,13 @@ export default function LiveRoomPage() {
   const [showEntryRitual, setShowEntryRitual] = useState(false);
   const [ritualDone, setRitualDone]           = useState(false);
   const [viewerCount, setViewerCount]         = useState(0);
-  const [giftAlert, setGiftAlert]             = useState<{ name: string; amount: number } | null>(null);
   const [joinAlert, setJoinAlert]             = useState<string | null>(null);
-  const seenSupporters   = useRef<Set<string>>(new Set());
-  const seenJoiners      = useRef<Set<string>>(new Set());
-  const giftAlertTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const joinAlertTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const giftAnimRef      = useRef<GiftAnimationHandle>(null);
+  const seenSupporters = useRef<Set<string>>(new Set());
+  const seenJoiners = useRef<Set<string>>(new Set());
+  const joinAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Gift animations run through a lane-based manager (no single "current gift" state),
+  // so multiple gifts can animate concurrently.
+  const giftMgrRef = useRef<GiftAnimationHandle>(null);
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
@@ -119,14 +118,12 @@ export default function LiveRoomPage() {
           recent_joiners?: string[];
         };
 
-        // Detect new tippers for gift alert
+        // Detect new tippers — push EVERY fresh gift into the animation manager
+        // so concurrent gifts animate across lanes (not just the biggest one).
         const prevSeen = seenSupporters.current;
         const fresh = data.tippers.filter(t => !prevSeen.has(t.display_name));
         if (fresh.length > 0 && prevSeen.size > 0) {
-          const biggest = fresh.reduce((a, b) => a.total_cents > b.total_cents ? a : b);
-          if (giftAlertTimer.current) clearTimeout(giftAlertTimer.current);
-          setGiftAlert({ name: biggest.display_name, amount: biggest.total_cents });
-          giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
+          fresh.forEach(f => giftMgrRef.current?.push({ name: f.display_name, amountCents: f.total_cents }));
         }
         seenSupporters.current = new Set(data.tippers.map(t => t.display_name));
 
@@ -201,8 +198,7 @@ export default function LiveRoomPage() {
       giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
     } else if (tipSent === 'sent') {
       setSearchParams({}, { replace: true });
-      setGiftAlert({ name: 'Your gift', amount: 0 });
-      giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
+      giftMgrRef.current?.push({ name: 'Your gift', giftLabel: 'sent a gift — processing…', amountCents: 0 });
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -450,37 +446,8 @@ export default function LiveRoomPage() {
         />
       )}
 
-      {/* Gift alert banner */}
-      {giftAlert && (
-        <div
-          key={giftAlert.name + giftAlert.amount}
-          className="fixed top-0 left-0 right-0 flex justify-center pt-4 px-4"
-          style={{ zIndex: 60, pointerEvents: 'none', animation: 'giftDrop 4.2s ease forwards' }}
-        >
-          <div
-            className="flex items-center gap-3 px-5 py-2.5 rounded-2xl"
-            style={{
-              background: 'linear-gradient(135deg, rgba(18,12,2,0.97) 0%, rgba(30,20,4,0.97) 100%)',
-              border: '1px solid rgba(212,175,55,0.5)',
-              boxShadow: '0 8px 40px rgba(212,175,55,0.15)',
-              backdropFilter: 'blur(12px)',
-            }}
-          >
-            <span style={{ fontSize: 20 }}>✨</span>
-            <span className="text-sm font-semibold text-white">{giftAlert.name}</span>
-            <span className="text-xs text-zinc-400">
-              {giftAlert.amount > 0
-                ? `just gifted $${(giftAlert.amount / 100).toFixed(2)}`
-                : 'sent a gift — processing…'}
-            </span>
-            {giftAlert.amount > 0 && (
-              <span className="text-sm font-bold" style={{ color: '#d4af37' }}>
-                💛
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Gift animations — lane-based manager (concurrent gifts, no single state) */}
+      <GiftAnimationManager ref={giftMgrRef} />
 
       {/* "Just joined" ticker */}
       {joinAlert && (
