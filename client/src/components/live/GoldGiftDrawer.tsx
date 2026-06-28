@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Lock, X, ChevronDown, Send } from 'lucide-react';
 import { apiFetch, API_BASE } from '../../lib/api';
+import type { GiftEvent } from './GiftAnimationManager';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -273,13 +274,14 @@ interface Props {
   goldBalance?: number;
   onClose: () => void;
   onSent?: (giftLabel: string, privacy: GiftPrivacy) => void;
+  onGiftSent?: (event: GiftEvent) => void;
   onNeedGold?: (requiredGold: number) => void;
   onBalanceChange?: (newBalance: number) => void;
 }
 
 export default function GoldGiftDrawer({
   roomId, creatorId, goldBalance: goldBalanceProp = 0,
-  onClose, onSent, onNeedGold, onBalanceChange,
+  onClose, onSent, onGiftSent, onNeedGold, onBalanceChange,
 }: Props) {
   const [patronStatus, setPatronStatus] = useState<PatronStatus | null>(null);
   const [goldBalance, setGoldBalance]   = useState(goldBalanceProp);
@@ -363,6 +365,17 @@ export default function GoldGiftDrawer({
       const newBalance = data.new_balance ?? 0;
       setGoldBalance(newBalance);
       onBalanceChange?.(newBalance);
+
+      // Fire gift animation event (optimistic, sender only)
+      onGiftSent?.({
+        id: `${selected.id}-${Date.now()}`,
+        giftId:    selected.id,
+        giftName:  selected.label,
+        goldCost:  selected.goldCost,
+        senderId:  '',
+        senderName: data.display_name ?? 'Member',
+        privacy,
+      });
 
       // Refresh patron status after gift
       fetchPatronStatus();

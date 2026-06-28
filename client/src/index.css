@@ -37,6 +37,62 @@
   }
 }
 
+/* ── Gift Animation Engine keyframes ─────────────────────────────────────────── */
+
+@keyframes arcMicroFloat {
+  0%   { opacity: 0; transform: translateY(0) scale(0.72); }
+  12%  { opacity: 1; transform: translateY(-22px) scale(1); }
+  78%  { opacity: 0.88; }
+  100% { opacity: 0; transform: translateY(-148px) scale(0.88); }
+}
+
+@keyframes arcFeatureSpring {
+  0%   { opacity: 0; transform: translateY(26px) scale(0.86); }
+  40%  { opacity: 1; transform: translateY(-6px) scale(1.02); }
+  65%  { transform: translateY(2px) scale(0.99); }
+  84%  { transform: translateY(-1px) scale(1.004); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes arcFullscreenIn {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+@keyframes arcFullscreenOut {
+  0%   { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes arcBigReveal {
+  0%   { opacity: 0; transform: scale(0.48) rotate(-9deg); }
+  32%  { opacity: 1; transform: scale(1.11) rotate(3.5deg); }
+  54%  { transform: scale(0.94) rotate(-1.2deg); }
+  72%  { transform: scale(1.03) rotate(0.5deg); }
+  86%  { transform: scale(0.99) rotate(0); }
+  100% { opacity: 1; transform: scale(1) rotate(0); }
+}
+
+@keyframes arcComboPulse {
+  0%   { transform: scale(1); }
+  44%  { transform: scale(1.13); }
+  100% { transform: scale(1); }
+}
+
+@keyframes arcGoldShimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+@keyframes arcGoldFall {
+  0%   { transform: translateY(-8px) rotate(0deg);   opacity: 0; }
+  8%   { opacity: 1; }
+  88%  { opacity: 0.75; }
+  100% { transform: translateY(100vh) rotate(380deg); opacity: 0; }
+}
+
+/* ── (legacy) ─────────────────────────────────────────────────────────────── */
+
 @keyframes floatUp {
   0%   { transform: translateY(0);      opacity: 1; }
   70%  { opacity: 0.7; }

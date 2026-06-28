@@ -16,6 +16,9 @@ import TopSupporters, { type Supporter } from '../components/live/TopSupporters'
 import EntryRitual from '../components/live/EntryRitual';
 import LiveChat from '../components/live/LiveChat';
 import FloatingReactions from '../components/live/FloatingReactions';
+import GiftAnimationManager, {
+  type GiftAnimationHandle,
+} from '../components/live/GiftAnimationManager';
 
 interface RoomDetail {
   id: string;
@@ -63,10 +66,11 @@ export default function LiveRoomPage() {
   const [viewerCount, setViewerCount]         = useState(0);
   const [giftAlert, setGiftAlert]             = useState<{ name: string; amount: number } | null>(null);
   const [joinAlert, setJoinAlert]             = useState<string | null>(null);
-  const seenSupporters = useRef<Set<string>>(new Set());
-  const seenJoiners = useRef<Set<string>>(new Set());
-  const giftAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const joinAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seenSupporters   = useRef<Set<string>>(new Set());
+  const seenJoiners      = useRef<Set<string>>(new Set());
+  const giftAlertTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const joinAlertTimer   = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const giftAnimRef      = useRef<GiftAnimationHandle>(null);
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
@@ -411,6 +415,9 @@ export default function LiveRoomPage() {
         )}
       </div>
 
+      {/* Gift animation layers — always mounted while live */}
+      {isLive && canView && <GiftAnimationManager ref={giftAnimRef} />}
+
       {/* Gift drawer */}
       {showGiftDrawer && room && (
         <GoldGiftDrawer
@@ -419,6 +426,7 @@ export default function LiveRoomPage() {
           goldBalance={goldBalance}
           onClose={() => setShowGiftDrawer(false)}
           onSent={() => setShowGiftDrawer(false)}
+          onGiftSent={evt => giftAnimRef.current?.emit(evt)}
           onBalanceChange={nb => setGoldBalance(nb)}
           onNeedGold={needed => {
             setNeededGold(needed);
