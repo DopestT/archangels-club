@@ -120,6 +120,27 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M14 3V2M14 26V25M3 14H2M26 14H25M6 6L5 5M22 6L23 5M6 22L5 23M22 22L23 23" stroke="#D4AF37" strokeWidth=".9" strokeLinecap="round" opacity=".4"/>
     </svg>
   ),
+  // ── Premium Rive gifts ──
+  'golden-wings': (
+    <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6">
+      <path d="M14 8C10 8 5 11 2 16C5 15 8 15 11 16M14 8C18 8 23 11 26 16C23 15 20 15 17 16" stroke="#D4AF37" strokeWidth="1.1" fill="rgba(212,175,55,0.12)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14 7V21" stroke="#D4AF37" strokeWidth="1.1" strokeLinecap="round"/>
+      <circle cx="14" cy="6" r="1.6" fill="#D4AF37" opacity=".7"/>
+    </svg>
+  ),
+  'angel-crown': (
+    <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6">
+      <ellipse cx="14" cy="5" rx="6" ry="1.6" stroke="#D4AF37" strokeWidth="1" fill="none" opacity=".6"/>
+      <path d="M4 21L7 12L12.5 17L14 9L15.5 17L21 12L24 21Z" stroke="#D4AF37" strokeWidth="1.2" fill="rgba(212,175,55,0.12)" strokeLinejoin="round"/>
+      <rect x="4" y="21" width="20" height="2.4" rx=".7" stroke="#D4AF37" strokeWidth="1.1" fill="none"/>
+    </svg>
+  ),
+  'diamond-rain': (
+    <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6">
+      <path d="M9 5H19L24 11L14 24L4 11L9 5Z" stroke="#D4AF37" strokeWidth="1.2" fill="rgba(212,175,55,0.12)" strokeLinejoin="round"/>
+      <path d="M9 5L14 11L19 5M4 11H24M14 11V24" stroke="#D4AF37" strokeWidth=".9" opacity=".5" strokeLinejoin="round"/>
+    </svg>
+  ),
 };
 
 // ── Gift catalogue ─────────────────────────────────────────────────────────────
@@ -128,10 +149,13 @@ const GIFTS: GiftDef[] = [
   { id: 'gold_rain',        label: 'Gold Rain',             goldCost: 100,   patronLevel: 1, patronName: 'Guest Patron',        icon: ICONS.gold_rain },
   { id: 'halo_drop',        label: 'Halo Drop',             goldCost: 250,   patronLevel: 1, patronName: 'Guest Patron',        icon: ICONS.halo_drop },
   { id: 'wings_open',       label: 'Wings Open',            goldCost: 500,   patronLevel: 2, patronName: 'Inner Circle Patron', icon: ICONS.wings_open },
+  { id: 'golden-wings',     label: 'Golden Wings',          goldCost: 999,   patronLevel: 2, patronName: 'Inner Circle Patron', icon: ICONS['golden-wings'] },
   { id: 'crown_signal',     label: 'Crown Signal',          goldCost: 1000,  patronLevel: 2, patronName: 'Inner Circle Patron', icon: ICONS.crown_signal },
   { id: 'vault_key',        label: 'Vault Key',             goldCost: 2500,  patronLevel: 3, patronName: 'Vault Patron',        icon: ICONS.vault_key },
+  { id: 'angel-crown',      label: 'Angel Crown',           goldCost: 2500,  patronLevel: 3, patronName: 'Vault Patron',        icon: ICONS['angel-crown'] },
   { id: 'private_tribute',  label: 'Private Tribute',       goldCost: 5000,  patronLevel: 3, patronName: 'Vault Patron',        icon: ICONS.private_tribute },
   { id: 'room_blessing',    label: 'Room Blessing',         goldCost: 10000, patronLevel: 4, patronName: 'Crown Patron',        icon: ICONS.room_blessing },
+  { id: 'diamond-rain',     label: 'Diamond Rain',          goldCost: 10000, patronLevel: 4, patronName: 'Crown Patron',        icon: ICONS['diamond-rain'] },
   { id: 'after_hours',      label: 'After-Hours Signal',    goldCost: 12000, patronLevel: 4, patronName: 'Crown Patron',        icon: ICONS.after_hours },
   { id: 'private_encore',   label: 'Private Encore Signal', goldCost: 15000, patronLevel: 5, patronName: 'Archangel Patron',   icon: ICONS.private_encore },
   { id: 'vault_drop',       label: 'Vault Drop Signal',     goldCost: 20000, patronLevel: 5, patronName: 'Archangel Patron',   icon: ICONS.vault_drop },
