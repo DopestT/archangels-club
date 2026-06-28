@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import type { Server as HTTPServer } from 'http';
 import jwt from 'jsonwebtoken';
+import { corsOptions } from './cors.js';
 
 let _io: SocketIOServer | null = null;
 
@@ -9,19 +10,10 @@ export function getIO(): SocketIOServer | null {
 }
 
 export function initSocket(httpServer: HTTPServer): SocketIOServer {
-  const ALLOWED_ORIGINS = [
-    'https://archangelsclub.com',
-    'https://www.archangelsclub.com',
-    ...(process.env.NODE_ENV !== 'production'
-      ? ['http://localhost:3000', 'http://localhost:5173']
-      : []),
-  ];
-
+  // Same CORS allow-list as the Express app (./cors.ts) — kept in one place so
+  // HTTP and WebSocket origins never diverge.
   _io = new SocketIOServer(httpServer, {
-    cors: {
-      origin: ALLOWED_ORIGINS,
-      credentials: true,
-    },
+    cors: corsOptions,
     transports: ['websocket', 'polling'],
   });
 

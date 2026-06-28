@@ -5,6 +5,7 @@ import http from 'http';
 import express from 'express';
 import { initSocket } from './socket.js';
 import cors from 'cors';
+import { corsOptions } from './cors.js';
 import { pool, runMigrations } from './db/schema.js';
 import authRoutes from './routes/auth.js';
 import creatorRoutes from './routes/creators.js';
@@ -46,18 +47,9 @@ if (!PORT) {
   throw new Error("PORT environment variable is required");
 }
 
-const ALLOWED_ORIGINS = [
-  'https://archangelsclub.com',
-  'https://www.archangelsclub.com',
-  ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : []),
-];
-const corsOptions = {
-  origin: (origin: string | undefined, cb: (e: Error | null, ok?: boolean) => void) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS: origin not allowed — ${origin}`));
-  },
-  credentials: true,
-};
+// CORS allow-list lives in ./cors.ts (shared with Socket.IO). Allows production
+// domains, CLIENT_ORIGINS/ALLOWED_ORIGINS env entries, localhost in dev, and
+// Vercel `client-*.vercel.app` preview deployments — never a blanket wildcard.
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 
