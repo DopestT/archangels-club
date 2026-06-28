@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 import crypto from 'crypto';
 import { query, queryOne, execute, withTransaction } from '../db/schema.js';
 import { requireAuth, requireApproved } from '../middleware/auth.js';
+import { getIO } from '../socket.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -241,6 +242,18 @@ router.post('/live-gift', requireApproved, async (req, res) => {
     const account = await queryOne<{ balance: number }>(
       'SELECT balance FROM gold_accounts WHERE user_id = $1', [userId],
     );
+
+    // Broadcast to all viewers in the room (fire-and-forget — never crash if socket unavailable)
+    getIO()?.to(`room:${room_id}`).emit('gift:sent', {
+      id: goldTxId,
+      giftId: gift_id,
+      giftName: gift_name,
+      goldCost: gold_cost,
+      senderId: userId,
+      senderName: userRow?.display_name ?? 'Member',
+      privacy,
+    });
+
     res.json({
       success: true,
       new_balance: account?.balance ?? 0,

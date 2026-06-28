@@ -19,6 +19,7 @@ import FloatingReactions from '../components/live/FloatingReactions';
 import GiftAnimationManager, {
   type GiftAnimationHandle,
 } from '../components/live/GiftAnimationManager';
+import { useGiftSocket } from '../hooks/useGiftSocket';
 
 interface RoomDetail {
   id: string;
@@ -74,6 +75,9 @@ export default function LiveRoomPage() {
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
+
+  // Real-time gift broadcast — other viewers see animations when anyone sends a gift
+  useGiftSocket(id, giftAnimRef, !!(isLive && canView));
 
   const fetchRoom = useCallback(async () => {
     if (!id) return;

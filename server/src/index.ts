@@ -1,7 +1,9 @@
 console.log('STARTING SERVER...');process.stdout.write('index.ts loading\n');
 import { validateConfig } from './config.js';
 validateConfig();
+import http from 'http';
 import express from 'express';
+import { initSocket } from './socket.js';
 import cors from 'cors';
 import { pool, runMigrations } from './db/schema.js';
 import authRoutes from './routes/auth.js';
@@ -120,7 +122,9 @@ app.get('/api/health/db', async (_req, res) => {
 async function start() {
   try {
     await runMigrations();
-    app.listen(PORT, "0.0.0.0", () => {
+    const httpServer = http.createServer(app);
+    initSocket(httpServer);
+    httpServer.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (err) {
