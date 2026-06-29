@@ -46,6 +46,14 @@
   100% { opacity: 0; transform: translateY(-148px) scale(0.88); }
 }
 
+/* Locked-preview drift — slow Ken-Burns pan/zoom so obscured drops feel alive
+   (motion you can sense but can't read). GPU-cheap transform only. */
+@keyframes arcObscuredDrift {
+  0%   { transform: scale(1.06) translate(0%, 0%); }
+  50%  { transform: scale(1.12) translate(-1.5%, 1%); }
+  100% { transform: scale(1.06) translate(1.5%, -1%); }
+}
+
 @keyframes arcFeatureSpring {
   0%   { opacity: 0; transform: translateY(26px) scale(0.86); }
   40%  { opacity: 1; transform: translateY(-6px) scale(1.02); }

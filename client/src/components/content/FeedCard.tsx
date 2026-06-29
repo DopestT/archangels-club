@@ -44,8 +44,9 @@ export default function FeedCard({ content }: FeedCardProps) {
   const isNew = !isAlmostGone && (Date.now() - new Date(content.created_at).getTime() < 86_400_000);
   const viewers = seededViewers(content.id);
 
-  // Blur level: locked content starts heavy, reduces on hover to tease the preview
-  const imgBlur = isLocked ? (hovered ? 5 : 14) : 0;
+  // Locked content stays heavily obscured even on hover — you sense motion
+  // behind the glass but can never read it until you reveal it.
+  const imgBlur = isLocked ? (hovered ? 14 : 18) : 0;
 
   function onMouseEnter() {
     setHovered(true);
@@ -88,8 +89,11 @@ export default function FeedCard({ content }: FeedCardProps) {
             alt=""
             className="absolute inset-0 w-full h-full object-cover"
             style={{
-              filter: imgBlur > 0 ? `blur(${imgBlur}px) brightness(0.88)` : undefined,
-              transform: hovered ? 'scale(1.08)' : isLocked ? 'scale(1.04)' : 'scale(1)',
+              filter: imgBlur > 0 ? `blur(${imgBlur}px) brightness(0.8)` : undefined,
+              // Locked previews slowly drift so they feel alive (motion you can't
+              // read); free previews keep the simple hover-zoom.
+              transform: isLocked ? undefined : hovered ? 'scale(1.08)' : 'scale(1)',
+              animation: isLocked ? 'arcObscuredDrift 16s ease-in-out infinite alternate' : undefined,
               transition: 'filter 0.55s ease, transform 0.7s ease',
             }}
           />
@@ -130,7 +134,7 @@ export default function FeedCard({ content }: FeedCardProps) {
         {isLocked && (
           <div
             className="absolute inset-0 pointer-events-none transition-opacity duration-500"
-            style={{ background: 'rgba(0,0,0,0.28)', opacity: hovered ? 0 : 1 }}
+            style={{ background: 'rgba(0,0,0,0.42)', opacity: hovered ? 0.55 : 1 }}
           />
         )}
 
@@ -164,9 +168,9 @@ export default function FeedCard({ content }: FeedCardProps) {
             >
               {isLocked
                 ? content.price > 0
-                  ? `Unlock for ${formatCurrency(content.price)}`
-                  : 'Unlock Access'
-                : 'View Content'}
+                  ? `Reveal for ${formatCurrency(content.price)}`
+                  : 'Reveal'
+                : 'Enter'}
             </span>
           </div>
         </div>
@@ -195,7 +199,7 @@ export default function FeedCard({ content }: FeedCardProps) {
             {!isAlmostGone && !isTrending && !isNew && isLocked && (
               <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-black/60 backdrop-blur-sm text-gold text-[10px] border border-gold/30 w-fit">
                 <Lock className="w-2.5 h-2.5" />
-                {content.access_type === 'subscribers' ? 'Subscribers Only' : 'Locked Drop'}
+                {content.access_type === 'subscribers' ? 'Members Only' : 'Sealed'}
               </span>
             )}
           </div>
@@ -285,7 +289,7 @@ export default function FeedCard({ content }: FeedCardProps) {
             {content.access_type === 'locked' && content.price > 0 ? (
               <span className="font-serif text-xl text-gold leading-none">{formatCurrency(content.price)}</span>
             ) : content.access_type === 'subscribers' ? (
-              <span className="text-xs text-arc-muted italic">Subscribers only</span>
+              <span className="text-xs text-arc-muted italic">Members only</span>
             ) : (
               <span className="text-xs font-medium text-green-400">Free</span>
             )}
@@ -299,7 +303,7 @@ export default function FeedCard({ content }: FeedCardProps) {
                 borderColor: hovered ? 'var(--color-gold, #d4af37)' : undefined,
               }}
             >
-              {isLocked ? 'Unlock →' : 'View →'}
+              {isLocked ? 'Reveal →' : 'Enter →'}
             </span>
           </div>
         </div>
