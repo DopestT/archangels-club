@@ -44,6 +44,9 @@ const LiveRoomPage              = lazy(() => import('./pages/LiveRoomPage'));
 const CreatorLiveStudio         = lazy(() => import('./pages/CreatorLiveStudio'));
 const AdminLivePage             = lazy(() => import('./pages/AdminLivePage'));
 const LiveSwipeFeed             = lazy(() => import('./pages/LiveSwipeFeed'));
+const ClawPromotionPage         = lazy(() => import('./pages/ClawPromotionPage'));
+const VirtualAngelsStudio       = lazy(() => import('./pages/VirtualAngelsStudio'));
+const AIPersonaRoom             = lazy(() => import('./pages/AIPersonaRoom'));
 
 // Requires: authenticated. If pending/rejected/suspended/banned → redirect to appropriate page.
 // If requireApproved: must have status=approved.
@@ -321,6 +324,23 @@ function AppRoutes() {
         <Route path="admin/legacy-works" element={
           <ProtectedRoute requireAdmin>
             <LegacyWorksPublishing />
+          </ProtectedRoute>
+        } />
+        <Route path="admin/promotion" element={
+          <ProtectedRoute requireAdmin>
+            <ClawPromotionPage />
+          </ProtectedRoute>
+        } />
+
+        {/* Virtual Angels Studio — approved members */}
+        <Route path="angels" element={
+          <ProtectedRoute>
+            <VirtualAngelsStudio />
+          </ProtectedRoute>
+        } />
+        <Route path="angels/:id" element={
+          <ProtectedRoute>
+            <AIPersonaRoom />
           </ProtectedRoute>
         } />
 

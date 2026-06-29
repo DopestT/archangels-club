@@ -10,12 +10,14 @@ import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 import LiveStream, { type StreamConfig } from '../components/live/LiveStream';
 import GoldGiftDrawer, { type GiftPrivacy } from '../components/live/GoldGiftDrawer';
+import BuyGoldModal from '../components/commerce/BuyGoldModal';
 import RoomGoalBar from '../components/live/RoomGoalBar';
 import TopSupporters, { type Supporter } from '../components/live/TopSupporters';
 import EntryRitual from '../components/live/EntryRitual';
 import LiveChat from '../components/live/LiveChat';
 import FloatingReactions from '../components/live/FloatingReactions';
-import GiftAnimationManager, { type GiftAnimationHandle } from '../components/live/GiftAnimationManager';
+import GiftAnimationManager, { type GiftAnimationHandle, type GiftEvent } from '../components/live/GiftAnimationManager';
+import { useGiftSocket } from '../hooks/useGiftSocket';
 
 interface RoomDetail {
   id: string;
@@ -55,21 +57,34 @@ export default function LiveRoomPage() {
   const [streamLoading, setStreamLoading] = useState(false);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [showGiftDrawer, setShowGiftDrawer]   = useState(false);
+  const [showBuyGold, setShowBuyGold]         = useState(false);
+  const [goldBalance, setGoldBalance]         = useState(0);
+  const [neededGold, setNeededGold]           = useState<number | undefined>();
   const [supporters, setSupporters]           = useState<Supporter[]>([]);
   const [raisedCents, setRaisedCents]         = useState(0);
   const [showEntryRitual, setShowEntryRitual] = useState(false);
   const [ritualDone, setRitualDone]           = useState(false);
   const [viewerCount, setViewerCount]         = useState(0);
   const [joinAlert, setJoinAlert]             = useState<string | null>(null);
+  const [giftAlert, setGiftAlert]             = useState<{ name: string; amount: number } | null>(null);
   const seenSupporters = useRef<Set<string>>(new Set());
   const seenJoiners = useRef<Set<string>>(new Set());
   const joinAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const giftAlertTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Gift animations run through a lane-based manager (no single "current gift" state),
   // so multiple gifts can animate concurrently.
-  const giftMgrRef = useRef<GiftAnimationHandle>(null);
+  const giftAnimRef = useRef<GiftAnimationHandle>(null);
+  // Event-gift triggers — fire once per transition, derived from leaderboard polling.
+  const prevRaisedRef    = useRef<number | null>(null);
+  const topSupporterRef  = useRef<string | null>(null);
 
   const canView = room && (room.is_creator || isAdmin || room.access.granted);
   const isLive  = room?.status === 'live';
+
+  // Real-time gift broadcast — other viewers see animations when anyone sends a gift.
+  // Returns a ref that's true while connected, so the leaderboard poll below can
+  // skip emitting gift animations the socket already delivered (no double-play).
+  const socketConnectedRef = useGiftSocket(id, giftAnimRef, !!(isLive && canView));
 
   const fetchRoom = useCallback(async () => {
     if (!id) return;
@@ -113,12 +128,54 @@ export default function LiveRoomPage() {
 
         // Detect new tippers — push EVERY fresh gift into the animation manager
         // so concurrent gifts animate across lanes (not just the biggest one).
+        // Skip when the socket is connected: it already delivered these gifts in
+        // real time, so re-emitting from the poll would double-animate them.
         const prevSeen = seenSupporters.current;
         const fresh = data.tippers.filter(t => !prevSeen.has(t.display_name));
-        if (fresh.length > 0 && prevSeen.size > 0) {
-          fresh.forEach(f => giftMgrRef.current?.push({ name: f.display_name, amountCents: f.total_cents }));
+        if (fresh.length > 0 && prevSeen.size > 0 && !socketConnectedRef.current) {
+          fresh.forEach(f => giftAnimRef.current?.emit({
+            id: `tip-${f.display_name}-${f.total_cents}-${Date.now()}`,
+            giftId: 'gold_rain',
+            giftName: 'Gift',
+            goldCost: f.total_cents,
+            senderId: '',
+            senderName: f.display_name,
+            privacy: 'public',
+          } satisfies GiftEvent));
         }
         seenSupporters.current = new Set(data.tippers.map(t => t.display_name));
+
+        // Event gift: Top Supporter Takeover — fires when the #1 supporter changes
+        // (not on first observation). Client-derived; every viewer sees it.
+        const topNow = data.tippers[0]?.display_name ?? null;
+        if (topNow && topSupporterRef.current !== null && topNow !== topSupporterRef.current) {
+          giftAnimRef.current?.emit({
+            id: `takeover-${topNow}-${Date.now()}`,
+            giftId: 'top-supporter-takeover',
+            giftName: 'Top Supporter Takeover',
+            goldCost: 0,
+            senderId: '',
+            senderName: topNow,
+            privacy: 'public',
+          } satisfies GiftEvent);
+        }
+        topSupporterRef.current = topNow;
+
+        // Event gift: Room Goal Complete — fires on the below→met transition only.
+        const goal = room?.goal_amount_cents ?? 0;
+        if (goal > 0 && prevRaisedRef.current !== null
+            && prevRaisedRef.current < goal && data.raised_cents >= goal) {
+          giftAnimRef.current?.emit({
+            id: `goal-complete-${Date.now()}`,
+            giftId: 'room-goal-complete',
+            giftName: 'Room Goal Complete',
+            goldCost: 0,
+            senderId: '',
+            senderName: room?.creator_name ?? 'The Room',
+            privacy: 'public',
+          } satisfies GiftEvent);
+        }
+        prevRaisedRef.current = data.raised_cents;
 
         // Detect new viewers for the "just joined" ticker
         const joiners = data.recent_joiners ?? [];
@@ -164,11 +221,35 @@ export default function LiveRoomPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isLive, canView, id]);
 
-  // Show "your gift is on its way" alert when returning from Stripe tip checkout
+  // Fetch Gold balance
+  const fetchGoldBalance = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/gold/balance');
+      if (res.ok) {
+        const d = await res.json();
+        setGoldBalance(d.balance ?? 0);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchGoldBalance(); }, [fetchGoldBalance]);
+
+  // Handle return from Gold purchase or legacy Stripe tip
   useEffect(() => {
-    if (searchParams.get('tip') === 'sent') {
+    const goldAdded  = searchParams.get('gold_added');
+    const goldAmount = searchParams.get('gold_amount');
+    const tipSent    = searchParams.get('tip');
+
+    if (goldAdded === '1') {
       setSearchParams({}, { replace: true });
-      giftMgrRef.current?.push({ name: 'Your gift', giftLabel: 'sent a gift — processing…', amountCents: 0 });
+      fetchGoldBalance();
+      const label = goldAmount ? `${Number(goldAmount).toLocaleString()} Gold added to your balance` : 'Gold added to your balance';
+      setGiftAlert({ name: label, amount: 0 });
+      giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
+    } else if (tipSent === 'sent') {
+      setSearchParams({}, { replace: true });
+      setGiftAlert({ name: 'Your gift', amount: 0 });
+      giftAlertTimer.current = setTimeout(() => setGiftAlert(null), 4200);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -341,6 +422,15 @@ export default function LiveRoomPage() {
               {(isAdmin || room.is_creator) && isLive && (
                 <LiveRoomAdminBar room={room} onEnded={fetchRoom} />
               )}
+
+              {/* Admin-only: fire test gifts (no Gold charged, nothing recorded) */}
+              {isAdmin && isLive && id && (
+                <AdminGiftTester
+                  roomId={id}
+                  giftAnimRef={giftAnimRef}
+                  socketConnectedRef={socketConnectedRef}
+                />
+              )}
             </div>
 
             {/* RIGHT: Inner Circle Chat */}
@@ -385,18 +475,63 @@ export default function LiveRoomPage() {
         )}
       </div>
 
+      {/* Gift animation layers — always mounted while live */}
+      {isLive && canView && <GiftAnimationManager ref={giftAnimRef} />}
+
       {/* Gift drawer */}
       {showGiftDrawer && room && (
         <GoldGiftDrawer
           roomId={room.id}
           creatorId={room.creator_id}
+          goldBalance={goldBalance}
           onClose={() => setShowGiftDrawer(false)}
           onSent={() => setShowGiftDrawer(false)}
+          onGiftSent={evt => giftAnimRef.current?.emit(evt)}
+          onBalanceChange={nb => setGoldBalance(nb)}
+          onNeedGold={needed => {
+            setNeededGold(needed);
+            setShowGiftDrawer(false);
+            setShowBuyGold(true);
+          }}
         />
       )}
 
-      {/* Gift animations — lane-based manager (concurrent gifts, no single state) */}
-      <GiftAnimationManager ref={giftMgrRef} />
+      {/* Buy Gold modal */}
+      {showBuyGold && room && (
+        <BuyGoldModal
+          currentBalance={goldBalance}
+          requiredGold={neededGold}
+          returnUrl={window.location.href.split('?')[0]}
+          onClose={() => { setShowBuyGold(false); setNeededGold(undefined); }}
+        />
+      )}
+
+      {/* Gift alert banner — gold purchase / tip confirmation */}
+      {giftAlert && (
+        <div
+          key={giftAlert.name + giftAlert.amount}
+          className="fixed top-0 left-0 right-0 flex justify-center pt-4 px-4"
+          style={{ zIndex: 60, pointerEvents: 'none', animation: 'giftDrop 4.2s ease forwards' }}
+        >
+          <div
+            className="flex items-center gap-3 px-5 py-2.5 rounded-2xl"
+            style={{
+              background: 'linear-gradient(135deg, rgba(18,12,2,0.97) 0%, rgba(30,20,4,0.97) 100%)',
+              border: '1px solid rgba(212,175,55,0.5)',
+              boxShadow: '0 8px 40px rgba(212,175,55,0.15)',
+              backdropFilter: 'blur(12px)',
+            }}
+          >
+            <span style={{ fontSize: 20 }}>✨</span>
+            <span className="text-sm font-semibold text-white">{giftAlert.name}</span>
+            <span className="text-xs text-zinc-400">
+              {giftAlert.amount > 0
+                ? `just gifted $${(giftAlert.amount / 100).toFixed(2)}`
+                : 'sent a gift — processing…'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* "Just joined" ticker */}
       {joinAlert && (
@@ -618,6 +753,87 @@ function SaveReplayToVaultCard() {
       >
         Coming Soon
       </span>
+    </div>
+  );
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AdminGiftTester
+   Admin-only panel to fire gift animations for testing — no Gold charged,
+   nothing written to the leaderboard. One representative gift per lane plus the
+   premium Rive + event gifts, so every visual path can be checked live.
+───────────────────────────────────────────────────────────────────────────── */
+const TEST_GIFTS: { id: string; name: string; cost: number; lane: string }[] = [
+  { id: 'gold_rain',              name: 'Gold Rain',              cost: 100,   lane: 'micro' },
+  { id: 'golden-wings',           name: 'Golden Wings',           cost: 999,   lane: 'feature' },
+  { id: 'diamond-rain',           name: 'Diamond Rain',           cost: 10000, lane: 'fullscreen' },
+  { id: 'room-goal-complete',     name: 'Room Goal Complete',     cost: 0,     lane: 'event' },
+  { id: 'top-supporter-takeover', name: 'Top Supporter Takeover', cost: 0,     lane: 'event' },
+];
+
+function AdminGiftTester({
+  roomId,
+  giftAnimRef,
+  socketConnectedRef,
+}: {
+  roomId: string;
+  giftAnimRef: React.RefObject<GiftAnimationHandle | null>;
+  socketConnectedRef: React.MutableRefObject<boolean>;
+}) {
+  const [sending, setSending] = useState<string | null>(null);
+
+  async function fire(g: typeof TEST_GIFTS[number]) {
+    setSending(g.id);
+    // Broadcast to the room (admin-only, no Gold, nothing recorded). Reaches all
+    // viewers and echoes back to this admin via their own socket.
+    try {
+      await apiFetch('/api/gold/test-gift', {
+        method: 'POST',
+        body: JSON.stringify({ room_id: roomId, gift_id: g.id, gift_name: g.name, gold_cost: g.cost }),
+      });
+    } catch { /* non-fatal — fall back to a local preview below */ }
+    // If the socket isn't echoing to us (not connected / backend without sockets),
+    // play it locally so the admin still previews the animation.
+    if (!socketConnectedRef.current) {
+      giftAnimRef.current?.emit({
+        id: `admin-test-${g.id}-${Date.now()}`,
+        giftId: g.id,
+        giftName: g.name,
+        goldCost: g.cost,
+        senderId: '',
+        senderName: 'Admin Test',
+        privacy: 'public',
+        isAdminTest: true,
+      });
+    }
+    setTimeout(() => setSending(null), 400);
+  }
+
+  return (
+    <div
+      className="rounded-xl px-4 py-4 space-y-3"
+      style={{ background: 'rgba(212,175,55,0.04)', border: '1px solid rgba(212,175,55,0.14)' }}
+    >
+      <div>
+        <p className="text-[9px] tracking-[0.2em] uppercase" style={{ color: 'rgba(212,175,55,0.5)' }}>
+          Admin · Test Gifts
+        </p>
+        <p className="text-[10px] text-zinc-500 mt-0.5">No Gold charged · not recorded · broadcasts to viewers</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {TEST_GIFTS.map(g => (
+          <button
+            key={g.id}
+            onClick={() => fire(g)}
+            disabled={sending === g.id}
+            className="px-3 py-1.5 rounded-lg text-[11px] font-medium transition-all disabled:opacity-40"
+            style={{ background: 'rgba(212,175,55,0.08)', color: '#d4af37', border: '1px solid rgba(212,175,55,0.22)' }}
+            title={`${g.lane} lane`}
+          >
+            {sending === g.id ? '…' : g.name}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

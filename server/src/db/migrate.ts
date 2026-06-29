@@ -760,6 +760,145 @@ const DDL = `
   );
   CREATE INDEX IF NOT EXISTS idx_live_room_viewers_active
     ON live_room_viewers(live_room_id, last_seen_at DESC);
+
+  -- Claw Promotion Command Center
+  CREATE TABLE IF NOT EXISTS promotion_campaigns (
+    id          TEXT PRIMARY KEY,
+    name        TEXT NOT NULL,
+    goal        TEXT NOT NULL DEFAULT '',
+    week        TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active', 'paused', 'completed')),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS promotion_posts (
+    id                TEXT PRIMARY KEY,
+    campaign_id       TEXT REFERENCES promotion_campaigns(id) ON DELETE SET NULL,
+    post_type         TEXT NOT NULL DEFAULT 'post'
+                        CHECK (post_type IN ('post', 'script', 'countdown', 'outreach')),
+    platform          TEXT NOT NULL DEFAULT 'instagram'
+                        CHECK (platform IN ('instagram','tiktok','twitter','facebook','youtube','linkedin','other')),
+    audience_type     TEXT NOT NULL DEFAULT 'member'
+                        CHECK (audience_type IN ('member','creator','general')),
+    hook              TEXT NOT NULL DEFAULT '',
+    caption           TEXT NOT NULL DEFAULT '',
+    hashtags          TEXT NOT NULL DEFAULT '',
+    cta               TEXT NOT NULL DEFAULT '',
+    asset_description TEXT NOT NULL DEFAULT '',
+    status            TEXT NOT NULL DEFAULT 'draft'
+                        CHECK (status IN ('draft','approved','rejected','posted','archived')),
+    scheduled_for     TIMESTAMPTZ,
+    posted_at         TIMESTAMPTZ,
+    admin_notes       TEXT NOT NULL DEFAULT '',
+    views             INTEGER NOT NULL DEFAULT 0,
+    likes             INTEGER NOT NULL DEFAULT 0,
+    comments          INTEGER NOT NULL DEFAULT 0,
+    shares            INTEGER NOT NULL DEFAULT 0,
+    clicks            INTEGER NOT NULL DEFAULT 0,
+    creator_apps      INTEGER NOT NULL DEFAULT 0,
+    waitlist_signups  INTEGER NOT NULL DEFAULT 0,
+    tracking_notes    TEXT NOT NULL DEFAULT '',
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_promo_posts_campaign  ON promotion_posts(campaign_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_promo_posts_status    ON promotion_posts(status, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_promo_campaigns_status ON promotion_campaigns(status, created_at DESC);
+
+  -- Virtual Angels Studio
+  CREATE TABLE IF NOT EXISTS gold_accounts (
+    user_id         TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    balance         INTEGER NOT NULL DEFAULT 0 CHECK (balance >= 0),
+    total_spent     INTEGER NOT NULL DEFAULT 0,
+    starter_claimed BOOLEAN NOT NULL DEFAULT false,
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS ai_personas (
+    id            TEXT PRIMARY KEY,
+    name          TEXT NOT NULL,
+    tagline       TEXT NOT NULL DEFAULT 'AI Fantasy Creator',
+    bio           TEXT NOT NULL DEFAULT '',
+    system_prompt TEXT NOT NULL DEFAULT '',
+    avatar_url    TEXT NOT NULL DEFAULT '',
+    tags          TEXT[] NOT NULL DEFAULT '{}',
+    age_verified_only BOOLEAN NOT NULL DEFAULT true,
+    status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','paused','archived')),
+    goal_title    TEXT NOT NULL DEFAULT 'Light the Halo',
+    goal_gold     INTEGER NOT NULL DEFAULT 1000,
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS ai_chat_sessions (
+    id               TEXT PRIMARY KEY,
+    user_id          TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    persona_id       TEXT NOT NULL REFERENCES ai_personas(id) ON DELETE CASCADE,
+    total_gold_spent INTEGER NOT NULL DEFAULT 0,
+    message_count    INTEGER NOT NULL DEFAULT 0,
+    memory_summary   TEXT NOT NULL DEFAULT '',
+    last_active_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, persona_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS ai_chat_messages (
+    id         TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
+    role       TEXT NOT NULL CHECK (role IN ('user','assistant')),
+    content    TEXT NOT NULL,
+    is_gift    BOOLEAN NOT NULL DEFAULT false,
+    gift_id    TEXT,
+    gift_name  TEXT,
+    gift_gold  INTEGER,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS ai_persona_gift_events (
+    id           TEXT PRIMARY KEY,
+    session_id   TEXT NOT NULL REFERENCES ai_chat_sessions(id) ON DELETE CASCADE,
+    user_id      TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    persona_id   TEXT NOT NULL REFERENCES ai_personas(id) ON DELETE CASCADE,
+    gift_id      TEXT NOT NULL,
+    gift_name    TEXT NOT NULL,
+    amount_gold  INTEGER NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    privacy      TEXT NOT NULL DEFAULT 'public' CHECK (privacy IN ('public','private','ghost')),
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_gold_accounts_user    ON gold_accounts(user_id);
+  CREATE INDEX IF NOT EXISTS idx_ai_sessions_user      ON ai_chat_sessions(user_id, last_active_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_ai_sessions_persona   ON ai_chat_sessions(persona_id, total_gold_spent DESC);
+  CREATE INDEX IF NOT EXISTS idx_ai_messages_session   ON ai_chat_messages(session_id, created_at ASC);
+  CREATE INDEX IF NOT EXISTS idx_ai_gifts_persona      ON ai_persona_gift_events(persona_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_ai_gifts_user_persona ON ai_persona_gift_events(user_id, persona_id);
+
+  -- ── Gold Wallet v2 ────────────────────────────────────────────────────────
+  ALTER TABLE gold_accounts
+    ADD COLUMN IF NOT EXISTS total_gold_purchased INTEGER NOT NULL DEFAULT 0;
+
+  CREATE TABLE IF NOT EXISTS gold_transactions (
+    id                TEXT PRIMARY KEY,
+    user_id           TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type              TEXT NOT NULL CHECK (type IN ('purchase','gift','starter','refund','admin_credit')),
+    gold_amount       INTEGER NOT NULL,
+    usd_amount        NUMERIC(10,2),
+    stripe_payment_id TEXT,
+    creator_id        TEXT,
+    room_id           TEXT,
+    gift_id           TEXT,
+    note              TEXT NOT NULL DEFAULT '',
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_gold_tx_user    ON gold_transactions(user_id, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_gold_tx_creator ON gold_transactions(creator_id, created_at DESC)
+    WHERE creator_id IS NOT NULL;
 `;
 
 export async function runMigrations(): Promise<void> {

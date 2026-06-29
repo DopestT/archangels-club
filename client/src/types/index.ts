@@ -44,6 +44,8 @@ export interface CreatorProfile {
   is_verified_creator?: boolean;
   content_count?: number;
   subscriber_count?: number;
+  /** Latest approved video clip, shown frosted behind the creator card. */
+  preview_video_url?: string;
 }
 
 export interface Content {

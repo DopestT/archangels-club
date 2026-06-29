@@ -22,7 +22,11 @@ router.get('/', async (req, res) => {
     let sql = `
       SELECT cp.*, u.display_name, u.username, u.avatar_url, u.is_verified_creator,
         (SELECT COUNT(*) FROM subscriptions s WHERE s.creator_id = cp.id AND s.status = 'active') as subscriber_count,
-        (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))) as content_count
+        (SELECT COUNT(*) FROM content c WHERE c.creator_id = cp.id AND (c.status = 'approved' OR (c.status = 'scheduled' AND c.publish_at <= NOW()))) as content_count,
+        (SELECT c2.media_url FROM content c2
+           WHERE c2.creator_id = cp.id AND c2.content_type = 'video' AND c2.media_url IS NOT NULL
+             AND (c2.status = 'approved' OR (c2.status = 'scheduled' AND c2.publish_at <= NOW()))
+           ORDER BY c2.created_at DESC LIMIT 1) as preview_video_url
       FROM creator_profiles cp
       JOIN users u ON u.id = cp.user_id
       WHERE cp.is_approved = 1

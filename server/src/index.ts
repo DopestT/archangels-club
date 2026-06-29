@@ -1,8 +1,11 @@
 console.log('STARTING SERVER...');process.stdout.write('index.ts loading\n');
 import { validateConfig } from './config.js';
 validateConfig();
+import http from 'http';
 import express from 'express';
+import { initSocket } from './socket.js';
 import cors from 'cors';
+import { corsOptions } from './cors.js';
 import { pool, runMigrations } from './db/schema.js';
 import authRoutes from './routes/auth.js';
 import creatorRoutes from './routes/creators.js';
@@ -34,6 +37,9 @@ import reviewRoutes from './routes/reviews.js';
 import legacyWorksRoutes from './routes/legacyWorks.js';
 import liveRoutes from './routes/live.js';
 import configRoutes from './routes/config.js';
+import promotionCommandRoutes from './routes/promotionCommand.js';
+import aiPersonasRoutes, { aiPersonasAdminRouter } from './routes/aiPersonas.js';
+import goldAccountRoutes from './routes/goldAccount.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -41,18 +47,9 @@ if (!PORT) {
   throw new Error("PORT environment variable is required");
 }
 
-const ALLOWED_ORIGINS = [
-  'https://archangelsclub.com',
-  'https://www.archangelsclub.com',
-  ...(process.env.NODE_ENV !== 'production' ? ['http://localhost:3000', 'http://localhost:5173'] : []),
-];
-const corsOptions = {
-  origin: (origin: string | undefined, cb: (e: Error | null, ok?: boolean) => void) => {
-    if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
-    cb(new Error(`CORS: origin not allowed — ${origin}`));
-  },
-  credentials: true,
-};
+// CORS allow-list lives in ./cors.ts (shared with Socket.IO). Allows production
+// domains, CLIENT_ORIGINS/ALLOWED_ORIGINS env entries, localhost in dev, and
+// Vercel `client-*.vercel.app` preview deployments — never a blanket wildcard.
 app.options('*', cors(corsOptions));
 app.use(cors(corsOptions));
 
@@ -95,6 +92,10 @@ app.use('/api/reviews', reviewRoutes);
 app.use('/api/legacy-works', legacyWorksRoutes);
 app.use('/api/live', liveRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/admin/promotion', promotionCommandRoutes);
+app.use('/api/ai-personas', aiPersonasRoutes);
+app.use('/api/admin/ai-personas', aiPersonasAdminRouter);
+app.use('/api/gold', goldAccountRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });
@@ -113,7 +114,9 @@ app.get('/api/health/db', async (_req, res) => {
 async function start() {
   try {
     await runMigrations();
-    app.listen(PORT, "0.0.0.0", () => {
+    const httpServer = http.createServer(app);
+    initSocket(httpServer);
+    httpServer.listen(PORT, "0.0.0.0", () => {
       console.log(`Server running on port ${PORT}`);
     });
   } catch (err) {

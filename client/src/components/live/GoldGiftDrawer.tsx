@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Lock, X, ChevronDown, Send } from 'lucide-react';
 import { apiFetch, API_BASE } from '../../lib/api';
+import type { GiftEvent } from './GiftAnimationManager';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -119,6 +120,27 @@ const ICONS: Record<string, React.ReactNode> = {
       <path d="M14 3V2M14 26V25M3 14H2M26 14H25M6 6L5 5M22 6L23 5M6 22L5 23M22 22L23 23" stroke="#D4AF37" strokeWidth=".9" strokeLinecap="round" opacity=".4"/>
     </svg>
   ),
+  // ── Premium Rive gifts ──
+  'golden-wings': (
+    <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6">
+      <path d="M14 8C10 8 5 11 2 16C5 15 8 15 11 16M14 8C18 8 23 11 26 16C23 15 20 15 17 16" stroke="#D4AF37" strokeWidth="1.1" fill="rgba(212,175,55,0.12)" strokeLinecap="round" strokeLinejoin="round"/>
+      <path d="M14 7V21" stroke="#D4AF37" strokeWidth="1.1" strokeLinecap="round"/>
+      <circle cx="14" cy="6" r="1.6" fill="#D4AF37" opacity=".7"/>
+    </svg>
+  ),
+  'angel-crown': (
+    <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6">
+      <ellipse cx="14" cy="5" rx="6" ry="1.6" stroke="#D4AF37" strokeWidth="1" fill="none" opacity=".6"/>
+      <path d="M4 21L7 12L12.5 17L14 9L15.5 17L21 12L24 21Z" stroke="#D4AF37" strokeWidth="1.2" fill="rgba(212,175,55,0.12)" strokeLinejoin="round"/>
+      <rect x="4" y="21" width="20" height="2.4" rx=".7" stroke="#D4AF37" strokeWidth="1.1" fill="none"/>
+    </svg>
+  ),
+  'diamond-rain': (
+    <svg viewBox="0 0 28 28" fill="none" className="w-6 h-6">
+      <path d="M9 5H19L24 11L14 24L4 11L9 5Z" stroke="#D4AF37" strokeWidth="1.2" fill="rgba(212,175,55,0.12)" strokeLinejoin="round"/>
+      <path d="M9 5L14 11L19 5M4 11H24M14 11V24" stroke="#D4AF37" strokeWidth=".9" opacity=".5" strokeLinejoin="round"/>
+    </svg>
+  ),
 };
 
 // ── Gift catalogue ─────────────────────────────────────────────────────────────
@@ -127,10 +149,13 @@ const GIFTS: GiftDef[] = [
   { id: 'gold_rain',        label: 'Gold Rain',             goldCost: 100,   patronLevel: 1, patronName: 'Guest Patron',        icon: ICONS.gold_rain },
   { id: 'halo_drop',        label: 'Halo Drop',             goldCost: 250,   patronLevel: 1, patronName: 'Guest Patron',        icon: ICONS.halo_drop },
   { id: 'wings_open',       label: 'Wings Open',            goldCost: 500,   patronLevel: 2, patronName: 'Inner Circle Patron', icon: ICONS.wings_open },
+  { id: 'golden-wings',     label: 'Golden Wings',          goldCost: 999,   patronLevel: 2, patronName: 'Inner Circle Patron', icon: ICONS['golden-wings'] },
   { id: 'crown_signal',     label: 'Crown Signal',          goldCost: 1000,  patronLevel: 2, patronName: 'Inner Circle Patron', icon: ICONS.crown_signal },
   { id: 'vault_key',        label: 'Vault Key',             goldCost: 2500,  patronLevel: 3, patronName: 'Vault Patron',        icon: ICONS.vault_key },
+  { id: 'angel-crown',      label: 'Angel Crown',           goldCost: 2500,  patronLevel: 3, patronName: 'Vault Patron',        icon: ICONS['angel-crown'] },
   { id: 'private_tribute',  label: 'Private Tribute',       goldCost: 5000,  patronLevel: 3, patronName: 'Vault Patron',        icon: ICONS.private_tribute },
   { id: 'room_blessing',    label: 'Room Blessing',         goldCost: 10000, patronLevel: 4, patronName: 'Crown Patron',        icon: ICONS.room_blessing },
+  { id: 'diamond-rain',     label: 'Diamond Rain',          goldCost: 10000, patronLevel: 4, patronName: 'Crown Patron',        icon: ICONS['diamond-rain'] },
   { id: 'after_hours',      label: 'After-Hours Signal',    goldCost: 12000, patronLevel: 4, patronName: 'Crown Patron',        icon: ICONS.after_hours },
   { id: 'private_encore',   label: 'Private Encore Signal', goldCost: 15000, patronLevel: 5, patronName: 'Archangel Patron',   icon: ICONS.private_encore },
   { id: 'vault_drop',       label: 'Vault Drop Signal',     goldCost: 20000, patronLevel: 5, patronName: 'Archangel Patron',   icon: ICONS.vault_drop },
@@ -270,12 +295,20 @@ function PatronUnlockMoment({ levelName, onDismiss }: { levelName: string; onDis
 interface Props {
   roomId: string;
   creatorId: string;
+  goldBalance?: number;
   onClose: () => void;
   onSent?: (giftLabel: string, privacy: GiftPrivacy) => void;
+  onGiftSent?: (event: GiftEvent) => void;
+  onNeedGold?: (requiredGold: number) => void;
+  onBalanceChange?: (newBalance: number) => void;
 }
 
-export default function GoldGiftDrawer({ roomId, creatorId, onClose, onSent }: Props) {
+export default function GoldGiftDrawer({
+  roomId, creatorId, goldBalance: goldBalanceProp = 0,
+  onClose, onSent, onGiftSent, onNeedGold, onBalanceChange,
+}: Props) {
   const [patronStatus, setPatronStatus] = useState<PatronStatus | null>(null);
+  const [goldBalance, setGoldBalance]   = useState(goldBalanceProp);
   const [selected, setSelected]         = useState<GiftDef | null>(null);
   const [privacy, setPrivacy]           = useState<GiftPrivacy>('public');
   const [message, setMessage]           = useState('');
@@ -286,12 +319,14 @@ export default function GoldGiftDrawer({ roomId, creatorId, onClose, onSent }: P
   const [showUnlock, setShowUnlock]     = useState(false);
   const [unlockName, setUnlockName]     = useState('');
 
+  // Keep local balance in sync if parent re-renders with a new value
+  useEffect(() => { setGoldBalance(goldBalanceProp); }, [goldBalanceProp]);
+
   const fetchPatronStatus = useCallback(async () => {
     try {
       const data = await apiFetch(`/api/live/${roomId}/patron-status`) as PatronStatus & { error?: string };
       if (data.error) return;
 
-      // Detect level-up from localStorage
       const stored = localStorage.getItem(`arc_patron_${creatorId}`);
       const prev = stored ? JSON.parse(stored) as { level: number } : null;
       if (prev && data.patron_level > prev.level) {
@@ -303,37 +338,75 @@ export default function GoldGiftDrawer({ roomId, creatorId, onClose, onSent }: P
     } catch {}
   }, [roomId, creatorId]);
 
-  useEffect(() => { fetchPatronStatus(); }, [fetchPatronStatus]);
+  const fetchBalance = useCallback(async () => {
+    try {
+      const res = await apiFetch('/api/gold/balance');
+      if (res.ok) {
+        const d = await res.json();
+        setGoldBalance(d.balance ?? 0);
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => { fetchPatronStatus(); fetchBalance(); }, [fetchPatronStatus, fetchBalance]);
 
   async function handleSend() {
     if (!selected || sending) return;
+
+    // Check Gold balance before sending
+    if (goldBalance < selected.goldCost) {
+      onNeedGold?.(selected.goldCost);
+      return;
+    }
+
     setSending(true);
     setError(null);
 
-    // Store level before redirect so we can detect level-up on return
-    if (patronStatus) {
-      localStorage.setItem(`arc_patron_${creatorId}`, JSON.stringify({ level: patronStatus.patron_level }));
-    }
-
     try {
-      const data = await apiFetch(`/api/live/${roomId}/tip`, {
+      const res = await apiFetch('/api/gold/live-gift', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          amount_cents: selected.goldCost,
-          creator_id:   creatorId,
+          room_id:    roomId,
+          creator_id: creatorId,
+          gift_id:    selected.id,
+          gift_name:  selected.label,
+          gold_cost:  selected.goldCost,
           privacy,
-          gift_type:    selected.id,
-          message:      message.trim() || undefined,
+          message:    message.trim() || undefined,
         }),
-      }) as { url?: string; error?: string };
+      });
+      const data = await res.json();
 
-      if (data.error) { setError(data.error); return; }
-      if (data.url) { window.location.href = data.url; return; }
+      if (!res.ok) {
+        if (data.code === 'insufficient_gold') {
+          onNeedGold?.(selected.goldCost);
+          return;
+        }
+        setError(data.error ?? 'Failed to send gift.');
+        return;
+      }
+
+      const newBalance = data.new_balance ?? 0;
+      setGoldBalance(newBalance);
+      onBalanceChange?.(newBalance);
+
+      // Fire gift animation event (optimistic, sender only)
+      onGiftSent?.({
+        id: `${selected.id}-${Date.now()}`,
+        giftId:    selected.id,
+        giftName:  selected.label,
+        goldCost:  selected.goldCost,
+        senderId:  '',
+        senderName: data.display_name ?? 'Member',
+        privacy,
+      });
+
+      // Refresh patron status after gift
+      fetchPatronStatus();
       onSent?.(selected.label, privacy);
       onClose();
-    } catch (err: any) {
-      setError(err?.message ?? 'Failed to send gift. Please try again.');
+    } catch {
+      setError('Failed to send gift. Please try again.');
     } finally {
       setSending(false);
     }
@@ -369,9 +442,16 @@ export default function GoldGiftDrawer({ roomId, creatorId, onClose, onSent }: P
             <p className="font-serif text-[17px] text-white leading-none">Send a Gift</p>
             <p className="text-[9.5px] tracking-[0.2em] text-zinc-600 uppercase mt-1">Gold Reserve</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-600 hover:text-white hover:bg-white/7 transition-all">
-            <X size={15} />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Gold balance badge */}
+            <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5" style={{ background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.18)' }}>
+              <span className="text-[10px]">✦</span>
+              <span className="text-xs font-semibold" style={{ color: '#D4AF37' }}>{goldBalance.toLocaleString()} G</span>
+            </div>
+            <button onClick={onClose} className="p-1.5 rounded-lg text-zinc-600 hover:text-white hover:bg-white/7 transition-all">
+              <X size={15} />
+            </button>
+          </div>
         </div>
 
         {/* Patron status */}
@@ -382,6 +462,7 @@ export default function GoldGiftDrawer({ roomId, creatorId, onClose, onSent }: P
           <div className="grid grid-cols-2 gap-2">
             {GIFTS.map((gift) => {
               const locked = gift.patronLevel > currentLevel;
+              const canAfford = goldBalance >= gift.goldCost;
               const isSelected = selected?.id === gift.id;
               const showHint = lockedHint === gift.id;
 
@@ -428,9 +509,13 @@ export default function GoldGiftDrawer({ roomId, creatorId, onClose, onSent }: P
                     >
                       {formatGold(gift.goldCost)} Gold
                     </p>
-                    {locked && (
+                    {locked ? (
                       <p className="text-[9px] mt-0.5" style={{ color: '#3f3f46' }}>
                         {gift.patronName}
+                      </p>
+                    ) : !canAfford && (
+                      <p className="text-[9px] mt-0.5" style={{ color: '#ef4444' }}>
+                        Not enough Gold
                       </p>
                     )}
                   </button>
@@ -515,19 +600,29 @@ export default function GoldGiftDrawer({ roomId, creatorId, onClose, onSent }: P
                 )}
               </div>
 
-              <button
-                onClick={handleSend}
-                disabled={sending}
-                className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-gold text-black hover:bg-gold/90 disabled:opacity-50 transition-all flex-shrink-0"
-              >
-                {sending ? (
-                  <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                  </svg>
-                ) : <Send size={11} />}
-                {sending ? 'Sending…' : 'Send'}
-              </button>
+              {selected && goldBalance < selected.goldCost ? (
+                <button
+                  onClick={() => onNeedGold?.(selected.goldCost)}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold flex-shrink-0 transition-all"
+                  style={{ background: 'rgba(212,175,55,0.12)', color: '#D4AF37', border: '1px solid rgba(212,175,55,0.3)' }}
+                >
+                  Add Gold
+                </button>
+              ) : (
+                <button
+                  onClick={handleSend}
+                  disabled={sending}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-gold text-black hover:bg-gold/90 disabled:opacity-50 transition-all flex-shrink-0"
+                >
+                  {sending ? (
+                    <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                    </svg>
+                  ) : <Send size={11} />}
+                  {sending ? 'Sending…' : 'Send Gift'}
+                </button>
+              )}
             </div>
 
             {error && <p className="text-[10px] text-arc-error">{error}</p>}
