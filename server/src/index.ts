@@ -40,6 +40,7 @@ import configRoutes from './routes/config.js';
 import promotionCommandRoutes from './routes/promotionCommand.js';
 import aiPersonasRoutes, { aiPersonasAdminRouter } from './routes/aiPersonas.js';
 import goldAccountRoutes from './routes/goldAccount.js';
+import studioRoutes from './routes/studio.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 5051;
@@ -96,6 +97,7 @@ app.use('/api/admin/promotion', promotionCommandRoutes);
 app.use('/api/ai-personas', aiPersonasRoutes);
 app.use('/api/admin/ai-personas', aiPersonasAdminRouter);
 app.use('/api/gold', goldAccountRoutes);
+app.use('/api/studio', studioRoutes);
 
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', platform: 'Archangels Club API', build: 'v0.1.1' });

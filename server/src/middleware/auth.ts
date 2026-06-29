@@ -22,6 +22,16 @@ export function signToken(payload: AuthPayload): string {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
+/**
+ * Short-lived, synthetic token for the external live studio to *listen* to a
+ * room's gift broadcasts over Socket.IO. Not a real user — it can join/leave
+ * rooms and receive `gift:sent`, but cannot send gifts (that path requires an
+ * approved user). Expires quickly so a leaked token is low-risk.
+ */
+export function signStudioToken(roomId: string): string {
+  return jwt.sign({ userId: `studio:${roomId}`, role: 'studio' }, JWT_SECRET, { expiresIn: '2h' });
+}
+
 // Admin key brute-force guard: 5 attempts/minute/IP
 const _adminKeyAttempts = new Map<string, { count: number; resetAt: number }>();
 function isAdminKeyRateLimited(ip: string): boolean {
