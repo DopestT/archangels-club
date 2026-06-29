@@ -349,7 +349,7 @@ export default function ExplorePage() {
         <div className="relative max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 text-center">
           <div className="inline-flex items-center gap-2 members-pill mb-4 xl:mb-6">
             <Lock className="w-3 h-3" />
-            Private · Sealed · By Invitation
+            Private · Verified · Exclusive
           </div>
           <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl xl:text-7xl text-white mb-3 xl:mb-5">{t('explore.title')}</h1>
           <p className="text-arc-secondary max-w-md lg:max-w-xl mx-auto mb-7 text-sm lg:text-base">
@@ -377,7 +377,7 @@ export default function ExplorePage() {
             <SectionHeader
               icon={<TrendingUp className="w-4 h-4 text-gold" />}
               title="Trending Now"
-              sub="What members keep revealing"
+              sub="Most unlocked content this week"
             />
             <FeedStrip items={trendingContent} />
           </div>
@@ -390,8 +390,8 @@ export default function ExplorePage() {
           <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-12">
             <SectionHeader
               icon={<Lock className="w-4 h-4 text-gold" />}
-              title="The Vault"
-              sub="Sealed until you enter"
+              title="Locked Drops"
+              sub="Exclusive paid content — unlock instantly"
               count={lockedDrops.length}
             />
             <FeedStrip items={lockedDrops} />

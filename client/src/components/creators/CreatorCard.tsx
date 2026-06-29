@@ -14,17 +14,35 @@ export default function CreatorCard({ creator }: CreatorCardProps) {
   return (
     <Link to={`/creator/${creator.username}`} className="group block">
       <div className="card-surface overflow-hidden transition-all duration-300 group-hover:shadow-gold group-hover:-translate-y-0.5">
-        {/* Cover gradient */}
+        {/* Cover — the angel & their activity, seen behind frosted glass.
+            Their video if they have one; an ambient "screensaver" if not. */}
         <div className="h-28 relative overflow-hidden">
-          {creator.cover_image_url ? (
-            <img
-              src={creator.cover_image_url}
-              alt=""
-              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          {creator.preview_video_url ? (
+            <video
+              src={creator.preview_video_url}
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="absolute inset-0 w-full h-full object-cover"
+              style={{ filter: 'blur(9px) brightness(0.92)', transform: 'scale(1.18)' }}
             />
           ) : (
-            <div className="w-full h-full bg-gold-subtle" />
+            <div className="absolute inset-0 arc-screensaver" />
           )}
+
+          {/* Frosted-glass pane */}
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background:
+                'linear-gradient(135deg, rgba(255,255,255,0.10) 0%, rgba(255,255,255,0.03) 45%, rgba(10,10,15,0.20) 100%)',
+              backdropFilter: 'blur(3px)',
+              WebkitBackdropFilter: 'blur(3px)',
+            }}
+          />
+
           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-bg-surface" />
         </div>
 

@@ -46,14 +46,6 @@
   100% { opacity: 0; transform: translateY(-148px) scale(0.88); }
 }
 
-/* Locked-preview drift — slow Ken-Burns pan/zoom so obscured drops feel alive
-   (motion you can sense but can't read). GPU-cheap transform only. */
-@keyframes arcObscuredDrift {
-  0%   { transform: scale(1.06) translate(0%, 0%); }
-  50%  { transform: scale(1.12) translate(-1.5%, 1%); }
-  100% { transform: scale(1.06) translate(1.5%, -1%); }
-}
-
 @keyframes arcFeatureSpring {
   0%   { opacity: 0; transform: translateY(26px) scale(0.86); }
   40%  { opacity: 1; transform: translateY(-6px) scale(1.02); }
@@ -123,6 +115,14 @@
 
 @keyframes shimmer {
   100% { transform: translateX(100%); }
+}
+
+/* Ambient "screensaver" for creator cards with no video yet — a slow gold-tinted
+   light drifting behind the frosted glass. */
+@keyframes arcScreensaver {
+  0%   { background-position: 0%   50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0%   50%; }
 }
 
 @keyframes liveActionReveal {
@@ -220,6 +220,12 @@
     filter: blur(12px);
     pointer-events: none;
     user-select: none;
+  }
+
+  .arc-screensaver {
+    background: linear-gradient(120deg, #0c0b0e 0%, #1c1407 35%, #0a0a0e 60%, #241a08 100%);
+    background-size: 300% 300%;
+    animation: arcScreensaver 20s ease-in-out infinite;
   }
 
   .no-scrollbar {
