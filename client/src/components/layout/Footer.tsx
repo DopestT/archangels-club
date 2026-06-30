@@ -48,6 +48,7 @@ export default function Footer() {
             <h4 className="section-eyebrow mb-4">Legal</h4>
             <ul className="space-y-3">
               {[
+                { to: '/trust', label: 'Trust & Safety' },
                 { to: '/privacy', label: 'Privacy Policy' },
                 { to: '/terms', label: 'Terms of Service' },
                 { to: '/compliance', label: 'Compliance' },
