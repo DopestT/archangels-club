@@ -3,6 +3,14 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 
 const CONTENT: Record<string, { title: string; sections: { heading: string; body: string }[] }> = {
+  trust: {
+    title: 'Trust & Safety',
+    sections: [
+      { heading: 'Private by Design', body: 'Archangels Club is private by design. Creators are reviewed before they enter the platform, and 18+ access is required for adult spaces.' },
+      { heading: 'Safety, Not Surveillance', body: 'We use safety checks, payment safeguards, and moderation tools to protect creators, members, and the quality of the rooms — without turning the experience into a surveillance product.' },
+      { heading: 'Your Privacy Matters', body: 'Your privacy matters. Sensitive checks are handled only where required for safety, compliance, or payouts.' },
+    ],
+  },
   privacy: {
     title: 'Privacy Policy',
     sections: [

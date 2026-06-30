@@ -135,6 +135,7 @@ function AppRoutes() {
         <Route path="reset-password" element={<ResetPasswordPage />} />
         <Route path="payment/success" element={<PaymentSuccessPage />} />
         <Route path="verify-age/return" element={<AgeVerificationReturnPage />} />
+        <Route path="trust" element={<StaticPage page="trust" />} />
         <Route path="privacy" element={<StaticPage page="privacy" />} />
         <Route path="terms" element={<StaticPage page="terms" />} />
         <Route path="compliance" element={<StaticPage page="compliance" />} />
