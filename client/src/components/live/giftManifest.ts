@@ -29,6 +29,12 @@ export interface GiftManifestEntry {
   assetType: GiftAssetType;
   /** Path to the rich animation (.riv or .webm). Omitted for emoji-only gifts. */
   animationAsset?: string;
+  /**
+   * Safari-only transparent-video source (HEVC/H.265 with alpha, .mov/.mp4).
+   * Safari cannot play VP9+alpha WebM, so `webm` gifts should also ship an HEVC
+   * source here. Rendered as a second `<source>` ahead of the WebM. Optional.
+   */
+  animationAssetHevc?: string;
   /** Rive state-machine name to play. Convention: "GiftStateMachine". */
   riveStateMachine?: string;
   /** Audio synced to the animation (played on load or on a Rive "PlaySound" event). */
@@ -160,4 +166,19 @@ export function laneForGold(goldCost: number): GiftLane {
   if (goldCost >= 10000) return 'fullscreen';
   if (goldCost >= 500)   return 'feature';
   return 'micro';
+}
+
+/**
+ * Every rich asset URL declared in the manifest (rive / webm / hevc + sounds).
+ * Used to warm the browser/CDN cache so the first send of a premium gift plays
+ * instantly instead of streaming its bytes mid-animation. Emoji gifts add none.
+ */
+export function giftPreloadUrls(): string[] {
+  const urls: string[] = [];
+  for (const g of GIFT_MANIFEST) {
+    if (g.animationAsset)     urls.push(g.animationAsset);
+    if (g.animationAssetHevc) urls.push(g.animationAssetHevc);
+    if (g.soundAsset)         urls.push(g.soundAsset);
+  }
+  return urls;
 }
