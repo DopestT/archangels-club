@@ -62,17 +62,17 @@ const FULLSCREEN_MS = 7200;
  */
 export const GIFT_MANIFEST: GiftManifestEntry[] = [
   // ── Purchasable catalogue (emoji placeholders) ──────────────────────────────
-  { id: 'gold_rain',        name: 'Gold Rain',             priceGold: 100,   lane: 'micro',      tier: 'standard',  fallbackEmoji: '💛', assetType: 'emoji', durationMs: MICRO_MS,      comboEligible: true  },
-  { id: 'halo_drop',        name: 'Halo Drop',             priceGold: 250,   lane: 'micro',      tier: 'standard',  fallbackEmoji: '✨', assetType: 'emoji', durationMs: MICRO_MS,      comboEligible: true  },
-  { id: 'wings_open',       name: 'Wings Open',            priceGold: 500,   lane: 'feature',    tier: 'standard',  fallbackEmoji: '🪽', assetType: 'emoji', durationMs: FEATURE_MS,    comboEligible: false },
-  { id: 'crown_signal',     name: 'Crown Signal',          priceGold: 1000,  lane: 'feature',    tier: 'premium',   fallbackEmoji: '👑', assetType: 'emoji', durationMs: FEATURE_MS,    comboEligible: false },
-  { id: 'vault_key',        name: 'Vault Key',             priceGold: 2500,  lane: 'feature',    tier: 'premium',   fallbackEmoji: '🗝️', assetType: 'emoji', durationMs: FEATURE_MS,    comboEligible: false },
-  { id: 'private_tribute',  name: 'Private Tribute',       priceGold: 5000,  lane: 'feature',    tier: 'premium',   fallbackEmoji: '⭐', assetType: 'emoji', durationMs: FEATURE_MS,    comboEligible: false },
-  { id: 'room_blessing',    name: 'Room Blessing',         priceGold: 10000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🌟', assetType: 'emoji', durationMs: FULLSCREEN_MS, comboEligible: false },
-  { id: 'after_hours',      name: 'After-Hours Signal',    priceGold: 12000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🌙', assetType: 'emoji', durationMs: FULLSCREEN_MS, comboEligible: false },
-  { id: 'private_encore',   name: 'Private Encore Signal', priceGold: 15000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🎭', assetType: 'emoji', durationMs: FULLSCREEN_MS, comboEligible: false },
-  { id: 'vault_drop',       name: 'Vault Drop Signal',     priceGold: 20000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '💎', assetType: 'emoji', durationMs: FULLSCREEN_MS, comboEligible: false },
-  { id: 'creator_blessing', name: 'Creator Blessing',      priceGold: 25000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🔮', assetType: 'emoji', durationMs: FULLSCREEN_MS, comboEligible: false },
+  { id: 'gold_rain',        name: 'Gold Rain',             priceGold: 100,   lane: 'micro',      tier: 'standard',  fallbackEmoji: '💛', assetType: 'svg', animationAsset: '/gifts/svg/gold_rain.svg',        durationMs: MICRO_MS,      comboEligible: true  },
+  { id: 'halo_drop',        name: 'Halo Drop',             priceGold: 250,   lane: 'micro',      tier: 'standard',  fallbackEmoji: '✨', assetType: 'svg', animationAsset: '/gifts/svg/halo_drop.svg',        durationMs: MICRO_MS,      comboEligible: true  },
+  { id: 'wings_open',       name: 'Wings Open',            priceGold: 500,   lane: 'feature',    tier: 'standard',  fallbackEmoji: '🪽', assetType: 'svg', animationAsset: '/gifts/svg/wings_open.svg',       durationMs: FEATURE_MS,    comboEligible: false },
+  { id: 'crown_signal',     name: 'Crown Signal',          priceGold: 1000,  lane: 'feature',    tier: 'premium',   fallbackEmoji: '👑', assetType: 'svg', animationAsset: '/gifts/svg/crown_signal.svg',     durationMs: FEATURE_MS,    comboEligible: false },
+  { id: 'vault_key',        name: 'Vault Key',             priceGold: 2500,  lane: 'feature',    tier: 'premium',   fallbackEmoji: '🗝️', assetType: 'svg', animationAsset: '/gifts/svg/vault_key.svg',        durationMs: FEATURE_MS,    comboEligible: false },
+  { id: 'private_tribute',  name: 'Private Tribute',       priceGold: 5000,  lane: 'feature',    tier: 'premium',   fallbackEmoji: '⭐', assetType: 'svg', animationAsset: '/gifts/svg/private_tribute.svg',  durationMs: FEATURE_MS,    comboEligible: false },
+  { id: 'room_blessing',    name: 'Room Blessing',         priceGold: 10000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🌟', assetType: 'svg', animationAsset: '/gifts/svg/room_blessing.svg',    durationMs: FULLSCREEN_MS, comboEligible: false },
+  { id: 'after_hours',      name: 'After-Hours Signal',    priceGold: 12000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🌙', assetType: 'svg', animationAsset: '/gifts/svg/after_hours.svg',      durationMs: FULLSCREEN_MS, comboEligible: false },
+  { id: 'private_encore',   name: 'Private Encore Signal', priceGold: 15000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🎭', assetType: 'svg', animationAsset: '/gifts/svg/private_encore.svg',   durationMs: FULLSCREEN_MS, comboEligible: false },
+  { id: 'vault_drop',       name: 'Vault Drop Signal',     priceGold: 20000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '💎', assetType: 'svg', animationAsset: '/gifts/svg/vault_drop.svg',       durationMs: FULLSCREEN_MS, comboEligible: false },
+  { id: 'creator_blessing', name: 'Creator Blessing',      priceGold: 25000, lane: 'fullscreen', tier: 'legendary', fallbackEmoji: '🔮', assetType: 'svg', animationAsset: '/gifts/svg/creator_blessing.svg', durationMs: FULLSCREEN_MS, comboEligible: false },
 
   // ── First wave of premium / event Rive gifts ────────────────────────────────
   {

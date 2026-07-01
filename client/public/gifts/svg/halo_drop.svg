@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+<defs>
+<linearGradient id="hd_ring" x1="0%" y1="0%" x2="100%" y2="100%">
+<stop offset="0%" stop-color="#f0d060"/>
+<stop offset="45%" stop-color="#d4af37"/>
+<stop offset="100%" stop-color="#a8832a"/>
+</linearGradient>
+<radialGradient id="hd_aura" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#fff8e1" stop-opacity="0.55"/>
+<stop offset="55%" stop-color="#d4af37" stop-opacity="0.22"/>
+<stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
+</radialGradient>
+<radialGradient id="hd_spark" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#fff8e1"/>
+<stop offset="100%" stop-color="#f0d060" stop-opacity="0"/>
+</radialGradient>
+<filter id="hd_glow" x="-80%" y="-80%" width="260%" height="260%">
+<feGaussianBlur stdDeviation="2.6" result="b"/>
+<feMerge>
+<feMergeNode in="b"/>
+<feMergeNode in="SourceGraphic"/>
+</feMerge>
+</filter>
+</defs>
+<style>
+@keyframes descend {
+0% { transform: translateY(-26px); opacity: 0; }
+20% { opacity: 1; }
+50% { transform: translateY(6px); }
+80% { opacity: 1; }
+100% { transform: translateY(-26px); opacity: 0; }
+}
+@keyframes pulse {
+0%, 100% { transform: scale(1); opacity: 0.9; }
+50% { transform: scale(1.08); opacity: 1; }
+}
+@keyframes auraPulse {
+0%, 100% { opacity: 0.5; transform: scale(0.94); }
+50% { opacity: 1; transform: scale(1.12); }
+}
+@keyframes twinkle {
+0%, 100% { opacity: 0; transform: scale(0.4); }
+50% { opacity: 1; transform: scale(1); }
+}
+.stage { animation: descend 5s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.halo { animation: pulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.aura { animation: auraPulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+.sp { transform-box: fill-box; transform-origin: center; animation: twinkle 2s ease-in-out infinite; }
+.spb { animation-delay: 0.6s; } .spc { animation-delay: 1.2s; } .spd { animation-delay: 1.7s; }
+</style>
+<g class="stage">
+<circle class="aura" cx="120" cy="118" r="70" fill="url(#hd_aura)"/>
+<g class="halo" filter="url(#hd_glow)">
+<ellipse cx="120" cy="118" rx="58" ry="22" fill="none" stroke="url(#hd_ring)" stroke-width="9"/>
+<ellipse cx="120" cy="115" rx="58" ry="22" fill="none" stroke="#fff8e1" stroke-width="2" opacity="0.6"/>
+</g>
+<g filter="url(#hd_glow)">
+<circle class="sp" cx="58" cy="96" r="5" fill="url(#hd_spark)"/>
+<circle class="sp spb" cx="186" cy="104" r="6" fill="url(#hd_spark)"/>
+<circle class="sp spc" cx="150" cy="70" r="4" fill="url(#hd_spark)"/>
+<circle class="sp spd" cx="90" cy="66" r="4.5" fill="url(#hd_spark)"/>
+</g>
+</g>
+</svg>

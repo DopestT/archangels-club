@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="cbOrb" cx="42%" cy="38%" r="65%">
+      <stop offset="0%" stop-color="#fff8e1"/>
+      <stop offset="30%" stop-color="#f0d060"/>
+      <stop offset="65%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#a8832a"/>
+    </radialGradient>
+    <radialGradient id="cbAura" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f0d060" stop-opacity="0.6"/>
+      <stop offset="55%" stop-color="#d4af37" stop-opacity="0.22"/>
+      <stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cbEnergy" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff8e1" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#f0d060" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="cbSoft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="7"/>
+    </filter>
+    <filter id="cbSwirl" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3"/>
+    </filter>
+    <clipPath id="cbClip">
+      <circle cx="120" cy="120" r="58"/>
+    </clipPath>
+  </defs>
+  <style>
+    .cb-aura { transform-origin:120px 120px; animation:cbPulse 7s ease-in-out infinite; }
+    .cb-swirl { transform-origin:120px 120px; animation:cbSpin 12s linear infinite; }
+    .cb-swirl2 { transform-origin:120px 120px; animation:cbSpin 9s linear infinite reverse; }
+    .cb-core { transform-origin:120px 120px; animation:cbCore 5s ease-in-out infinite; }
+    .cb-orbit { transform-origin:120px 120px; }
+    .cb-o1 { animation:cbSpin 8s linear infinite; }
+    .cb-o2 { animation:cbSpin 11s linear infinite reverse; }
+    .cb-o3 { animation:cbSpin 14s linear infinite; }
+    .cb-p { animation:cbTwinkle 3s ease-in-out infinite; transform-origin:center; }
+    .cb-shine { transform-origin:120px 120px; animation:cbShine 7s ease-in-out infinite; }
+    @keyframes cbPulse { 0%,100% { opacity:0.6; transform:scale(1); } 50% { opacity:1; transform:scale(1.14); } }
+    @keyframes cbSpin { to { transform:rotate(360deg); } }
+    @keyframes cbCore { 0%,100% { transform:scale(0.9); opacity:0.7; } 50% { transform:scale(1.15); opacity:1; } }
+    @keyframes cbTwinkle { 0%,100% { opacity:0.3; } 50% { opacity:1; } }
+    @keyframes cbShine { 0%,100% { opacity:0.4; } 50% { opacity:0.95; } }
+  </style>
+
+  <circle class="cb-aura" cx="120" cy="120" r="98" fill="url(#cbAura)" filter="url(#cbSoft)"/>
+
+  <circle cx="120" cy="120" r="60" fill="url(#cbOrb)"/>
+
+  <g clip-path="url(#cbClip)">
+    <g class="cb-swirl" filter="url(#cbSwirl)" opacity="0.85">
+      <path d="M120 120 C90 80 150 70 150 110 C150 150 80 150 80 110" fill="none" stroke="#fff8e1" stroke-width="6" stroke-linecap="round"/>
+      <path d="M120 120 C160 160 90 172 90 130" fill="none" stroke="#f0d060" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <g class="cb-swirl2" filter="url(#cbSwirl)" opacity="0.7">
+      <path d="M120 120 C150 150 70 160 82 108 C90 78 158 92 150 130" fill="none" stroke="#fff8e1" stroke-width="4" stroke-linecap="round"/>
+    </g>
+    <circle class="cb-core" cx="120" cy="120" r="26" fill="url(#cbEnergy)"/>
+  </g>
+
+  <ellipse cx="104" cy="100" rx="18" ry="11" fill="#fff8e1" opacity="0.55" filter="url(#cbSwirl)"/>
+  <circle class="cb-shine" cx="120" cy="120" r="60" fill="none" stroke="#fff8e1" stroke-width="1.6" opacity="0.6"/>
+
+  <g class="cb-orbit cb-o1"><circle class="cb-p" cx="120" cy="42" r="4" fill="#fff8e1"/></g>
+  <g class="cb-orbit cb-o1" style="animation-delay:-4s"><circle class="cb-p" cx="120" cy="198" r="3.2" fill="#f0d060" style="animation-delay:1s"/></g>
+  <g class="cb-orbit cb-o2"><circle class="cb-p" cx="34" cy="120" r="3.6" fill="#fff8e1" style="animation-delay:0.6s"/></g>
+  <g class="cb-orbit cb-o2" style="animation-delay:-5.5s"><circle class="cb-p" cx="206" cy="120" r="3" fill="#f0d060" style="animation-delay:1.4s"/></g>
+  <g class="cb-orbit cb-o3"><circle class="cb-p" cx="120" cy="24" r="2.6" fill="#fff8e1" style="animation-delay:2s"/></g>
+  <g class="cb-orbit cb-o3" style="animation-delay:-7s"><circle class="cb-p" cx="120" cy="216" r="2.8" fill="#fff8e1" style="animation-delay:0.3s"/></g>
+</svg>

@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+<defs>
+<radialGradient id="pt_star" cx="50%" cy="42%" r="62%">
+<stop offset="0%" stop-color="#fff8e1"/>
+<stop offset="35%" stop-color="#f0d060"/>
+<stop offset="72%" stop-color="#d4af37"/>
+<stop offset="100%" stop-color="#a8832a"/>
+</radialGradient>
+<radialGradient id="pt_glow" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#fff8e1" stop-opacity="0.6"/>
+<stop offset="45%" stop-color="#f0d060" stop-opacity="0.28"/>
+<stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
+</radialGradient>
+<linearGradient id="pt_ray" x1="0%" y1="0%" x2="0%" y2="100%">
+<stop offset="0%" stop-color="#fff8e1" stop-opacity="0.85"/>
+<stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
+</linearGradient>
+<filter id="pt_soft" x="-100%" y="-100%" width="300%" height="300%">
+<feGaussianBlur stdDeviation="3" result="b"/>
+<feMerge>
+<feMergeNode in="b"/>
+<feMergeNode in="SourceGraphic"/>
+</feMerge>
+</filter>
+</defs>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes starPulse {
+0%, 100% { transform: scale(0.92); }
+50% { transform: scale(1.06); }
+}
+@keyframes glowPulse {
+0%, 100% { opacity: 0.55; transform: scale(0.9); }
+50% { opacity: 1; transform: scale(1.15); }
+}
+.rays { transform-origin: 120px 120px; animation: spin 12s linear infinite; }
+.star { transform-box: fill-box; transform-origin: center; animation: starPulse 2.6s ease-in-out infinite; }
+.glow { transform-box: fill-box; transform-origin: center; animation: glowPulse 2.6s ease-in-out infinite; }
+</style>
+<circle class="glow" cx="120" cy="120" r="80" fill="url(#pt_glow)"/>
+<g class="rays" opacity="0.75">
+<g fill="url(#pt_ray)">
+<path d="M120 120 L114 24 L126 24 Z"/>
+<path d="M120 120 L114 216 L126 216 Z" transform="rotate(180 120 120)" fill="url(#pt_ray)"/>
+<path d="M120 120 L114 24 L126 24 Z" transform="rotate(45 120 120)"/>
+<path d="M120 120 L114 24 L126 24 Z" transform="rotate(90 120 120)"/>
+<path d="M120 120 L114 24 L126 24 Z" transform="rotate(135 120 120)"/>
+<path d="M120 120 L114 24 L126 24 Z" transform="rotate(225 120 120)"/>
+<path d="M120 120 L114 24 L126 24 Z" transform="rotate(270 120 120)"/>
+<path d="M120 120 L114 24 L126 24 Z" transform="rotate(315 120 120)"/>
+</g>
+</g>
+<g class="star" filter="url(#pt_soft)">
+<path d="M120 66 L134.6 106.2 L177.4 108.1 L143.6 134.4 L155.1 175.7 L120 151.4 L84.9 175.7 L96.4 134.4 L62.6 108.1 L105.4 106.2 Z" fill="url(#pt_star)" stroke="#a8832a" stroke-width="1.2"/>
+<path d="M120 66 L134.6 106.2 L177.4 108.1 L143.6 134.4 L120 118 Z" fill="#fff8e1" opacity="0.35"/>
+</g>
+</svg>
