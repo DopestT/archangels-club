@@ -662,6 +662,24 @@ function WebmVisual({
   );
 }
 
+// Animated SVG gifts render as an <img>; the SVG's own CSS @keyframes play in
+// that context. A missing/broken file triggers onError → emoji fallback.
+function SvgVisual({
+  src, emoji, size, onError,
+}: { src: string; emoji: string; size: number; onError: () => void }) {
+  return (
+    <img
+      src={src}
+      width={size}
+      height={size}
+      onError={onError}
+      style={{ width: size, height: size, objectFit: 'contain' }}
+      alt=""
+      aria-hidden
+    />
+  );
+}
+
 function GiftVisual({
   visual,
   size,
@@ -699,6 +717,17 @@ function GiftVisual({
       <WebmVisual
         src={visual.animationAsset}
         hevcSrc={visual.animationAssetHevc}
+        emoji={visual.emoji}
+        size={size}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+
+  if (visual.assetType === 'svg' && visual.animationAsset) {
+    return (
+      <SvgVisual
+        src={visual.animationAsset}
         emoji={visual.emoji}
         size={size}
         onError={() => setFailed(true)}

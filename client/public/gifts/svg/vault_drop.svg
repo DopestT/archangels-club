@@ -1,0 +1,121 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="vd_glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff8e1" stop-opacity="0.95"/>
+      <stop offset="0.35" stop-color="#eaf6ff" stop-opacity="0.55"/>
+      <stop offset="0.7" stop-color="#f0d060" stop-opacity="0.3"/>
+      <stop offset="1" stop-color="#d4af37" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="vd_gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0d060"/>
+      <stop offset="0.5" stop-color="#d4af37"/>
+      <stop offset="1" stop-color="#a8832a"/>
+    </linearGradient>
+    <linearGradient id="vd_crown" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff8e1"/>
+      <stop offset="0.5" stop-color="#eaf6ff"/>
+      <stop offset="1" stop-color="#d4af37"/>
+    </linearGradient>
+    <linearGradient id="vd_faceA" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#eaf6ff"/>
+      <stop offset="1" stop-color="#d4af37"/>
+    </linearGradient>
+    <linearGradient id="vd_faceB" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff8e1"/>
+      <stop offset="1" stop-color="#a8832a"/>
+    </linearGradient>
+    <linearGradient id="vd_faceC" x1="0" y1="0" x2="0.6" y2="1">
+      <stop offset="0" stop-color="#f0d060"/>
+      <stop offset="1" stop-color="#eaf6ff"/>
+    </linearGradient>
+    <clipPath id="vd_clip">
+      <polygon points="120,58 168,96 120,182 72,96"/>
+    </clipPath>
+    <filter id="vd_soft" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2"/>
+    </filter>
+    <filter id="vd_blur8" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="8"/>
+    </filter>
+    <style>
+      .vd_glowpulse { transform-box: fill-box; transform-origin: 50% 50%; animation: vdGlow 3.4s ease-in-out infinite; }
+      @keyframes vdGlow {
+        0%,100% { transform: scale(0.85); opacity: 0.55; }
+        50%     { transform: scale(1.15); opacity: 1; }
+      }
+      .vd_gem { transform-box: fill-box; transform-origin: 50% 50%; animation: vdGem 7s ease-in-out infinite; }
+      @keyframes vdGem {
+        0%,100% { transform: translateY(0) scale(1); }
+        50%     { transform: translateY(-4px) scale(1.03); }
+      }
+      .vd_shine { animation: vdShine 3.2s linear infinite; }
+      @keyframes vdShine {
+        0%   { transform: translateX(-90px) rotate(20deg); opacity: 0; }
+        25%  { opacity: 0.95; }
+        60%  { opacity: 0.95; }
+        100% { transform: translateX(90px) rotate(20deg); opacity: 0; }
+      }
+      .vd_glint { transform-box: fill-box; transform-origin: 50% 50%; animation: vdGlint 2.4s ease-in-out infinite; }
+      @keyframes vdGlint {
+        0%,100% { transform: scale(0.2) rotate(0deg); opacity: 0; }
+        50%     { transform: scale(1) rotate(45deg); opacity: 1; }
+      }
+      .vd_fall { animation: vdFall 7s linear infinite; }
+      @keyframes vdFall {
+        0%   { transform: translateY(-30px); opacity: 0; }
+        15%  { opacity: 1; }
+        85%  { opacity: 1; }
+        100% { transform: translateY(210px); opacity: 0; }
+      }
+      .vd_spk { transform-box: fill-box; transform-origin: 50% 50%; animation: vdSpk 2.8s ease-in-out infinite; }
+      @keyframes vdSpk {
+        0%,100% { transform: scale(0.2); opacity: 0; }
+        50%     { transform: scale(1); opacity: 1; }
+      }
+      .d0 { animation-delay: 0s; } .d1 { animation-delay: .6s; } .d2 { animation-delay: 1.2s; }
+      .d3 { animation-delay: 1.8s; } .d4 { animation-delay: 2.4s; } .d5 { animation-delay: 3s; }
+      .d6 { animation-delay: 3.6s; } .d7 { animation-delay: 4.2s; }
+    </style>
+  </defs>
+
+  <!-- pulsing radial glow -->
+  <circle class="vd_glowpulse" cx="120" cy="120" r="100" fill="url(#vd_glow)" filter="url(#vd_blur8)"/>
+
+  <!-- faceted diamond -->
+  <g class="vd_gem">
+    <!-- crown table -->
+    <polygon points="88,96 152,96 168,96 120,58 72,96" fill="url(#vd_crown)" stroke="#a8832a" stroke-width="1"/>
+    <!-- pavilion facets -->
+    <polygon points="72,96 120,96 120,182" fill="url(#vd_faceB)" stroke="#a8832a" stroke-width="1"/>
+    <polygon points="168,96 120,96 120,182" fill="url(#vd_faceA)" stroke="#a8832a" stroke-width="1"/>
+    <!-- crown facets -->
+    <polygon points="72,96 120,58 120,96" fill="url(#vd_faceC)" stroke="#a8832a" stroke-width="0.8"/>
+    <polygon points="168,96 120,58 120,96" fill="url(#vd_faceA)" stroke="#a8832a" stroke-width="0.8"/>
+    <polygon points="88,96 120,58 72,96" fill="url(#vd_faceA)" opacity="0.7" stroke="#a8832a" stroke-width="0.6"/>
+    <polygon points="152,96 120,58 168,96" fill="url(#vd_faceB)" opacity="0.7" stroke="#a8832a" stroke-width="0.6"/>
+    <!-- inner pavilion shading -->
+    <polygon points="72,96 168,96 120,150" fill="#eaf6ff" opacity="0.28"/>
+
+    <!-- sweeping shine across facets -->
+    <g clip-path="url(#vd_clip)">
+      <rect class="vd_shine" x="98" y="40" width="24" height="160" fill="#fff8e1" opacity="0.85" filter="url(#vd_soft)"/>
+    </g>
+
+    <!-- glints on facets -->
+    <path class="vd_glint d1" d="M 100 88 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 l 6 -2 Z" fill="#fff8e1"/>
+    <path class="vd_glint d3" d="M 140 110 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 l 6 -2 Z" fill="#eaf6ff"/>
+    <path class="vd_glint d5" d="M 120 74 l 1.6 5 l 5 1.6 l -5 1.6 l -1.6 5 l -1.6 -5 l -5 -1.6 l 5 -1.6 Z" fill="#fff8e1"/>
+  </g>
+
+  <!-- raining sparkles (gold + diamond-white) -->
+  <g>
+    <g class="vd_fall d0"><path class="vd_spk d0" d="M 46 20 l 2.5 7 l 7 2.5 l -7 2.5 l -2.5 7 l -2.5 -7 l -7 -2.5 l 7 -2.5 Z" fill="#f0d060"/></g>
+    <g class="vd_fall d2"><path class="vd_spk d2" d="M 196 20 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 l 6 -2 Z" fill="#eaf6ff"/></g>
+    <g class="vd_fall d4"><path class="vd_spk d4" d="M 30 20 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 l 6 -2 Z" fill="#fff8e1"/></g>
+    <g class="vd_fall d1"><path class="vd_spk d1" d="M 214 20 l 2.5 7 l 7 2.5 l -7 2.5 l -2.5 7 l -2.5 -7 l -7 -2.5 l 7 -2.5 Z" fill="#d4af37"/></g>
+    <g class="vd_fall d3"><path class="vd_spk d3" d="M 68 20 l 1.8 5 l 5 1.8 l -5 1.8 l -1.8 5 l -1.8 -5 l -5 -1.8 l 5 -1.8 Z" fill="#eaf6ff"/></g>
+    <g class="vd_fall d5"><path class="vd_spk d5" d="M 176 20 l 1.8 5 l 5 1.8 l -5 1.8 l -1.8 5 l -1.8 -5 l -5 -1.8 l 5 -1.8 Z" fill="#f0d060"/></g>
+    <g class="vd_fall d6"><path class="vd_spk d6" d="M 108 20 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 l 6 -2 Z" fill="#fff8e1"/></g>
+    <g class="vd_fall d7"><path class="vd_spk d7" d="M 132 20 l 1.8 5 l 5 1.8 l -5 1.8 l -1.8 5 l -1.8 -5 l -5 -1.8 l 5 -1.8 Z" fill="#eaf6ff"/></g>
+  </g>
+</svg>

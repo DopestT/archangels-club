@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+<defs>
+<radialGradient id="gr_coin" cx="38%" cy="34%" r="70%">
+<stop offset="0%" stop-color="#fff8e1"/>
+<stop offset="30%" stop-color="#f0d060"/>
+<stop offset="70%" stop-color="#d4af37"/>
+<stop offset="100%" stop-color="#a8832a"/>
+</radialGradient>
+<radialGradient id="gr_spark" cx="50%" cy="50%" r="50%">
+<stop offset="0%" stop-color="#fff8e1"/>
+<stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
+</radialGradient>
+<filter id="gr_glow" x="-60%" y="-60%" width="220%" height="220%">
+<feGaussianBlur stdDeviation="2.4" result="b"/>
+<feMerge>
+<feMergeNode in="b"/>
+<feMergeNode in="SourceGraphic"/>
+</feMerge>
+</filter>
+</defs>
+<style>
+@keyframes fall {
+0% { transform: translateY(-40px); opacity: 0; }
+10% { opacity: 1; }
+88% { opacity: 1; }
+100% { transform: translateY(280px); opacity: 0; }
+}
+@keyframes shimmer {
+0%, 100% { transform: scaleX(1); }
+50% { transform: scaleX(0.55); }
+}
+.drop { animation: fall 3.6s linear infinite; }
+.coin { transform-box: fill-box; transform-origin: center; animation: shimmer 1.1s ease-in-out infinite; }
+.d1 { animation-delay: 0s; } .d2 { animation-delay: 1.2s; }
+.d3 { animation-delay: 0.5s; } .d4 { animation-delay: 2.1s; }
+.d5 { animation-delay: 1.7s; } .d6 { animation-delay: 2.7s; }
+.d7 { animation-delay: 0.9s; }
+.s2 { animation-duration: 1.4s; } .s3 { animation-duration: 0.9s; }
+.s4 { animation-duration: 1.25s; } .s5 { animation-duration: 1.05s; }
+</style>
+<g filter="url(#gr_glow)">
+<g class="drop d1" style="--x:0"><g transform="translate(40,0)"><ellipse class="coin" cx="0" cy="0" rx="9" ry="11" fill="url(#gr_coin)"/><ellipse cx="-2.5" cy="-3" rx="2.6" ry="3.4" fill="#fff8e1" opacity="0.7"/></g></g>
+<g class="drop d2"><g transform="translate(78,0)"><ellipse class="coin s2" cx="0" cy="0" rx="7" ry="9" fill="url(#gr_coin)"/><ellipse cx="-2" cy="-2.4" rx="2" ry="2.6" fill="#fff8e1" opacity="0.7"/></g></g>
+<g class="drop d3"><g transform="translate(112,0)"><ellipse class="coin s3" cx="0" cy="0" rx="10" ry="12" fill="url(#gr_coin)"/><ellipse cx="-3" cy="-3.4" rx="2.8" ry="3.6" fill="#fff8e1" opacity="0.7"/></g></g>
+<g class="drop d4"><g transform="translate(150,0)"><ellipse class="coin s4" cx="0" cy="0" rx="7.5" ry="9.5" fill="url(#gr_coin)"/><ellipse cx="-2.2" cy="-2.6" rx="2.1" ry="2.8" fill="#fff8e1" opacity="0.7"/></g></g>
+<g class="drop d5"><g transform="translate(190,0)"><ellipse class="coin s5" cx="0" cy="0" rx="8.5" ry="10.5" fill="url(#gr_coin)"/><ellipse cx="-2.4" cy="-3" rx="2.4" ry="3.1" fill="#fff8e1" opacity="0.7"/></g></g>
+<g class="drop d6"><g transform="translate(60,0)"><ellipse class="coin s2" cx="0" cy="0" rx="6.5" ry="8.5" fill="url(#gr_coin)"/><ellipse cx="-1.9" cy="-2.3" rx="1.9" ry="2.5" fill="#fff8e1" opacity="0.7"/></g></g>
+<g class="drop d7"><g transform="translate(168,0)"><ellipse class="coin s3" cx="0" cy="0" rx="9" ry="11" fill="url(#gr_coin)"/><ellipse cx="-2.6" cy="-3.2" rx="2.6" ry="3.4" fill="#fff8e1" opacity="0.7"/></g></g>
+</g>
+</svg>

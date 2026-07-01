@@ -1,0 +1,111 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <linearGradient id="pe_gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f0d060"/>
+      <stop offset="0.5" stop-color="#d4af37"/>
+      <stop offset="1" stop-color="#a8832a"/>
+    </linearGradient>
+    <linearGradient id="pe_cone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fff8e1" stop-opacity="0.85"/>
+      <stop offset="0.55" stop-color="#f0d060" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#d4af37" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="pe_glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#fff8e1" stop-opacity="0.9"/>
+      <stop offset="0.4" stop-color="#f0d060" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#d4af37" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="pe_curtain" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#a8832a"/>
+      <stop offset="0.5" stop-color="#f0d060"/>
+      <stop offset="1" stop-color="#a8832a"/>
+    </linearGradient>
+    <filter id="pe_soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
+    <filter id="pe_blur6" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+    <style>
+      .pe_sweep { transform-box: fill-box; transform-origin: 50% 0%; animation: peSweep 7s ease-in-out infinite; }
+      @keyframes peSweep {
+        0%   { transform: rotate(-24deg); opacity: 0.55; }
+        50%  { transform: rotate(24deg);  opacity: 1; }
+        100% { transform: rotate(-24deg); opacity: 0.55; }
+      }
+      .pe_glowpulse { transform-box: fill-box; transform-origin: 50% 50%; animation: peGlow 3.5s ease-in-out infinite; }
+      @keyframes peGlow {
+        0%,100% { transform: scale(0.9); opacity: 0.5; }
+        50%     { transform: scale(1.12); opacity: 0.95; }
+      }
+      .pe_shimmer { animation: peShim 7s linear infinite; }
+      @keyframes peShim {
+        0%   { transform: translateX(-140px); opacity: 0; }
+        20%  { opacity: 0.9; }
+        60%  { opacity: 0.9; }
+        100% { transform: translateX(140px); opacity: 0; }
+      }
+      .pe_bow { transform-box: fill-box; transform-origin: 50% 100%; animation: peBow 7s ease-in-out infinite; }
+      @keyframes peBow {
+        0%,70%,100% { transform: translateY(0) rotate(0deg); }
+        80%,90%     { transform: translateY(6px) rotate(0deg); }
+      }
+      .pe_spk { transform-box: fill-box; transform-origin: 50% 50%; animation: peSpk 2.6s ease-in-out infinite; }
+      @keyframes peSpk {
+        0%,100% { transform: scale(0.2); opacity: 0; }
+        50%     { transform: scale(1); opacity: 1; }
+      }
+      .pe_d1 { animation-delay: 0s; }
+      .pe_d2 { animation-delay: 0.5s; }
+      .pe_d3 { animation-delay: 1s; }
+      .pe_d4 { animation-delay: 1.5s; }
+      .pe_d5 { animation-delay: 2s; }
+    </style>
+  </defs>
+
+  <!-- radial stage glow -->
+  <ellipse class="pe_glowpulse" cx="120" cy="150" rx="95" ry="70" fill="url(#pe_glow)" filter="url(#pe_blur6)"/>
+
+  <!-- sweeping spotlight cone from top -->
+  <g class="pe_sweep">
+    <polygon points="120,6 96,222 144,222" fill="url(#pe_cone)" filter="url(#pe_soft)"/>
+    <circle cx="120" cy="10" r="9" fill="url(#pe_gold)"/>
+    <circle cx="120" cy="10" r="4" fill="#fff8e1"/>
+  </g>
+
+  <!-- curtain shimmer bands (top) -->
+  <g opacity="0.5">
+    <rect x="0" y="0" width="240" height="26" fill="url(#pe_curtain)"/>
+    <g clip-path="none">
+      <rect class="pe_shimmer" x="-30" y="0" width="30" height="26" fill="#fff8e1" opacity="0.5" filter="url(#pe_soft)"/>
+    </g>
+  </g>
+
+  <!-- refined comedy/tragedy masks in gold, taking a bow -->
+  <g class="pe_bow">
+    <!-- comedy mask (left, smiling) -->
+    <g transform="translate(90,158)">
+      <path d="M -26 -30 C -30 -6 -26 30 0 34 C 26 30 30 -6 26 -30 C 14 -38 -14 -38 -26 -30 Z" fill="url(#pe_gold)" stroke="#a8832a" stroke-width="1.5"/>
+      <ellipse cx="-11" cy="-8" rx="4.5" ry="3" fill="#1a1202"/>
+      <ellipse cx="11" cy="-8" rx="4.5" ry="3" fill="#1a1202"/>
+      <path d="M -12 12 Q 0 24 12 12" fill="none" stroke="#1a1202" stroke-width="2.4" stroke-linecap="round"/>
+    </g>
+    <!-- tragedy mask (right, frowning) -->
+    <g transform="translate(150,158)">
+      <path d="M -26 -30 C -30 -6 -26 30 0 34 C 26 30 30 -6 26 -30 C 14 -38 -14 -38 -26 -30 Z" fill="url(#pe_gold)" stroke="#a8832a" stroke-width="1.5"/>
+      <ellipse cx="-11" cy="-8" rx="4.5" ry="3" fill="#1a1202"/>
+      <ellipse cx="11" cy="-8" rx="4.5" ry="3" fill="#1a1202"/>
+      <path d="M -12 20 Q 0 8 12 20" fill="none" stroke="#1a1202" stroke-width="2.4" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- sparkles -->
+  <g fill="#fff8e1">
+    <path class="pe_spk pe_d1" d="M 60 70 l 3 8 l 8 3 l -8 3 l -3 8 l -3 -8 l -8 -3 l 8 -3 Z"/>
+    <path class="pe_spk pe_d2" d="M 186 60 l 2.5 7 l 7 2.5 l -7 2.5 l -2.5 7 l -2.5 -7 l -7 -2.5 l 7 -2.5 Z"/>
+    <path class="pe_spk pe_d3" d="M 40 130 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 l 6 -2 Z"/>
+    <path class="pe_spk pe_d4" d="M 206 128 l 2.5 7 l 7 2.5 l -7 2.5 l -2.5 7 l -2.5 -7 l -7 -2.5 l 7 -2.5 Z"/>
+    <path class="pe_spk pe_d5" d="M 120 200 l 2 6 l 6 2 l -6 2 l -2 6 l -2 -6 l -6 -2 l 6 -2 Z"/>
+    <path class="pe_spk pe_d2" d="M 150 44 l 2 5 l 5 2 l -5 2 l -2 5 l -2 -5 l -5 -2 l 5 -2 Z"/>
+  </g>
+</svg>

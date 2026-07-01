@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
+  <defs>
+    <radialGradient id="rbCore" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fff8e1"/>
+      <stop offset="35%" stop-color="#f0d060"/>
+      <stop offset="70%" stop-color="#d4af37"/>
+      <stop offset="100%" stop-color="#a8832a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="rbGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f0d060" stop-opacity="0.55"/>
+      <stop offset="60%" stop-color="#d4af37" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#d4af37" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="rbRay" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fff8e1"/>
+      <stop offset="50%" stop-color="#f0d060"/>
+      <stop offset="100%" stop-color="#a8832a" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="rbBlur" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.2"/>
+    </filter>
+    <filter id="rbSoft" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="6"/>
+    </filter>
+  </defs>
+  <style>
+    .rb-spin { transform-origin:120px 120px; animation:rbSpin 24s linear infinite; }
+    .rb-spin2 { transform-origin:120px 120px; animation:rbSpin 30s linear infinite reverse; }
+    .rb-pulse { transform-origin:120px 120px; animation:rbPulse 7s ease-in-out infinite; }
+    .rb-halo { transform-origin:120px 120px; animation:rbHalo 7s ease-in-out infinite; }
+    .rb-ring { transform-origin:120px 120px; fill:none; stroke:#f0d060; stroke-width:2; opacity:0; animation:rbRing 7s ease-out infinite; }
+    .rb-ring2 { animation-delay:2.33s; }
+    .rb-ring3 { animation-delay:4.66s; }
+    .rb-spk { transform-origin:center; animation:rbSpk 5s ease-in-out infinite; }
+    @keyframes rbSpin { to { transform:rotate(360deg); } }
+    @keyframes rbPulse { 0%,100% { transform:scale(0.94); } 50% { transform:scale(1.08); } }
+    @keyframes rbHalo { 0%,100% { opacity:0.35; transform:scale(1); } 50% { opacity:0.7; transform:scale(1.15); } }
+    @keyframes rbRing { 0% { transform:scale(0.2); opacity:0.9; } 100% { transform:scale(2.6); opacity:0; } }
+    @keyframes rbSpk { 0%,100% { opacity:0.2; transform:scale(0.6); } 50% { opacity:1; transform:scale(1.2); } }
+  </style>
+
+  <circle class="rb-halo" cx="120" cy="120" r="110" fill="url(#rbGlow)" filter="url(#rbSoft)"/>
+
+  <circle class="rb-ring" cx="120" cy="120" r="40"/>
+  <circle class="rb-ring rb-ring2" cx="120" cy="120" r="40"/>
+  <circle class="rb-ring rb-ring3" cx="120" cy="120" r="40"/>
+
+  <g class="rb-spin" filter="url(#rbBlur)">
+    <g fill="url(#rbRay)">
+      <path d="M120 120 L114 8 L126 8 Z"/>
+      <path d="M120 120 L232 114 L232 126 Z"/>
+      <path d="M120 120 L114 232 L126 232 Z"/>
+      <path d="M120 120 L8 114 L8 126 Z"/>
+      <path d="M120 120 L36 30 L48 22 Z"/>
+      <path d="M120 120 L210 36 L218 48 Z"/>
+      <path d="M120 120 L204 210 L192 218 Z"/>
+      <path d="M120 120 L30 204 L22 192 Z"/>
+    </g>
+  </g>
+  <g class="rb-spin2" filter="url(#rbBlur)" opacity="0.8">
+    <g fill="url(#rbRay)">
+      <path d="M120 120 L76 24 L86 20 Z"/>
+      <path d="M120 120 L216 76 L220 86 Z"/>
+      <path d="M120 120 L164 216 L154 220 Z"/>
+      <path d="M120 120 L24 164 L20 154 Z"/>
+    </g>
+  </g>
+
+  <circle class="rb-pulse" cx="120" cy="120" r="46" fill="url(#rbCore)"/>
+  <circle class="rb-pulse" cx="120" cy="120" r="16" fill="#fff8e1" filter="url(#rbBlur)"/>
+
+  <g fill="#fff8e1">
+    <circle class="rb-spk" cx="52" cy="60" r="3" style="animation-delay:0s"/>
+    <circle class="rb-spk" cx="190" cy="52" r="2.4" style="animation-delay:0.6s"/>
+    <circle class="rb-spk" cx="206" cy="150" r="3.2" style="animation-delay:1.2s"/>
+    <circle class="rb-spk" cx="150" cy="204" r="2.6" style="animation-delay:1.8s"/>
+    <circle class="rb-spk" cx="48" cy="176" r="3" style="animation-delay:2.4s"/>
+    <circle class="rb-spk" cx="34" cy="110" r="2.2" style="animation-delay:3s"/>
+    <circle class="rb-spk" cx="120" cy="30" r="2.8" style="animation-delay:3.6s"/>
+    <circle class="rb-spk" cx="80" cy="200" r="2.4" style="animation-delay:4.2s"/>
+    <circle class="rb-spk" cx="200" cy="96" r="2.6" style="animation-delay:0.9s"/>
+    <circle class="rb-spk" cx="66" cy="40" r="2.2" style="animation-delay:2.1s"/>
+  </g>
+</svg>
