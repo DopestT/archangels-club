@@ -39,6 +39,20 @@
 
 /* ── Gift Animation Engine keyframes ─────────────────────────────────────────── */
 
+/* Reduced-motion fallbacks — gifts still appear, but fade in place with no
+   translation, scale, or particle motion. */
+@keyframes arcMicroFade {
+  0%   { opacity: 0; }
+  12%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+@keyframes arcFeatureFade {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+
 @keyframes arcMicroFloat {
   0%   { opacity: 0; transform: translateY(0) scale(0.72); }
   12%  { opacity: 1; transform: translateY(-22px) scale(1); }

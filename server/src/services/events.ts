@@ -17,7 +17,8 @@ export type EventType =
   | 'signup'
   | 'apply_creator'
   | 'publish_content'
-  | 'page_view';
+  | 'page_view'
+  | 'gift_shown';
 
 interface LogEventOpts {
   userId?: string | null;

@@ -3,6 +3,8 @@ import React, {
   useImperativeHandle, forwardRef, Suspense,
 } from 'react';
 import { getGiftDef, laneForGold, type GiftAssetType } from './giftManifest';
+import { logEvent } from '../../lib/logEvent';
+import { preloadGiftAssets } from '../../lib/giftPreload';
 
 // Rive runtime is loaded lazily — emoji gifts never pull in the Rive WASM chunk.
 const RiveGiftRenderer = React.lazy(() => import('./RiveGiftRenderer'));
@@ -81,8 +83,27 @@ interface GiftVisualSpec {
   emoji: string;
   assetType: GiftAssetType;
   animationAsset?: string;
+  animationAssetHevc?: string;
   riveStateMachine?: string;
   soundAsset?: string;
+}
+
+// ── Reduced-motion ──────────────────────────────────────────────────────────────
+// Respect the OS "reduce motion" setting: gifts still appear (members must see
+// what was sent) but heavy particle rain and spring/scale animations are dropped.
+function useReducedMotion(): boolean {
+  const [reduced, setReduced] = useState(
+    () => typeof window !== 'undefined'
+      && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => setReduced(mq.matches);
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
+  return Boolean(reduced);
 }
 
 interface ActiveMicro {
@@ -148,6 +169,10 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
 
     const comboTimerRef     = useRef<ReturnType<typeof setTimeout> | null>(null);
     const microXIndexRef    = useRef(0);
+    const reducedMotion     = useReducedMotion();
+
+    // ── Warm the CDN/browser cache for rich gift assets once, on mount
+    useEffect(() => { preloadGiftAssets(); }, []);
 
     // ── Drain fullscreen queue when slot is free
     useEffect(() => {
@@ -197,11 +222,24 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
       // emoji otherwise. RiveGiftRenderer falls back to emoji if the asset 404s.
       const visual: GiftVisualSpec = {
         emoji,
-        assetType:        def?.assetType ?? 'emoji',
-        animationAsset:   def?.animationAsset,
-        riveStateMachine: def?.riveStateMachine,
-        soundAsset:       def?.soundAsset,
+        assetType:          def?.assetType ?? 'emoji',
+        animationAsset:     def?.animationAsset,
+        animationAssetHevc: def?.animationAssetHevc,
+        riveStateMachine:   def?.riveStateMachine,
+        soundAsset:         def?.soundAsset,
       };
+
+      // Lightweight impression telemetry — only the asset-backed feature/fullscreen
+      // gifts (never the micro spam lane). Fire-and-forget; logEvent throttles
+      // per gift type so a busy room can't flood the endpoint.
+      if (lane !== 'micro') {
+        logEvent({
+          event_type: 'gift_shown',
+          entity_type: 'gift',
+          entity_id: event.giftId,
+          metadata: { lane, assetType: visual.assetType, goldCost: event.goldCost },
+        });
+      }
 
       if (lane === 'micro') {
         // Combo tracking — only for gifts the manifest marks combo-eligible
@@ -290,7 +328,7 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
         {/* ── Micro gift lane ───────────────────────────────────────────── */}
         <div className="fixed inset-0 pointer-events-none" style={{ zIndex: 51 }} aria-hidden>
           {microGifts.map(g => (
-            <MicroGiftParticle key={g.id} gift={g} />
+            <MicroGiftParticle key={g.id} gift={g} reduced={reducedMotion} />
           ))}
         </div>
 
@@ -312,7 +350,7 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
           aria-hidden
         >
           {featureGifts.map(g => (
-            <FeatureGiftCard key={g.id} gift={g} />
+            <FeatureGiftCard key={g.id} gift={g} reduced={reducedMotion} />
           ))}
         </div>
 
@@ -321,6 +359,7 @@ const GiftAnimationManager = forwardRef<GiftAnimationHandle, Record<never, never
           <FullscreenGiftOverlay
             gift={fullscreenGift}
             onDismiss={dismissFullscreen}
+            reduced={reducedMotion}
           />
         )}
       </>
@@ -332,14 +371,17 @@ export default GiftAnimationManager;
 
 // ── MicroGiftParticle ──────────────────────────────────────────────────────────
 
-function MicroGiftParticle({ gift }: { gift: ActiveMicro }) {
+function MicroGiftParticle({ gift, reduced }: { gift: ActiveMicro; reduced?: boolean }) {
   return (
     <div
       className="absolute"
       style={{
         bottom: 120,
         right: `${gift.x}%`,
-        animation: `arcMicroFloat ${MICRO_MS}ms cubic-bezier(0.2, 0.0, 0.6, 1) forwards`,
+        // Reduced motion: fade in place instead of floating up the screen.
+        animation: reduced
+          ? `arcMicroFade ${MICRO_MS}ms ease forwards`
+          : `arcMicroFloat ${MICRO_MS}ms cubic-bezier(0.2, 0.0, 0.6, 1) forwards`,
         pointerEvents: 'none',
       }}
     >
@@ -405,11 +447,13 @@ function ComboDisplay({ combo }: { combo: ComboState }) {
 
 // ── FeatureGiftCard ────────────────────────────────────────────────────────────
 
-function FeatureGiftCard({ gift }: { gift: ActiveFeature }) {
+function FeatureGiftCard({ gift, reduced }: { gift: ActiveFeature; reduced?: boolean }) {
   return (
     <div
       style={{
-        animation: 'arcFeatureSpring 0.52s cubic-bezier(0.34,1.56,0.64,1) forwards',
+        animation: reduced
+          ? 'arcFeatureFade 0.3s ease forwards'
+          : 'arcFeatureSpring 0.52s cubic-bezier(0.34,1.56,0.64,1) forwards',
         transformOrigin: 'bottom center',
       }}
     >
@@ -471,18 +515,22 @@ function FeatureGiftCard({ gift }: { gift: ActiveFeature }) {
 function FullscreenGiftOverlay({
   gift,
   onDismiss,
+  reduced,
 }: {
   gift: ActiveFullscreen;
   onDismiss: () => void;
+  reduced?: boolean;
 }) {
   return (
     <div
       className="fixed inset-0 flex items-center justify-center"
       style={{
         zIndex: 56,
-        animation: gift.exiting
-          ? 'arcFullscreenOut 0.6s ease forwards'
-          : 'arcFullscreenIn 0.45s ease forwards',
+        animation: reduced
+          ? (gift.exiting ? 'arcMicroFade 0.3s ease forwards reverse' : 'arcMicroFade 0.3s ease forwards')
+          : gift.exiting
+            ? 'arcFullscreenOut 0.6s ease forwards'
+            : 'arcFullscreenIn 0.45s ease forwards',
         pointerEvents: gift.exiting ? 'none' : 'auto',
       }}
       onClick={onDismiss}
@@ -493,14 +541,14 @@ function FullscreenGiftOverlay({
         style={{ background: 'rgba(3,2,0,0.90)', backdropFilter: 'blur(6px)' }}
       />
 
-      {/* Gold particle rain */}
-      <GoldParticleRain />
+      {/* Gold particle rain — skipped under reduced-motion */}
+      {!reduced && <GoldParticleRain />}
 
       {/* Center content */}
       <div
         className="relative z-10 text-center px-8 max-w-[380px] mx-auto select-none"
         style={{
-          animation: gift.exiting
+          animation: gift.exiting || reduced
             ? 'none'
             : 'arcBigReveal 0.72s cubic-bezier(0.16,1,0.3,1) 0.08s both',
         }}
@@ -590,11 +638,10 @@ function EmojiVisual({ emoji, size }: { emoji: string; size: number }) {
 }
 
 function WebmVisual({
-  src, emoji, size, onError,
-}: { src: string; emoji: string; size: number; onError: () => void }) {
+  src, hevcSrc, emoji, size, onError,
+}: { src: string; hevcSrc?: string; emoji: string; size: number; onError: () => void }) {
   return (
     <video
-      src={src}
       width={size}
       height={size}
       autoPlay
@@ -604,6 +651,12 @@ function WebmVisual({
       style={{ width: size, height: size, objectFit: 'contain' }}
       aria-hidden
     >
+      {/* Safari can't decode VP9+alpha WebM — offer HEVC/H.265 with alpha first.
+          Safari picks the codecs it supports; Chrome/Firefox fall through to WebM. */}
+      {hevcSrc && (
+        <source src={hevcSrc} type='video/mp4; codecs="hvc1"' />
+      )}
+      <source src={src} type="video/webm" />
       <EmojiVisual emoji={emoji} size={size} />
     </video>
   );
@@ -645,6 +698,7 @@ function GiftVisual({
     return (
       <WebmVisual
         src={visual.animationAsset}
+        hevcSrc={visual.animationAssetHevc}
         emoji={visual.emoji}
         size={size}
         onError={() => setFailed(true)}

@@ -21,6 +21,7 @@ const ALLOWED_EVENTS = new Set([
   'apply_creator',
   'publish_content',
   'page_view',
+  'gift_shown',
   // Legacy names — kept for backwards compat
   'content_view',
   'content_unlock',
